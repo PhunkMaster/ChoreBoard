@@ -347,7 +347,7 @@ class WeeklySnapshotTests(TestCase):
 
         # Verify perfect week
         alice_snapshot = WeeklySnapshot.objects.get(user=self.user1)
-        self.assertTrue(alice_snapshot.is_perfect_week)
+        self.assertTrue(alice_snapshot.perfect_week)
 
     def test_weekly_snapshot_detects_imperfect_week(self):
         """Test that imperfect week is detected when overdue chores exist."""
@@ -374,7 +374,7 @@ class WeeklySnapshotTests(TestCase):
 
         # Verify NOT perfect week
         alice_snapshot = WeeklySnapshot.objects.get(user=self.user1)
-        self.assertFalse(alice_snapshot.is_perfect_week)
+        self.assertFalse(alice_snapshot.perfect_week)
 
     def test_weekly_snapshot_logs_execution(self):
         """Test that weekly snapshot creates log entry."""
