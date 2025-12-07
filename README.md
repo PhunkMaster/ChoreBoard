@@ -2,7 +2,18 @@
 
 **A smart household chore management system that makes chores fair, fun, and rewarding.**
 
-ChoreBoard helps families and roommates manage household chores with a points-based reward system, automated scheduling, and fair task rotation. Turn chores into a game where everyone knows what needs to be done and gets rewarded for their contributions!
+ChoreBoard helps families and roommates manage household chores with a points-based reward system, automated scheduling,
+and fair task rotation. Turn chores into a game where everyone knows what needs to be done and gets rewarded for their
+contributions!
+
+---
+
+## Disclaimer
+
+- ChoreBoard is provided "as is" without warranty of any kind, express or implied. Use at your own risk. Always consult
+  with a professional before making any changes to your household management system.
+- ChoreBoard was created with the help of ClaudeCode (AI). If you have moral opposition to using software created by AI,
+  please do not use this.
 
 ---
 
@@ -18,27 +29,32 @@ ChoreBoard is a web-based chore management system designed to:
 ### Key Features
 
 🎯 **Points & Rewards**
+
 - Earn points for completing chores
 - Convert points to cash weekly (customizable rate)
 - Streak bonuses for perfect weeks
 
 📋 **Smart Scheduling**
+
 - Daily, weekly, every-N-days, or custom (cron/RRULE) schedules
 - Automatic chore creation and assignment
 - Fair rotation for undesirable tasks
 
 🏆 **Gamification**
+
 - Weekly and all-time leaderboards
 - Streak tracking with bonuses
 - Real-time updates
 
 👥 **Household Management**
+
 - Multiple users with different roles
 - Pool chores anyone can claim
 - Fixed chores assigned to specific people
 - Admin panel for easy management
 
 🔔 **Notifications**
+
 - Optional webhook notifications to Home Assistant
 - Track overdue chores and achievements
 - Weekly reset notifications
@@ -82,6 +98,7 @@ ChoreBoard is a web-based chore management system designed to:
    ```
 
 That's it! ChoreBoard will automatically:
+
 - Create the database
 - Run all necessary setup
 - Show you a welcome wizard to create your admin account
@@ -104,21 +121,24 @@ After setup, you're ready to start using ChoreBoard!
 Complete guides for using and managing ChoreBoard:
 
 ### 👤 For Household Members
+
 - **[User Guide](docs/USER_GUIDE.md)** - How to view, claim, and complete chores
-  - Understanding the main board
-  - Claiming chores from the pool
-  - Completing chores and earning points
-  - Viewing your points and streaks
+    - Understanding the main board
+    - Claiming chores from the pool
+    - Completing chores and earning points
+    - Viewing your points and streaks
 
 ### 👨‍💼 For Administrators
+
 - **[Admin Guide](docs/ADMIN_GUIDE.md)** - How to manage ChoreBoard
-  - Creating and managing users
-  - Setting up chores and schedules
-  - Weekly reset and points conversion
-  - System settings and customization
-  - Notifications and webhooks
+    - Creating and managing users
+    - Setting up chores and schedules
+    - Weekly reset and points conversion
+    - System settings and customization
+    - Notifications and webhooks
 
 ### 🐳 Deployment & Advanced
+
 - **[Docker Deployment](docs/DOCKER.md)** - Deploy with Docker for production use
 - **[Database Reset](docs/RESET_DATABASE.md)** - Reset database to start fresh
 - **[All Documentation](docs/)** - Browse all documentation files
@@ -138,10 +158,10 @@ Complete guides for using and managing ChoreBoard:
 
 1. **During the week** - Complete chores, earn points, build streaks
 2. **Sunday midnight** - Weekly reset happens automatically:
-   - Weekly points are converted to cash (e.g., 100 points = $1)
-   - Streaks are updated (perfect week = bonus!)
-   - Points reset for the new week
-   - All-time points continue accumulating
+    - Weekly points are converted to cash (e.g., 100 points = $1)
+    - Streaks are updated (perfect week = bonus!)
+    - Points reset for the new week
+    - All-time points continue accumulating
 
 ### Chore Types
 
@@ -154,23 +174,30 @@ Complete guides for using and managing ChoreBoard:
 ## 🎮 Using ChoreBoard
 
 ### Main Board
+
 View all chores at a glance:
+
 - 🟢 **On Time** - Chores due today or later
 - 🟡 **Getting Late** - Due within 4 hours
 - 🔴 **Overdue** - Past due date
 
 ### Pool Page
+
 Browse unclaimed chores and claim the ones you want to do.
 
 ### User Pages
+
 View your personal stats:
+
 - Weekly and all-time points
 - Current streak
 - Your assigned chores
 - Leaderboard ranking
 
 ### Admin Panel
+
 Manage everything:
+
 - Create and edit chores
 - Manage users
 - Adjust points manually
@@ -193,6 +220,7 @@ Access via Admin Panel → Settings:
 ### Customization
 
 ChoreBoard is highly customizable:
+
 - Custom chore schedules (cron expressions, RRULE patterns)
 - Flexible point values per chore
 - Configurable rotation rules
@@ -222,7 +250,8 @@ To start fresh and clear all data:
 python manage.py reset_database
 ```
 
-This will delete all users, chores, and points while keeping the database structure intact. Perfect for testing or starting over.
+This will delete all users, chores, and points while keeping the database structure intact. Perfect for testing or
+starting over.
 
 **⚠️ Warning:** This is irreversible! See [Database Reset Guide](docs/RESET_DATABASE.md) for details.
 
@@ -255,16 +284,19 @@ ChoreBoard is feature-complete and production-ready!
 ### Common Issues
 
 **Chores not appearing?**
+
 - Check if the chore is active (Admin Panel → Chores)
 - Verify the schedule is correct
 - Run midnight evaluation: `python manage.py run_midnight_evaluation`
 
 **Points not calculating correctly?**
+
 - Check the points value on the chore
 - Verify completion shares (did you add helpers?)
 - Review the points ledger (Admin Panel → Logs)
 
 **Need to start over?**
+
 - Use the database reset: `python manage.py reset_database`
 - See [Database Reset Guide](docs/RESET_DATABASE.md)
 
@@ -273,6 +305,7 @@ ChoreBoard is feature-complete and production-ready!
 ## 🛠️ Technical Details
 
 **Built with:**
+
 - Python 3.11+ & Django 4.2
 - SQLite database (portable, no setup required)
 - Tailwind CSS for beautiful, responsive UI
@@ -280,6 +313,7 @@ ChoreBoard is feature-complete and production-ready!
 - APScheduler for automated jobs
 
 **Requirements:**
+
 - Python 3.11 or higher
 - ~50 MB disk space
 - Works on Windows, Mac, and Linux
