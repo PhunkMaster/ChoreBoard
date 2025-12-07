@@ -11,10 +11,10 @@ from datetime import timedelta, date, time
 from users.models import User
 from chores.models import Chore, ChoreInstance, Completion, CompletionShare
 from core.models import Settings, WeeklySnapshot, EvaluationLog, RotationState
-from core.scheduled_jobs import (
-    run_midnight_evaluation,
-    run_distribution_check,
-    run_weekly_snapshot
+from core.jobs import (
+    midnight_evaluation as run_midnight_evaluation,
+    distribution_check as run_distribution_check,
+    weekly_snapshot_job as run_weekly_snapshot
 )
 
 
