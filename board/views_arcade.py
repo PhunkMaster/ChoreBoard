@@ -228,40 +228,22 @@ def judge_approval(request):
 @require_POST
 def approve_submission(request, session_id):
     """Judge approves an arcade completion. Supports kiosk mode."""
-    print(f"\n\n========== APPROVE SUBMISSION CALLED ==========")
-    print(f"Session ID: {session_id}")
-    print(f"Request user: {request.user}")
-    print(f"POST data: {request.POST}")
-    print("=" * 50)
     try:
-        print("Step 1: Getting arcade session...")
         arcade_session = get_object_or_404(ArcadeSession, id=session_id)
-        print(f"Step 1 SUCCESS: Got session, status={arcade_session.status}, user={arcade_session.user}")
 
         notes = request.POST.get('notes', '')
-        print(f"Step 2: Got notes: {notes}")
 
         # Support kiosk mode - get judge from judge_id parameter or request.user
         judge_id = request.POST.get('judge_id')
-        print(f"Step 3: judge_id from POST: {judge_id}")
         if judge_id:
-            print("Step 4: Getting judge user...")
             from django.contrib.auth import get_user_model
             User = get_user_model()
             judge = get_object_or_404(User, id=judge_id)
-            print(f"Step 4 SUCCESS: Got judge: {judge.username} (ID: {judge.id})")
         elif request.user.is_authenticated:
             judge = request.user
-            print(f"Step 4: Using authenticated user as judge: {judge.username}")
         else:
-            print("Step 4 FAILED: No judge specified and user not authenticated")
             messages.error(request, 'Judge must be specified')
             return redirect('board:arcade_judge_approval')
-
-        print(f"Step 5: About to call ArcadeService.approve_arcade()")
-        print(f"  Session: {arcade_session}")
-        print(f"  Judge: {judge}")
-        print(f"  Notes: {notes}")
 
         # Debug logging
         logger.info(f"=== ARCADE APPROVAL ATTEMPT ===")
@@ -271,20 +253,11 @@ def approve_submission(request, session_id):
         logger.info(f"Judge: {judge.username} (ID: {judge.id})")
         logger.info(f"Judge == User? {judge.id == arcade_session.user.id}")
 
-        print(f"Step 6: Calling ArcadeService.approve_arcade()...")
-        try:
-            success, message, arcade_completion = ArcadeService.approve_arcade(
-                arcade_session,
-                judge=judge,
-                notes=notes
-            )
-            print(f"Step 6 SUCCESS: approve_arcade returned")
-            print(f"  success={success}, message={message}, completion={arcade_completion}")
-        except Exception as e:
-            print(f"Step 6 FAILED: approve_arcade raised exception: {e}")
-            import traceback
-            traceback.print_exc()
-            raise
+        success, message, arcade_completion = ArcadeService.approve_arcade(
+            arcade_session,
+            judge=judge,
+            notes=notes
+        )
 
         logger.info(f"=== APPROVAL RESULT ===")
         logger.info(f"Success: {success}")
