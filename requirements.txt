@@ -16,6 +16,9 @@ whitenoise>=6.6.0
 # API Framework
 djangorestframework>=3.14.0
 
+# HTTP Library
+requests>=2.31.0
+
 # Development/Testing
 pytest>=7.4.3
 pytest-django>=4.7.0
