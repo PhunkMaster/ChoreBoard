@@ -362,7 +362,7 @@ class WeeklySnapshotTests(TestCase):
         now = timezone.now()
         overdue_instance = ChoreInstance.objects.create(
             chore=chore,
-            status=ChoreInstance.POOL,
+            status=ChoreInstance.ASSIGNED,  # Changed from POOL to ASSIGNED since it has assigned_to
             assigned_to=self.user1,
             points_value=chore.points,
             due_at=now - timedelta(hours=6),
