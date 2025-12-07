@@ -6,6 +6,7 @@ from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 
 class Chore(models.Model):
@@ -437,3 +438,161 @@ class PointsLedger(models.Model):
     def __str__(self):
         sign = "+" if self.points_change >= 0 else ""
         return f"{self.user.username}: {sign}{self.points_change} pts ({self.get_transaction_type_display()})"
+
+
+class ArcadeSession(models.Model):
+    """Tracks active and completed arcade mode attempts."""
+
+    STATUS_ACTIVE = 'active'
+    STATUS_STOPPED = 'stopped'
+    STATUS_APPROVED = 'approved'
+    STATUS_DENIED = 'denied'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, 'Active'),
+        (STATUS_STOPPED, 'Stopped - Awaiting Approval'),
+        (STATUS_APPROVED, 'Approved'),
+        (STATUS_DENIED, 'Denied'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='arcade_sessions')
+    chore_instance = models.ForeignKey(ChoreInstance, on_delete=models.CASCADE, related_name='arcade_sessions')
+    chore = models.ForeignKey(Chore, on_delete=models.CASCADE, related_name='arcade_sessions')  # Denormalized for queries
+
+    start_time = models.DateTimeField(auto_now_add=True)
+    end_time = models.DateTimeField(null=True, blank=True)
+    elapsed_seconds = models.IntegerField(default=0)  # Calculated field
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    is_active = models.BooleanField(default=True)  # Quick lookup for active sessions
+
+    # Retry tracking
+    attempt_number = models.IntegerField(default=1)  # 1st attempt, 2nd attempt, etc.
+    cumulative_seconds = models.IntegerField(default=0)  # Total time across all retries
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'arcade_sessions'
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['status']),
+            models.Index(fields=['chore']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.chore.name} ({self.get_status_display()})"
+
+    def get_elapsed_time(self):
+        """Calculate elapsed time based on start/end times."""
+        if self.end_time:
+            delta = self.end_time - self.start_time
+        else:
+            delta = timezone.now() - self.start_time
+        return int(delta.total_seconds()) + self.cumulative_seconds
+
+    def format_time(self):
+        """Format elapsed time as HH:MM:SS or MM:SS."""
+        seconds = self.elapsed_seconds if self.elapsed_seconds else self.get_elapsed_time()
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        secs = seconds % 60
+
+        if hours > 0:
+            return f"{hours}:{minutes:02d}:{secs:02d}"
+        else:
+            return f"{minutes}:{secs:02d}"
+
+
+class ArcadeCompletion(models.Model):
+    """Records approved arcade mode completions."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='arcade_completions')
+    chore = models.ForeignKey(Chore, on_delete=models.CASCADE, related_name='arcade_completions')
+    arcade_session = models.OneToOneField(ArcadeSession, on_delete=models.CASCADE, related_name='completion')
+    chore_instance = models.ForeignKey(ChoreInstance, on_delete=models.CASCADE, related_name='arcade_completion')
+
+    completion_time_seconds = models.IntegerField()
+    judge = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='judged_arcades')
+    approved = models.BooleanField(default=True)  # Always true for this model (denials don't create records)
+    judge_notes = models.TextField(blank=True, default='')
+
+    # Points
+    base_points = models.DecimalField(max_digits=5, decimal_places=2)
+    bonus_points = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    total_points = models.DecimalField(max_digits=5, decimal_places=2)
+
+    # High score status at time of completion
+    is_high_score = models.BooleanField(default=False)
+    rank_at_completion = models.IntegerField(null=True, blank=True)  # 1, 2, 3, or None
+
+    completed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'arcade_completions'
+        indexes = [
+            models.Index(fields=['user', 'chore']),
+            models.Index(fields=['chore', 'completion_time_seconds']),
+            models.Index(fields=['is_high_score']),
+        ]
+        ordering = ['completion_time_seconds']  # Fastest first
+
+    def __str__(self):
+        return f"{self.user.username} - {self.chore.name} - {self.format_time()}"
+
+    def format_time(self):
+        """Format completion time as HH:MM:SS or MM:SS."""
+        seconds = self.completion_time_seconds
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        secs = seconds % 60
+
+        if hours > 0:
+            return f"{hours}:{minutes:02d}:{secs:02d}"
+        else:
+            return f"{minutes}:{secs:02d}"
+
+
+class ArcadeHighScore(models.Model):
+    """Maintains top 3 high scores per chore."""
+
+    RANK_CHOICES = [
+        (1, '1st Place'),
+        (2, '2nd Place'),
+        (3, '3rd Place'),
+    ]
+
+    chore = models.ForeignKey(Chore, on_delete=models.CASCADE, related_name='high_scores')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='high_scores')
+    arcade_completion = models.ForeignKey(ArcadeCompletion, on_delete=models.CASCADE, related_name='high_score_entry')
+
+    time_seconds = models.IntegerField()
+    rank = models.IntegerField(choices=RANK_CHOICES)
+    achieved_at = models.DateTimeField()
+
+    class Meta:
+        db_table = 'arcade_high_scores'
+        unique_together = ['chore', 'rank']  # Only one record per rank per chore
+        indexes = [
+            models.Index(fields=['chore', 'rank']),
+            models.Index(fields=['user']),
+        ]
+        ordering = ['chore', 'rank']
+
+    def __str__(self):
+        rank_emoji = {1: '🥇', 2: '🥈', 3: '🥉'}
+        return f"{rank_emoji[self.rank]} {self.chore.name} - {self.user.username} - {self.format_time()}"
+
+    def format_time(self):
+        """Format time as HH:MM:SS or MM:SS."""
+        seconds = self.time_seconds
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        secs = seconds % 60
+
+        if hours > 0:
+            return f"{hours}:{minutes:02d}:{secs:02d}"
+        else:
+            return f"{minutes}:{secs:02d}"

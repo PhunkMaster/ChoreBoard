@@ -161,6 +161,31 @@ class NotificationService:
         return NotificationService.send_webhook("chore_assigned", data)
 
     @staticmethod
+    def send_arcade_new_record(user, chore_name: str, time_seconds: int, points: float):
+        """Notify when a user beats the #1 high score in arcade mode."""
+        # Format time as HH:MM:SS or MM:SS
+        hours = time_seconds // 3600
+        minutes = (time_seconds % 3600) // 60
+        secs = time_seconds % 60
+
+        if hours > 0:
+            time_formatted = f"{hours}:{minutes:02d}:{secs:02d}"
+        else:
+            time_formatted = f"{minutes}:{secs:02d}"
+
+        data = {
+            "user": user.get_display_name(),
+            "username": user.username,
+            "chore_name": chore_name,
+            "time_seconds": time_seconds,
+            "time_formatted": time_formatted,
+            "total_points": float(points),
+            "achievement": "new_record",
+        }
+
+        return NotificationService.send_webhook("arcade_new_record", data)
+
+    @staticmethod
     def send_test_notification() -> Dict[str, Any]:
         """
         Send a test notification to verify webhook configuration.

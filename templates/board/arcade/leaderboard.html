@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Arcade Leaderboard{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+            <h1 class="text-4xl font-bold text-white">🎮 Arcade Leaderboard</h1>
+            <p class="text-gray-400 mt-1">Top speedrunners for each chore</p>
+        </div>
+        <a href="/" class="text-primary-400 hover:text-primary-300 font-semibold">
+            ← Back to Board
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-dark-surface rounded-lg p-4 border border-dark-border">
+        <form method="get" class="flex flex-col md:flex-row gap-3">
+            <div class="flex-1">
+                <label class="block text-gray-400 text-sm mb-1">Filter by Chore</label>
+                <select name="chore"
+                        class="w-full bg-dark-card text-white border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        onchange="this.form.submit()">
+                    <option value="">All Chores</option>
+                    {% for chore in all_chores %}
+                    <option value="{{ chore.id }}" {% if filter_chore == chore.id|stringformat:"s" %}selected{% endif %}>
+                        {{ chore.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex-1">
+                <label class="block text-gray-400 text-sm mb-1">Filter by User</label>
+                <select name="user"
+                        class="w-full bg-dark-card text-white border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        onchange="this.form.submit()">
+                    <option value="">All Users</option>
+                    {% for user in all_users %}
+                    <option value="{{ user.id }}" {% if filter_user == user.id|stringformat:"s" %}selected{% endif %}>
+                        {{ user.get_display_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex items-end">
+                <button type="submit"
+                        class="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2 px-6 rounded-lg transition">
+                    Apply Filters
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Leaderboards -->
+    {% if leaderboard_data %}
+    <div class="space-y-6">
+        {% for item in leaderboard_data %}
+        <div class="bg-dark-surface rounded-lg border border-dark-border overflow-hidden">
+            <!-- Chore Header -->
+            <div class="bg-gradient-to-r from-purple-900/50 to-pink-900/50 px-6 py-4 border-b border-dark-border">
+                <h2 class="text-2xl font-bold text-white">{{ item.chore.name }}</h2>
+                <p class="text-gray-400 text-sm">{{ item.chore.points }} points base value</p>
+            </div>
+
+            <!-- Top 3 -->
+            <div class="p-6">
+                <div class="space-y-3">
+                    {% for score in item.top_scores %}
+                    <div class="flex items-center justify-between p-4 bg-dark-card rounded-lg border-2
+                                {% if score.rank == 1 %}border-yellow-500/50 bg-yellow-900/10
+                                {% elif score.rank == 2 %}border-gray-400/50 bg-gray-800/10
+                                {% elif score.rank == 3 %}border-orange-700/50 bg-orange-900/10
+                                {% else %}border-dark-border{% endif %}">
+
+                        <!-- Left: Rank & User -->
+                        <div class="flex items-center space-x-4">
+                            <div class="text-4xl">
+                                {% if score.rank == 1 %}🥇
+                                {% elif score.rank == 2 %}🥈
+                                {% elif score.rank == 3 %}🥉
+                                {% endif %}
+                            </div>
+                            <div>
+                                <a href="{% url 'board:user_profile' score.user.username %}"
+                                   class="text-xl font-bold text-white hover:text-primary-400 transition">
+                                    {{ score.user.get_display_name }}
+                                </a>
+                                <p class="text-gray-400 text-sm">
+                                    Achieved {{ score.achieved_at|timesince }} ago
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Right: Time & Points -->
+                        <div class="text-right">
+                            <div class="text-3xl font-bold
+                                        {% if score.rank == 1 %}text-yellow-400
+                                        {% elif score.rank == 2 %}text-gray-300
+                                        {% elif score.rank == 3 %}text-orange-400
+                                        {% else %}text-purple-400{% endif %}">
+                                {{ score.format_time }}
+                            </div>
+                            <p class="text-gray-500 text-sm mt-1">
+                                {% if score.rank == 1 %}+50% bonus
+                                {% elif score.rank == 2 or score.rank == 3 %}+25% bonus
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    {% if item.top_scores|length < 3 %}
+                    <div class="p-4 bg-dark-card rounded-lg border border-dashed border-dark-border text-center">
+                        <p class="text-gray-500">
+                            {% if item.top_scores|length == 0 %}
+                            🏆 No times recorded yet - be the first!
+                            {% elif item.top_scores|length == 1 %}
+                            🥈 🥉 Two more slots available
+                            {% elif item.top_scores|length == 2 %}
+                            🥉 One more slot available
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-dark-surface rounded-lg p-12 border border-dark-border text-center">
+        <div class="text-6xl mb-4">🏁</div>
+        <h2 class="text-2xl font-bold text-white mb-2">No High Scores Yet</h2>
+        <p class="text-gray-400 mb-6">
+            {% if filter_chore or filter_user %}
+            No records match your current filters. Try adjusting or clearing them.
+            {% else %}
+            Be the first to complete a chore in arcade mode and set a record!
+            {% endif %}
+        </p>
+        {% if filter_chore or filter_user %}
+        <a href="{% url 'board:arcade_leaderboard' %}"
+           class="inline-block bg-primary-600 hover:bg-primary-700 text-white font-bold py-2 px-6 rounded-lg transition">
+            Clear Filters
+        </a>
+        {% else %}
+        <a href="/"
+           class="inline-block bg-primary-600 hover:bg-primary-700 text-white font-bold py-2 px-6 rounded-lg transition">
+            Go to Board
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Info Box -->
+    <div class="bg-blue-900/20 border border-blue-500/30 rounded-lg p-6">
+        <h3 class="text-lg font-bold text-blue-300 mb-2">🏆 About Arcade Mode</h3>
+        <div class="text-blue-300 text-sm space-y-2">
+            <p>
+                <strong>Arcade Mode</strong> lets you race against the clock to complete chores as fast as possible.
+            </p>
+            <p>
+                • <strong>Top 3 High Scores:</strong> The fastest times for each chore are displayed here<br>
+                • <strong>Bonus Points:</strong> New records earn +50%, top 3 placements earn +25%<br>
+                • <strong>Judge Approval:</strong> All completions must be verified by another user
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

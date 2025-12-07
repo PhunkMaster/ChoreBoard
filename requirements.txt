@@ -1,0 +1,23 @@
+# Core Django
+Django>=4.2,<5.0
+python-dotenv>=1.0.0
+
+# Background Jobs
+APScheduler>=3.10.4
+django-apscheduler>=0.6.2
+
+# Date/Time handling
+python-dateutil>=2.8.2
+pytz>=2023.3
+
+# Static Files
+whitenoise>=6.6.0
+
+# API Framework
+djangorestframework>=3.14.0
+
+# Development/Testing
+pytest>=7.4.3
+pytest-django>=4.7.0
+coverage>=7.3.2
+factory-boy>=3.3.0
