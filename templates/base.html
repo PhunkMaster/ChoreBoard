@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ChoreBoard{% endblock %}</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        // ChoreBoard color palette
+                        primary: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        },
+                        dark: {
+                            bg: '#0f172a',      // slate-900
+                            surface: '#1e293b',  // slate-800
+                            card: '#334155',     // slate-700
+                            border: '#475569',   // slate-600
+                        },
+                        status: {
+                            pool: '#10b981',      // green-500 (available)
+                            assigned: '#f59e0b',  // amber-500 (claimed)
+                            overdue: '#ef4444',   // red-500 (late)
+                            purple: '#a855f7',    // purple-500 (blocked)
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+    <!-- Custom styles -->
+    <style>
+        /* Smooth transitions */
+        * {
+            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+
+        /* Focus visible styles for accessibility */
+        *:focus-visible {
+            outline: 2px solid #38bdf8;
+            outline-offset: 2px;
+        }
+
+        /* HTMX loading indicator */
+        .htmx-request .htmx-indicator {
+            display: inline-block;
+        }
+        .htmx-indicator {
+            display: none;
+        }
+
+        /* Toast notification styles */
+        .toast {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Card hover effects */
+        .chore-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .chore-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Status badges */
+        .badge {
+            @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+        }
+        .badge-pool { @apply bg-green-500/20 text-green-400 border border-green-500/30; }
+        .badge-assigned { @apply bg-amber-500/20 text-amber-400 border border-amber-500/30; }
+        .badge-overdue { @apply bg-red-500/20 text-red-400 border border-red-500/30; }
+        .badge-purple { @apply bg-purple-500/20 text-purple-400 border border-purple-500/30; }
+    </style>
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-dark-bg text-gray-100 min-h-screen">
+    <!-- Skip to main content link for accessibility -->
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-primary-600 focus:text-white">
+        Skip to main content
+    </a>
+
+    <!-- Navigation -->
+    <nav class="bg-dark-surface border-b border-dark-border" role="navigation" aria-label="Main navigation">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-primary-400">
+                        ChoreBoard
+                    </h1>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <!-- Navigation Links -->
+                    <a href="{% url 'board:main' %}"
+                       class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:bg-dark-card hover:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                       aria-label="View main board">
+                        Board
+                    </a>
+                    <a href="{% url 'board:pool' %}"
+                       class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:bg-dark-card hover:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                       aria-label="View pool chores">
+                        Pool
+                    </a>
+                    <a href="{% url 'board:leaderboard' %}"
+                       class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:bg-dark-card hover:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                       aria-label="View leaderboard">
+                        Leaderboard
+                    </a>
+
+                    {% if user.is_authenticated and user.is_staff %}
+                    <a href="{% url 'board:admin_dashboard' %}"
+                       class="px-3 py-2 rounded-md text-sm font-medium text-primary-400 hover:bg-dark-card hover:text-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                       aria-label="Admin panel">
+                        Admin Panel
+                    </a>
+                    <a href="{% url 'board:weekly_reset' %}"
+                       class="px-3 py-2 rounded-md text-sm font-medium text-amber-400 hover:bg-dark-card hover:text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                       aria-label="Weekly reset">
+                        Weekly Reset
+                    </a>
+                    {% endif %}
+
+                    <!-- Auth Links -->
+                    {% if user.is_authenticated %}
+                    <span class="px-3 py-2 text-sm text-gray-400">
+                        {{ user.get_display_name }}
+                    </span>
+                    <a href="{% url 'board:logout' %}"
+                       class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:bg-dark-card hover:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                       aria-label="Logout">
+                        Logout
+                    </a>
+                    {% else %}
+                    <a href="{% url 'board:login' %}"
+                       class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:bg-dark-card hover:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                       aria-label="Login">
+                        Login
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main id="main-content" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container"
+         class="fixed bottom-4 right-4 z-50 space-y-2"
+         role="status"
+         aria-live="polite"
+         aria-atomic="true">
+    </div>
+
+    <!-- JavaScript for toast notifications -->
+    <script>
+        // Toast notification function
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                warning: 'bg-amber-500',
+                info: 'bg-blue-500'
+            };
+
+            toast.className = `toast ${colors[type] || colors.info} text-white px-6 py-4 rounded-lg shadow-lg flex items-center space-x-3 min-w-[300px]`;
+            toast.innerHTML = `
+                <span class="flex-1">${message}</span>
+                <button onclick="this.parentElement.remove()"
+                        class="text-white/80 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/50 rounded"
+                        aria-label="Close notification">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            `;
+
+            container.appendChild(toast);
+
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+
+        // Listen for HTMX events
+        document.body.addEventListener('htmx:afterRequest', function(evt) {
+            const xhr = evt.detail.xhr;
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.message) {
+                        showToast(response.message, 'success');
+                    }
+                } catch (e) {
+                    // Not JSON response, that's okay
+                }
+            } else if (xhr.status >= 400) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    const errorMsg = response.error || response.detail || 'An error occurred';
+                    showToast(errorMsg, 'error');
+                } catch (e) {
+                    showToast('An error occurred', 'error');
+                }
+            }
+        });
+
+        // Make showToast globally available
+        window.showToast = showToast;
+    </script>
+
+    <!-- Real-time Updates Script -->
+    <script>
+        (function() {
+            // Real-time update configuration
+            const POLL_INTERVAL = 5000; // Poll every 5 seconds
+            const UPDATE_ENDPOINT = '{% url "board:get_updates" %}';
+
+            let lastUpdateTime = new Date().toISOString();
+            let pollTimer = null;
+            let isPolling = false;
+
+            // Start polling for updates
+            function startPolling() {
+                if (isPolling) return;
+                isPolling = true;
+                pollForUpdates();
+            }
+
+            // Stop polling
+            function stopPolling() {
+                isPolling = false;
+                if (pollTimer) {
+                    clearTimeout(pollTimer);
+                    pollTimer = null;
+                }
+            }
+
+            // Poll for updates
+            async function pollForUpdates() {
+                if (!isPolling) return;
+
+                try {
+                    const url = `${UPDATE_ENDPOINT}?since=${encodeURIComponent(lastUpdateTime)}`;
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+
+                        // Update last update time
+                        if (data.timestamp) {
+                            lastUpdateTime = data.timestamp;
+                        }
+
+                        // Process changes
+                        if (data.changes && data.changes.length > 0) {
+                            processUpdates(data.changes);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error polling for updates:', error);
+                }
+
+                // Schedule next poll
+                if (isPolling) {
+                    pollTimer = setTimeout(pollForUpdates, POLL_INTERVAL);
+                }
+            }
+
+            // Process incoming updates
+            function processUpdates(changes) {
+                let hasChanges = false;
+
+                changes.forEach(change => {
+                    if (change.type === 'chore_instance') {
+                        updateChoreInstance(change);
+                        hasChanges = true;
+                    } else if (change.type === 'user_points') {
+                        updateUserPoints(change);
+                        hasChanges = true;
+                    }
+                });
+
+                // Show subtle notification if there were updates
+                if (hasChanges) {
+                    showUpdateNotification();
+                }
+            }
+
+            // Update chore instance in DOM
+            function updateChoreInstance(change) {
+                const instanceId = change.id;
+                const data = change.data;
+
+                // Find chore card by instance ID
+                const card = document.querySelector(`[data-instance-id="${instanceId}"]`);
+                if (!card) return;
+
+                // Update status badge
+                const statusBadge = card.querySelector('.status-badge');
+                if (statusBadge) {
+                    statusBadge.textContent = capitalizeFirst(data.status);
+                    statusBadge.className = `status-badge badge badge-${data.status}`;
+                }
+
+                // Update assigned user
+                const assignedTo = card.querySelector('.assigned-to');
+                if (assignedTo) {
+                    assignedTo.textContent = data.assigned_to || 'Pool';
+                }
+
+                // Add flash animation
+                card.classList.add('flash-update');
+                setTimeout(() => card.classList.remove('flash-update'), 1000);
+
+                // If status changed to completed, optionally remove from view
+                if (data.status === 'completed') {
+                    // Fade out and remove after animation
+                    card.style.opacity = '0';
+                    card.style.transition = 'opacity 0.5s ease';
+                    setTimeout(() => {
+                        card.remove();
+                    }, 500);
+                }
+            }
+
+            // Update user points in DOM
+            function updateUserPoints(change) {
+                const userId = change.id;
+                const data = change.data;
+
+                // Update all points displays for this user
+                document.querySelectorAll(`[data-user-id="${userId}"]`).forEach(element => {
+                    if (element.classList.contains('weekly-points')) {
+                        element.textContent = data.weekly_points;
+                    }
+                    if (element.classList.contains('all-time-points')) {
+                        element.textContent = data.all_time_points;
+                    }
+
+                    // Add flash animation
+                    element.classList.add('flash-update');
+                    setTimeout(() => element.classList.remove('flash-update'), 1000);
+                });
+            }
+
+            // Show subtle update notification
+            function showUpdateNotification() {
+                // Create a subtle notification dot
+                const notification = document.createElement('div');
+                notification.id = 'update-notification';
+                notification.className = 'fixed top-20 right-4 bg-primary-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm flex items-center space-x-2 z-40';
+                notification.innerHTML = `
+                    <svg class="w-4 h-4 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    <span>Updates received</span>
+                `;
+
+                // Remove existing notification if present
+                const existing = document.getElementById('update-notification');
+                if (existing) existing.remove();
+
+                document.body.appendChild(notification);
+
+                // Auto-remove after 3 seconds
+                setTimeout(() => {
+                    notification.style.opacity = '0';
+                    notification.style.transition = 'opacity 0.3s ease';
+                    setTimeout(() => notification.remove(), 300);
+                }, 3000);
+            }
+
+            // Utility function to capitalize first letter
+            function capitalizeFirst(str) {
+                return str.charAt(0).toUpperCase() + str.slice(1);
+            }
+
+            // Start polling when page loads
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', startPolling);
+            } else {
+                startPolling();
+            }
+
+            // Stop polling when page is hidden (tab switching, etc.)
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    stopPolling();
+                } else {
+                    startPolling();
+                }
+            });
+
+            // Expose globally for debugging
+            window.realTimeUpdates = {
+                start: startPolling,
+                stop: stopPolling,
+                isPolling: () => isPolling,
+                lastUpdate: () => lastUpdateTime
+            };
+        })();
+    </script>
+
+    <!-- Add flash animation style -->
+    <style>
+        @keyframes flash {
+            0%, 100% { background-color: transparent; }
+            50% { background-color: rgba(14, 165, 233, 0.2); }
+        }
+        .flash-update {
+            animation: flash 1s ease;
+        }
+    </style>
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

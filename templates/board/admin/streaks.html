@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}Streak Management - Admin - ChoreBoard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Streak Management</h1>
+            <p class="text-gray-400 mt-1">Manually increment or reset user perfect week streaks</p>
+        </div>
+    </div>
+
+    {% include "board/admin/_nav.html" with active_page='streaks' %}
+
+    <!-- Info Box -->
+    <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+        <div class="flex items-start">
+            <svg class="w-6 h-6 text-amber-400 mr-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+                <p class="text-amber-400 font-semibold">About Streaks</p>
+                <p class="text-amber-300 text-sm mt-1">
+                    Streaks track consecutive perfect weeks (all chores completed on time). Use increment sparingly to correct errors only.
+                    Resetting a streak is permanent and cannot be undone.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Streaks List -->
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-xl font-semibold text-white">User Streaks</h2>
+            <p class="text-gray-400 text-sm mt-1">Current and longest streaks for all users</p>
+        </div>
+
+        {% if streaks %}
+        <div class="divide-y divide-dark-border">
+            {% for item in streaks %}
+            <div class="p-6">
+                <div class="flex justify-between items-center">
+                    <div class="flex-1">
+                        <h3 class="text-white font-semibold text-lg">{{ item.user.get_display_name }}</h3>
+                        <div class="flex items-center space-x-4 mt-2 text-sm">
+                            <div>
+                                <span class="text-gray-500">Current:</span>
+                                <span id="current-{{ item.user.id }}" class="text-primary-400 font-bold text-lg ml-1">
+                                    {{ item.streak.current_streak }}
+                                </span>
+                                <span class="text-gray-500 ml-1">week{{ item.streak.current_streak|pluralize }}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Longest:</span>
+                                <span id="longest-{{ item.user.id }}" class="text-green-400 font-bold text-lg ml-1">
+                                    {{ item.streak.longest_streak }}
+                                </span>
+                                <span class="text-gray-500 ml-1">week{{ item.streak.longest_streak|pluralize }}</span>
+                            </div>
+                            {% if item.streak.last_perfect_week %}
+                            <div>
+                                <span class="text-gray-500">Last Perfect:</span>
+                                <span class="text-gray-300 ml-1">{{ item.streak.last_perfect_week|date:"M j, Y" }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="ml-6 flex items-center space-x-2">
+                        <button onclick="incrementStreak({{ item.user.id }}, '{{ item.user.get_display_name|escapejs }}')"
+                                class="bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-lg transition">
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                </svg>
+                                Increment
+                            </div>
+                        </button>
+                        <button onclick="confirmResetStreak({{ item.user.id }}, '{{ item.user.get_display_name|escapejs }}', {{ item.streak.current_streak }})"
+                                class="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg transition">
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                                Reset
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <h3 class="text-xl font-semibold text-gray-300 mb-2">No Users</h3>
+            <p class="text-gray-500">No active users found.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Reset Confirmation Dialog -->
+<div id="reset-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeResetDialog(event)">
+    <div class="bg-dark-surface rounded-lg p-8 max-w-md w-full mx-4 border border-dark-border" onclick="event.stopPropagation()">
+        <h2 class="text-2xl font-bold text-white mb-4">Confirm Streak Reset</h2>
+        <p class="text-gray-300 mb-6">
+            Are you sure you want to reset <strong id="reset-user-name" class="text-white"></strong>'s streak from
+            <strong id="reset-old-streak" class="text-primary-400"></strong> to 0?
+        </p>
+        <div class="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-6">
+            <p class="text-red-400 font-semibold">This action cannot be undone!</p>
+        </div>
+        <div class="flex space-x-4">
+            <button onclick="executeReset()"
+                    class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg transition">
+                Reset Streak
+            </button>
+            <button onclick="closeResetDialog()"
+                    class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let currentResetUserId = null;
+
+    async function incrementStreak(userId, userName) {
+        try {
+            const response = await fetch(`/board/admin-panel/streak/${userId}/increment/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message, 'success');
+                document.getElementById(`current-${userId}`).textContent = data.current_streak;
+                document.getElementById(`longest-${userId}`).textContent = data.longest_streak;
+            } else {
+                showToast(data.error || 'Failed to increment streak', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    function confirmResetStreak(userId, userName, currentStreak) {
+        currentResetUserId = userId;
+        document.getElementById('reset-user-name').textContent = userName;
+        document.getElementById('reset-old-streak').textContent = currentStreak;
+        document.getElementById('reset-dialog').classList.remove('hidden');
+    }
+
+    function closeResetDialog(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('reset-dialog').classList.add('hidden');
+        currentResetUserId = null;
+    }
+
+    async function executeReset() {
+        if (!currentResetUserId) return;
+
+        try {
+            const response = await fetch(`/board/admin-panel/streak/${currentResetUserId}/reset/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message, 'success');
+                document.getElementById(`current-${currentResetUserId}`).textContent = '0';
+                closeResetDialog();
+            } else {
+                showToast(data.error || 'Failed to reset streak', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    // Close dialog with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeResetDialog();
+        }
+    });
+</script>
+{% endblock %}

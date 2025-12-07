@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Force Assign Chores - Admin - ChoreBoard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Force Assign Chores</h1>
+            <p class="text-gray-400 mt-1">Manually assign pool chores to specific users</p>
+        </div>
+    </div>
+
+    {% include "board/admin/_nav.html" with active_page='force_assign' %}
+
+    <!-- Pool Chores List -->
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-xl font-semibold text-white">Pool Chores</h2>
+            <p class="text-gray-400 text-sm mt-1">Unassigned chores that can be manually assigned</p>
+        </div>
+
+        {% if pool_chores %}
+        <div class="divide-y divide-dark-border">
+            {% for instance in pool_chores %}
+            <div class="p-6">
+                <div class="flex justify-between items-center">
+                    <div class="flex-1">
+                        <h3 class="text-white font-semibold text-lg">{{ instance.chore.name }}</h3>
+                        <p class="text-gray-400 text-sm mt-1">
+                            Due: {{ instance.due_at|date:"M j, Y g:i A" }} • Points: {{ instance.points_value|floatformat:2 }}
+                        </p>
+                    </div>
+
+                    <div class="ml-6 flex items-center space-x-2">
+                        <select id="user-select-{{ instance.id }}"
+                                class="px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500">
+                            <option value="">Select user...</option>
+                            {% for user in users %}
+                            <option value="{{ user.id }}">{{ user.get_display_name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button onclick="assignChore({{ instance.id }})"
+                                class="bg-primary-500 hover:bg-primary-600 text-white font-semibold px-4 py-2 rounded-lg transition">
+                            Assign
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 class="text-xl font-semibold text-gray-300 mb-2">No Pool Chores</h3>
+            <p class="text-gray-500">All chores are currently assigned or completed.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    async function assignChore(instanceId) {
+        const selectEl = document.getElementById(`user-select-${instanceId}`);
+        const userId = selectEl.value;
+
+        if (!userId) {
+            showToast('Please select a user', 'error');
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('user_id', userId);
+
+            const response = await fetch(`/board/admin-panel/force-assign/${instanceId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message, 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(data.error || 'Failed to assign chore', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+</script>
+{% endblock %}

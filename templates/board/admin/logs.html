@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Action Logs - Admin - ChoreBoard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Action Logs</h1>
+            <p class="text-gray-400 mt-1">View system activity and user actions</p>
+        </div>
+    </div>
+
+    {% include "board/admin/_nav.html" with active_page='logs' %}
+
+    <!-- Filters -->
+    <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
+        <h2 class="text-lg font-semibold text-white mb-4">Filters</h2>
+
+        <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+                <label for="type" class="block text-gray-300 text-sm mb-2">Action Type</label>
+                <select id="type" name="type"
+                        class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500">
+                    <option value="">All Types</option>
+                    {% for value, label in action_types %}
+                    <option value="{{ value }}" {% if selected_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label for="user" class="block text-gray-300 text-sm mb-2">User</label>
+                <select id="user" name="user"
+                        class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500">
+                    <option value="">All Users</option>
+                    {% for u in users %}
+                    <option value="{{ u.id }}" {% if selected_user == u.id|stringformat:"s" %}selected{% endif %}>
+                        {{ u.get_display_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label for="days" class="block text-gray-300 text-sm mb-2">Time Range</label>
+                <select id="days" name="days"
+                        class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500">
+                    <option value="1" {% if selected_days == 1 %}selected{% endif %}>Last 24 hours</option>
+                    <option value="7" {% if selected_days == 7 %}selected{% endif %}>Last 7 days</option>
+                    <option value="30" {% if selected_days == 30 %}selected{% endif %}>Last 30 days</option>
+                    <option value="90" {% if selected_days == 90 %}selected{% endif %}>Last 90 days</option>
+                </select>
+            </div>
+
+            <div class="flex items-end">
+                <button type="submit"
+                        class="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    Apply Filters
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Logs List -->
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-xl font-semibold text-white">Recent Actions (Last {{ selected_days }} days)</h2>
+            <p class="text-gray-400 text-sm mt-1">Showing up to 100 most recent actions</p>
+        </div>
+
+        {% if logs %}
+        <div class="divide-y divide-dark-border">
+            {% for log in logs %}
+            <div class="p-6 hover:bg-dark-card/50 transition">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-3 mb-2">
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium
+                                {% if log.action_type == 'claim' %}bg-blue-500/20 text-blue-400 border border-blue-500/30
+                                {% elif log.action_type == 'complete' %}bg-green-500/20 text-green-400 border border-green-500/30
+                                {% elif log.action_type == 'undo' %}bg-red-500/20 text-red-400 border border-red-500/30
+                                {% elif log.action_type == 'force_assign' %}bg-amber-500/20 text-amber-400 border border-amber-500/30
+                                {% elif log.action_type == 'weekly_reset' %}bg-purple-500/20 text-purple-400 border border-purple-500/30
+                                {% else %}bg-gray-500/20 text-gray-400 border border-gray-500/30{% endif %}">
+                                {{ log.get_action_type_display }}
+                            </span>
+                            {% if log.user %}
+                            <span class="text-gray-400 text-sm">by {{ log.user.get_display_name }}</span>
+                            {% endif %}
+                        </div>
+
+                        <p class="text-white mb-1">{{ log.description }}</p>
+
+                        <p class="text-gray-500 text-sm">
+                            {{ log.created_at|date:"M j, Y g:i A" }}
+                        </p>
+
+                        {% if log.metadata %}
+                        <details class="mt-2">
+                            <summary class="text-gray-400 text-xs cursor-pointer hover:text-gray-300">
+                                Show metadata
+                            </summary>
+                            <pre class="mt-2 text-xs text-gray-400 bg-dark-bg rounded p-2 overflow-x-auto">{{ log.metadata|safe }}</pre>
+                        </details>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <h3 class="text-xl font-semibold text-gray-300 mb-2">No Logs Found</h3>
+            <p class="text-gray-500">No action logs match the selected filters.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

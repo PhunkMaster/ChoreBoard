@@ -1,0 +1,22 @@
+"""
+URL routing for ChoreBoard API.
+"""
+from django.urls import path
+from api import views
+
+app_name = 'api'
+
+urlpatterns = [
+    # Chore operations
+    path('claim/', views.claim_chore, name='claim_chore'),
+    path('complete/', views.complete_chore, name='complete_chore'),
+    path('undo/', views.undo_completion, name='undo_completion'),
+
+    # Chore queries
+    path('late-chores/', views.late_chores, name='late_chores'),
+    path('outstanding/', views.outstanding_chores, name='outstanding_chores'),
+    path('my-chores/', views.my_chores, name='my_chores'),
+
+    # Leaderboard
+    path('leaderboard/', views.leaderboard, name='leaderboard'),
+]

@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}Database Backups - Admin - ChoreBoard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Database Backups</h1>
+            <p class="text-gray-400 mt-1">View and manage database backups (7-day retention)</p>
+        </div>
+        <button onclick="showCreateBackupDialog()"
+                class="bg-primary-500 hover:bg-primary-600 text-white font-semibold px-6 py-3 rounded-lg transition focus:outline-none focus:ring-2 focus:ring-primary-500">
+            <div class="flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Create Manual Backup
+            </div>
+        </button>
+    </div>
+
+    {% include "board/admin/_nav.html" with active_page='backups' %}
+
+    <!-- Info Box -->
+    <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+        <div class="flex items-start">
+            <svg class="w-6 h-6 text-blue-400 mr-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+                <p class="text-blue-400 font-semibold">About Backups</p>
+                <p class="text-blue-300 text-sm mt-1">
+                    Automatic backups are created daily. Manual backups can be created at any time.
+                    Backups older than 7 days are automatically deleted.
+                    Total: {{ total_backups }} backup{{ total_backups|pluralize }}, {{ total_size_bytes|filesizeformat }}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backups List -->
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-xl font-semibold text-white">Recent Backups</h2>
+            <p class="text-gray-400 text-sm mt-1">Last 7 days of database backups</p>
+        </div>
+
+        {% if backups %}
+        <div class="divide-y divide-dark-border">
+            {% for backup in backups %}
+            <div class="p-6 hover:bg-dark-card/50 transition">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-3 mb-2">
+                            <h3 class="text-white font-semibold text-lg">
+                                {{ backup.filename }}
+                            </h3>
+                            {% if backup.is_manual %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                                Manual
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                                Automatic
+                            </span>
+                            {% endif %}
+                        </div>
+
+                        <div class="space-y-1 text-sm">
+                            <p class="text-gray-300">
+                                <span class="text-gray-500">Created:</span>
+                                {{ backup.created_at|date:"M j, Y g:i A" }}
+                            </p>
+                            <p class="text-gray-300">
+                                <span class="text-gray-500">Size:</span>
+                                <span class="text-primary-400 font-semibold">
+                                    {{ backup.get_size_display }}
+                                </span>
+                            </p>
+                            <p class="text-gray-300">
+                                <span class="text-gray-500">Path:</span>
+                                <code class="text-xs bg-dark-card px-2 py-1 rounded">{{ backup.file_path }}</code>
+                            </p>
+                            {% if backup.notes %}
+                            <p class="text-gray-300">
+                                <span class="text-gray-500">Notes:</span>
+                                {{ backup.notes }}
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="ml-6 flex items-center space-x-2">
+                        <span class="inline-flex items-center px-3 py-1 rounded text-xs bg-green-500/20 text-green-400 border border-green-500/30">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Available
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+            </svg>
+            <h3 class="text-xl font-semibold text-gray-300 mb-2">No Backups Found</h3>
+            <p class="text-gray-500">No database backups are currently available.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Backup Dialog -->
+<div id="create-backup-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeCreateBackupDialog(event)">
+    <div class="bg-dark-surface rounded-lg p-8 max-w-md w-full mx-4 border border-dark-border" onclick="event.stopPropagation()">
+        <h2 class="text-2xl font-bold text-white mb-4">Create Manual Backup</h2>
+        <p class="text-gray-300 mb-6">
+            This will create a backup of the current database. The backup will be stored in the backups directory.
+        </p>
+
+        <div class="mb-6">
+            <label for="backup-notes" class="block text-sm font-medium text-gray-300 mb-2">
+                Notes (Optional)
+            </label>
+            <textarea id="backup-notes" rows="3"
+                      class="w-full px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="Add notes about this backup..."></textarea>
+        </div>
+
+        <div class="flex space-x-4">
+            <button onclick="executeBackup()"
+                    class="flex-1 bg-primary-500 hover:bg-primary-600 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                Create Backup
+            </button>
+            <button onclick="closeCreateBackupDialog()"
+                    class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function showCreateBackupDialog() {
+        document.getElementById('create-backup-dialog').classList.remove('hidden');
+        document.getElementById('backup-notes').value = '';
+    }
+
+    function closeCreateBackupDialog(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('create-backup-dialog').classList.add('hidden');
+    }
+
+    async function executeBackup() {
+        const notes = document.getElementById('backup-notes').value;
+
+        try {
+            const formData = new FormData();
+            formData.append('notes', notes || 'Manual backup from admin panel');
+
+            const response = await fetch('{% url "board:admin_backup_create" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message, 'success');
+                closeCreateBackupDialog();
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(data.error || 'Failed to create backup', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    // Close dialog with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeCreateBackupDialog();
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Undo Completions - Admin - ChoreBoard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Undo Completions</h1>
+            <p class="text-gray-400 mt-1">Reverse recent chore completions (within {{ undo_time_limit }} hours)</p>
+        </div>
+    </div>
+
+    {% include "board/admin/_nav.html" with active_page='undo_completions' %}
+
+    <!-- Info Box -->
+    <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+        <div class="flex items-start">
+            <svg class="w-6 h-6 text-amber-400 mr-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+                <p class="text-amber-400 font-semibold">About Undo</p>
+                <p class="text-amber-300 text-sm mt-1">
+                    Undoing a completion will reverse all point awards and reset the chore instance status.
+                    Points will be subtracted from users' totals (floored at 0).
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Completions List -->
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-xl font-semibold text-white">Recent Completions</h2>
+            <p class="text-gray-400 text-sm mt-1">Completions from the last {{ undo_time_limit }} hours that can be undone</p>
+        </div>
+
+        {% if completions %}
+        <div class="divide-y divide-dark-border">
+            {% for completion in completions %}
+            <div class="p-6 hover:bg-dark-card/50 transition">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-3 mb-2">
+                            <h3 class="text-white font-semibold text-lg">
+                                {{ completion.chore_instance.chore.name }}
+                            </h3>
+                            {% if completion.was_late %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+                                Late
+                            </span>
+                            {% endif %}
+                        </div>
+
+                        <div class="space-y-1 text-sm">
+                            <p class="text-gray-300">
+                                <span class="text-gray-500">Completed by:</span>
+                                {{ completion.completed_by.get_display_name }}
+                            </p>
+                            <p class="text-gray-300">
+                                <span class="text-gray-500">When:</span>
+                                {{ completion.completed_at|date:"M j, Y g:i A" }}
+                            </p>
+                            <p class="text-gray-300">
+                                <span class="text-gray-500">Points:</span>
+                                <span class="text-primary-400 font-semibold">
+                                    {{ completion.chore_instance.points_value|floatformat:2 }}
+                                </span>
+                            </p>
+
+                            {% if completion.shares.exists %}
+                            <div class="mt-2">
+                                <p class="text-gray-500 text-xs mb-1">Points distributed to:</p>
+                                <div class="flex flex-wrap gap-2">
+                                    {% for share in completion.shares.all %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded text-xs bg-dark-card text-gray-300 border border-dark-border">
+                                        {{ share.user.get_display_name }}: {{ share.points_awarded|floatformat:2 }} pts
+                                    </span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="ml-6">
+                        <button onclick="confirmUndo({{ completion.id }}, '{{ completion.chore_instance.chore.name|escapejs }}')"
+                                class="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg transition focus:outline-none focus:ring-2 focus:ring-red-500">
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                </svg>
+                                Undo
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 class="text-xl font-semibold text-gray-300 mb-2">No Recent Completions</h3>
+            <p class="text-gray-500">There are no completions within the last {{ undo_time_limit }} hours that can be undone.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Confirm Undo Dialog -->
+<div id="undo-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeUndoDialog(event)">
+    <div class="bg-dark-surface rounded-lg p-8 max-w-md w-full mx-4 border border-dark-border" onclick="event.stopPropagation()">
+        <h2 class="text-2xl font-bold text-white mb-4">Confirm Undo</h2>
+        <p class="text-gray-300 mb-6">
+            Are you sure you want to undo the completion of <strong id="undo-chore-name" class="text-white"></strong>?
+        </p>
+        <div class="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-6">
+            <p class="text-red-400 font-semibold">⚠ This will:</p>
+            <ul class="text-gray-300 text-sm mt-2 space-y-1 list-disc list-inside">
+                <li>Reverse all point awards</li>
+                <li>Reset the chore instance status</li>
+                <li>Log the undo action</li>
+            </ul>
+        </div>
+        <div class="flex space-x-4">
+            <button onclick="executeUndo()"
+                    class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                Undo Completion
+            </button>
+            <button onclick="closeUndoDialog()"
+                    class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let currentCompletionId = null;
+
+    function confirmUndo(completionId, choreName) {
+        currentCompletionId = completionId;
+        document.getElementById('undo-chore-name').textContent = choreName;
+        document.getElementById('undo-dialog').classList.remove('hidden');
+    }
+
+    function closeUndoDialog(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('undo-dialog').classList.add('hidden');
+        currentCompletionId = null;
+    }
+
+    async function executeUndo() {
+        if (!currentCompletionId) return;
+
+        try {
+            const response = await fetch(`/board/admin-panel/undo-completion/${currentCompletionId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message, 'success');
+                closeUndoDialog();
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(data.error || 'Failed to undo completion', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    // Close dialog with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeUndoDialog();
+        }
+    });
+</script>
+{% endblock %}

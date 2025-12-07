@@ -1,0 +1,1167 @@
+{% extends "base.html" %}
+
+{% block title %}Chores - Admin - ChoreBoard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Chore Management</h1>
+            <p class="text-gray-400 mt-1">Create, edit, and manage chore templates</p>
+        </div>
+        <button onclick="openChoreDialog()"
+                class="bg-primary-600 hover:bg-primary-700 text-white font-semibold px-6 py-3 rounded-lg transition focus:outline-none focus:ring-2 focus:ring-primary-500">
+            <div class="flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Create New Chore
+            </div>
+        </button>
+    </div>
+
+    {% include "board/admin/_nav.html" with active_page='chores' %}
+
+    <!-- Chores List -->
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-xl font-semibold text-white">All Chores ({{ chores.count }})</h2>
+        </div>
+
+        {% if chores %}
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-dark-card">
+                    <tr>
+                        <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Name</th>
+                        <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Type</th>
+                        <th class="px-6 py-4 text-center text-sm font-semibold text-gray-300">Points</th>
+                        <th class="px-6 py-4 text-center text-sm font-semibold text-gray-300">Schedule</th>
+                        <th class="px-6 py-4 text-center text-sm font-semibold text-gray-300">Status</th>
+                        <th class="px-6 py-4 text-center text-sm font-semibold text-gray-300">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-dark-border">
+                    {% for chore in chores %}
+                    <tr class="hover:bg-dark-card/50 transition">
+                        <td class="px-6 py-4">
+                            <div>
+                                <p class="text-white font-medium">{{ chore.name }}</p>
+                                {% if chore.description %}
+                                <p class="text-gray-400 text-sm mt-1">{{ chore.description|truncatewords:15 }}</p>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if chore.is_undesirable %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                                Undesirable (Rotation)
+                            </span>
+                            {% elif not chore.is_pool %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                Fixed Assignment
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                                Pool (Claimable)
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="text-primary-400 font-semibold">{{ chore.points|floatformat:2 }}</span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="text-gray-300 text-sm">
+                                {{ chore.get_schedule_type_display }}
+                                {% if chore.weekday is not None %} ({{ chore.get_weekday_display }}){% endif %}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            {% if chore.is_active %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                                Active
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                                Inactive
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex items-center justify-center space-x-2">
+                                <button onclick="editChore({{ chore.id }})"
+                                        class="text-primary-400 hover:text-primary-300 font-medium text-sm transition">
+                                    Edit
+                                </button>
+                                <span class="text-gray-600">|</span>
+                                <button onclick="toggleChoreActive({{ chore.id }})"
+                                        class="text-amber-400 hover:text-amber-300 font-medium text-sm transition">
+                                    {% if chore.is_active %}Deactivate{% else %}Activate{% endif %}
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            <h3 class="text-xl font-semibold text-gray-300 mb-2">No Chores Found</h3>
+            <p class="text-gray-500 mb-4">Get started by creating your first chore.</p>
+            <button onclick="openChoreDialog()"
+                    class="inline-flex items-center px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition">
+                Create Chore
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create/Edit Chore Dialog -->
+<div id="chore-dialog" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-dark-surface rounded-lg border border-dark-border max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b border-dark-border flex justify-between items-center">
+            <h2 id="dialog-title" class="text-2xl font-semibold text-white">Create New Chore</h2>
+            <button onclick="closeChoreDialog()"
+                    class="text-gray-400 hover:text-white transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <form id="chore-form" class="p-6 space-y-6">
+            {% csrf_token %}
+            <input type="hidden" id="chore-id" name="chore_id">
+
+            <!-- Load from Template -->
+            <div class="bg-primary-500/10 border border-primary-500/30 rounded-lg p-4">
+                <label for="template-selector" class="block text-primary-400 mb-2 font-medium">
+                    📋 Load from Template
+                </label>
+                <select id="template-selector" onchange="loadTemplate(this.value)"
+                        class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                    <option value="">-- Select a template (optional) --</option>
+                </select>
+                <p class="text-gray-400 text-sm mt-2">Load a saved template to quickly fill in the form fields</p>
+            </div>
+
+            <!-- Name -->
+            <div>
+                <label for="chore-name" class="block text-gray-300 mb-2 font-medium">Chore Name *</label>
+                <input type="text" id="chore-name" name="name" required
+                       class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+            </div>
+
+            <!-- Description -->
+            <div>
+                <label for="chore-description" class="block text-gray-300 mb-2 font-medium">Description</label>
+                <textarea id="chore-description" name="description" rows="3"
+                          class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"></textarea>
+            </div>
+
+            <!-- Points -->
+            <div>
+                <label for="chore-points" class="block text-gray-300 mb-2 font-medium">Points *</label>
+                <input type="number" id="chore-points" name="points" step="0.01" min="0" max="999.99" required
+                       class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+            </div>
+
+            <!-- Assignment Type -->
+            <div>
+                <label class="block text-gray-300 mb-2 font-medium">Assignment Type *</label>
+                <div class="space-y-3">
+                    <label class="flex items-center">
+                        <input type="radio" id="type-pool" name="is_pool" value="true" checked
+                               onchange="updateAssignmentFields()"
+                               class="w-4 h-4 text-primary-600 bg-dark-card border-dark-border focus:ring-primary-500">
+                        <span class="ml-2 text-gray-300">Pool (Claimable by anyone)</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="radio" id="type-assigned" name="is_pool" value="false"
+                               onchange="updateAssignmentFields()"
+                               class="w-4 h-4 text-primary-600 bg-dark-card border-dark-border focus:ring-primary-500">
+                        <span class="ml-2 text-gray-300">Fixed Assignment</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Assigned To (only for fixed assignment) -->
+            <div id="assigned-to-container" class="hidden">
+                <label for="chore-assigned-to" class="block text-gray-300 mb-2 font-medium">Assigned To *</label>
+                <select id="chore-assigned-to" name="assigned_to"
+                        class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                    <option value="">Select user...</option>
+                </select>
+            </div>
+
+            <!-- Undesirable Chore -->
+            <div>
+                <label class="flex items-center">
+                    <input type="checkbox" id="chore-undesirable" name="is_undesirable"
+                           onchange="toggleEligibleUsers()"
+                           class="w-4 h-4 text-primary-600 bg-dark-card border-dark-border rounded focus:ring-primary-500">
+                    <span class="ml-2 text-gray-300">Undesirable (Use rotation system)</span>
+                </label>
+            </div>
+
+            <!-- Eligible Users (shown only for undesirable chores) -->
+            <div id="eligible-users-container" style="display: none;">
+                <label for="chore-eligible-users" class="block text-gray-300 mb-2 font-medium">Eligible Users</label>
+                <select id="chore-eligible-users" name="eligible_users" multiple
+                        class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
+                        size="5">
+                    <!-- Options populated by JavaScript -->
+                </select>
+                <p class="text-gray-500 text-sm mt-1">Select users who can be assigned this undesirable chore. Hold Ctrl/Cmd to select multiple.</p>
+            </div>
+
+            <!-- Difficult Chore -->
+            <div>
+                <label class="flex items-center">
+                    <input type="checkbox" id="chore-is-difficult" name="is_difficult"
+                           class="w-4 h-4 text-primary-600 bg-dark-card border-dark-border rounded focus:ring-primary-500">
+                    <span class="ml-2 text-gray-300">Difficult (Requires extra effort)</span>
+                </label>
+            </div>
+
+            <!-- Distribution Time -->
+            <div>
+                <label for="chore-distribution-time" class="block text-gray-300 mb-2 font-medium">Distribution Time</label>
+                <input type="time" id="chore-distribution-time" name="distribution_time" value="17:30"
+                       class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                <p class="text-gray-500 text-sm mt-1">Time when this chore is distributed. For undesirable chores, auto-assigns at this time. For regular chores, places in pool at this time. Leave empty to use midnight.</p>
+            </div>
+
+            <!-- Schedule Type -->
+            <div>
+                <label for="chore-schedule-type" class="block text-gray-300 mb-2 font-medium">Schedule Type</label>
+                <select id="chore-schedule-type" name="schedule_type"
+                        onchange="updateScheduleFields()"
+                        class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="every_n_days">Every N Days</option>
+                    <option value="cron">Cron Expression</option>
+                    <option value="rrule">RRULE (Advanced)</option>
+                </select>
+            </div>
+
+            <!-- Weekly: Day of Week -->
+            <div id="weekday-container" class="hidden">
+                <label for="chore-weekday" class="block text-gray-300 mb-2 font-medium">Day of Week *</label>
+                <select id="chore-weekday" name="weekday"
+                        class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                    <option value="">Select day...</option>
+                    <option value="0">Monday</option>
+                    <option value="1">Tuesday</option>
+                    <option value="2">Wednesday</option>
+                    <option value="3">Thursday</option>
+                    <option value="4">Friday</option>
+                    <option value="5">Saturday</option>
+                    <option value="6">Sunday</option>
+                </select>
+            </div>
+
+            <!-- Every N Days: N and Start Date -->
+            <div id="every-n-container" class="hidden grid grid-cols-2 gap-4">
+                <div>
+                    <label for="chore-n-days" class="block text-gray-300 mb-2 font-medium">Every N Days *</label>
+                    <input type="number" id="chore-n-days" name="n_days" min="1" max="365"
+                           class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                    <p class="text-gray-500 text-sm mt-1">How many days between occurrences</p>
+                </div>
+                <div>
+                    <label for="chore-start-date" class="block text-gray-300 mb-2 font-medium">Start Date *</label>
+                    <input type="date" id="chore-start-date" name="every_n_start_date"
+                           class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                </div>
+            </div>
+
+            <!-- Cron: Expression -->
+            <div id="cron-container" class="hidden">
+                <label for="chore-cron" class="block text-gray-300 mb-2 font-medium">Cron Expression *</label>
+                <input type="text" id="chore-cron" name="cron_expr" placeholder="0 9 * * 1-5"
+                       class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                <p class="text-gray-500 text-sm mt-1">Example: "0 9 * * 1-5" = 9 AM weekdays</p>
+            </div>
+
+            <!-- RRULE: Visual Editor -->
+            <div id="rrule-container" class="hidden space-y-4">
+                <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                    <p class="text-blue-400 font-semibold mb-1">Visual RRULE Editor</p>
+                    <p class="text-blue-300 text-sm">Configure advanced recurring schedules with a user-friendly interface.</p>
+                </div>
+
+                <!-- Hidden textarea for actual data storage -->
+                <textarea id="chore-rrule" name="rrule_json" class="hidden"></textarea>
+
+                <!-- Frequency -->
+                <div>
+                    <label for="rrule-freq" class="block text-gray-300 mb-2 font-medium">Frequency *</label>
+                    <select id="rrule-freq" onchange="updateRRuleFields(); validateRRule()"
+                            class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                        <option value="DAILY">Daily</option>
+                        <option value="WEEKLY">Weekly</option>
+                        <option value="MONTHLY">Monthly</option>
+                        <option value="YEARLY">Yearly</option>
+                    </select>
+                </div>
+
+                <!-- Interval -->
+                <div>
+                    <label for="rrule-interval" class="block text-gray-300 mb-2 font-medium">Interval *</label>
+                    <input type="number" id="rrule-interval" min="1" max="365" value="1"
+                           onblur="validateRRule()" oninput="updateRRulePreview()"
+                           class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                    <p class="text-gray-500 text-sm mt-1">Repeat every N occurrences (e.g., 2 = every other day/week/month)</p>
+                </div>
+
+                <!-- Days of Week (for WEEKLY) -->
+                <div id="rrule-weekdays-container" class="hidden">
+                    <label class="block text-gray-300 mb-2 font-medium">Days of Week *</label>
+                    <div class="grid grid-cols-7 gap-2">
+                        <label class="flex flex-col items-center p-2 bg-dark-card border border-dark-border rounded-lg cursor-pointer hover:border-primary-500 transition">
+                            <input type="checkbox" value="MO" class="rrule-weekday mb-1" onchange="updateRRulePreview()">
+                            <span class="text-xs text-gray-300">Mon</span>
+                        </label>
+                        <label class="flex flex-col items-center p-2 bg-dark-card border border-dark-border rounded-lg cursor-pointer hover:border-primary-500 transition">
+                            <input type="checkbox" value="TU" class="rrule-weekday mb-1" onchange="updateRRulePreview()">
+                            <span class="text-xs text-gray-300">Tue</span>
+                        </label>
+                        <label class="flex flex-col items-center p-2 bg-dark-card border border-dark-border rounded-lg cursor-pointer hover:border-primary-500 transition">
+                            <input type="checkbox" value="WE" class="rrule-weekday mb-1" onchange="updateRRulePreview()">
+                            <span class="text-xs text-gray-300">Wed</span>
+                        </label>
+                        <label class="flex flex-col items-center p-2 bg-dark-card border border-dark-border rounded-lg cursor-pointer hover:border-primary-500 transition">
+                            <input type="checkbox" value="TH" class="rrule-weekday mb-1" onchange="updateRRulePreview()">
+                            <span class="text-xs text-gray-300">Thu</span>
+                        </label>
+                        <label class="flex flex-col items-center p-2 bg-dark-card border border-dark-border rounded-lg cursor-pointer hover:border-primary-500 transition">
+                            <input type="checkbox" value="FR" class="rrule-weekday mb-1" onchange="updateRRulePreview()">
+                            <span class="text-xs text-gray-300">Fri</span>
+                        </label>
+                        <label class="flex flex-col items-center p-2 bg-dark-card border border-dark-border rounded-lg cursor-pointer hover:border-primary-500 transition">
+                            <input type="checkbox" value="SA" class="rrule-weekday mb-1" onchange="updateRRulePreview()">
+                            <span class="text-xs text-gray-300">Sat</span>
+                        </label>
+                        <label class="flex flex-col items-center p-2 bg-dark-card border border-dark-border rounded-lg cursor-pointer hover:border-primary-500 transition">
+                            <input type="checkbox" value="SU" class="rrule-weekday mb-1" onchange="updateRRulePreview()">
+                            <span class="text-xs text-gray-300">Sun</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Day of Month (for MONTHLY) -->
+                <div id="rrule-monthday-container" class="hidden">
+                    <label for="rrule-monthday" class="block text-gray-300 mb-2 font-medium">Day of Month *</label>
+                    <input type="number" id="rrule-monthday" min="1" max="31" placeholder="1-31"
+                           onblur="validateRRule()" oninput="updateRRulePreview()"
+                           class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                    <p class="text-gray-500 text-sm mt-1">Which day of the month (1-31)</p>
+                </div>
+
+                <!-- Month (for YEARLY) -->
+                <div id="rrule-month-container" class="hidden">
+                    <label for="rrule-month" class="block text-gray-300 mb-2 font-medium">Month *</label>
+                    <select id="rrule-month" onchange="updateRRulePreview()"
+                            class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                        <option value="1">January</option>
+                        <option value="2">February</option>
+                        <option value="3">March</option>
+                        <option value="4">April</option>
+                        <option value="5">May</option>
+                        <option value="6">June</option>
+                        <option value="7">July</option>
+                        <option value="8">August</option>
+                        <option value="9">September</option>
+                        <option value="10">October</option>
+                        <option value="11">November</option>
+                        <option value="12">December</option>
+                    </select>
+                </div>
+
+                <!-- Day of Month for Yearly -->
+                <div id="rrule-yearly-day-container" class="hidden">
+                    <label for="rrule-yearly-day" class="block text-gray-300 mb-2 font-medium">Day of Month *</label>
+                    <input type="number" id="rrule-yearly-day" min="1" max="31" placeholder="1-31"
+                           onblur="validateRRule()" oninput="updateRRulePreview()"
+                           class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                    <p class="text-gray-500 text-sm mt-1">Which day of the selected month</p>
+                </div>
+
+                <!-- Count (optional) -->
+                <div>
+                    <label for="rrule-count" class="block text-gray-300 mb-2 font-medium">Count (Optional)</label>
+                    <input type="number" id="rrule-count" min="1" max="9999" placeholder="Leave empty for no limit"
+                           onblur="validateRRule()" oninput="updateRRulePreview()"
+                           class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                    <p class="text-gray-500 text-sm mt-1">Number of occurrences before stopping (leave empty for indefinite)</p>
+                </div>
+
+                <!-- Preview -->
+                <div class="bg-dark-card border border-dark-border rounded-lg p-4">
+                    <label class="block text-gray-300 mb-2 font-medium">Preview</label>
+                    <p id="rrule-preview" class="text-primary-400 font-mono text-sm">Every day</p>
+                </div>
+
+                <!-- Validation Error -->
+                <div id="rrule-error" class="hidden bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                    <p class="text-red-400 font-semibold">Validation Error</p>
+                    <p id="rrule-error-message" class="text-red-300 text-sm mt-1"></p>
+                </div>
+
+                <!-- Advanced: Show JSON -->
+                <details class="bg-dark-card border border-dark-border rounded-lg">
+                    <summary class="cursor-pointer p-4 text-gray-300 font-medium hover:text-white transition">Show Generated JSON</summary>
+                    <div class="p-4 border-t border-dark-border">
+                        <pre id="rrule-json-preview" class="text-xs text-gray-400 font-mono bg-dark-bg p-3 rounded overflow-x-auto">{}</pre>
+                    </div>
+                </details>
+            </div>
+
+            <!-- Dependencies -->
+            <div>
+                <label for="chore-dependencies" class="block text-gray-300 mb-2 font-medium">Parent Chore (Dependency)</label>
+                <select id="chore-dependencies" name="depends_on"
+                        onchange="updateDependenciesField()"
+                        class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                    <option value="">None (No parent)</option>
+                </select>
+                <p class="text-gray-500 text-sm mt-1">This chore will be created when the parent is completed</p>
+            </div>
+
+            <!-- Dependency Offset -->
+            <div id="offset-container" class="hidden">
+                <label for="chore-offset" class="block text-gray-300 mb-2 font-medium">Offset Hours</label>
+                <input type="number" id="chore-offset" name="offset_hours" value="0" min="0" max="168"
+                       class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                <p class="text-gray-500 text-sm mt-1">Hours after parent completion to create this chore</p>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex justify-between items-center pt-4 border-t border-dark-border">
+                <button type="button" onclick="saveAsTemplate()"
+                        class="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                    </svg>
+                    Save as Template
+                </button>
+                <div class="flex space-x-3">
+                    <button type="button" onclick="closeChoreDialog()"
+                            class="px-6 py-3 bg-dark-card hover:bg-dark-border text-gray-300 hover:text-white font-semibold rounded-lg transition">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition">
+                        <span id="submit-text">Create Chore</span>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let currentChoreId = null;
+let assignableUsers = [];
+
+// Open dialog for creating new chore
+function openChoreDialog() {
+    currentChoreId = null;
+    document.getElementById('dialog-title').textContent = 'Create New Chore';
+    document.getElementById('submit-text').textContent = 'Create Chore';
+    document.getElementById('chore-form').reset();
+    document.getElementById('chore-points').value = '0.00';
+    document.getElementById('chore-distribution-time').value = '17:30';
+    document.getElementById('type-pool').checked = true;
+    updateAssignmentFields();
+    updateScheduleFields();
+    updateDependenciesField();
+
+    // Fetch assignable users and chores
+    fetchAssignableUsers();
+    populateDependenciesDropdown();
+    loadTemplatesList();
+
+    document.getElementById('chore-dialog').classList.remove('hidden');
+}
+
+// Close dialog
+function closeChoreDialog() {
+    document.getElementById('chore-dialog').classList.add('hidden');
+    currentChoreId = null;
+}
+
+// ==================== TEMPLATE FUNCTIONS ====================
+
+// Load templates list into dropdown
+async function loadTemplatesList() {
+    try {
+        const response = await fetch('/board/admin-panel/templates/list/');
+        const data = await response.json();
+
+        if (response.ok && data.templates) {
+            const selector = document.getElementById('template-selector');
+            // Clear existing options except the first one
+            selector.innerHTML = '<option value="">-- Select a template (optional) --</option>';
+
+            // Add template options
+            data.templates.forEach(template => {
+                const option = document.createElement('option');
+                option.value = template.id;
+                option.textContent = `${template.template_name} (${template.points}pts, ${template.schedule_type})`;
+                selector.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Failed to load templates:', error);
+    }
+}
+
+// Load selected template data into form
+async function loadTemplate(templateId) {
+    if (!templateId) return;
+
+    try {
+        const response = await fetch(`/board/admin-panel/template/get/${templateId}/`);
+        const data = await response.json();
+
+        if (response.ok) {
+            // Populate basic fields (don't fill name - user should provide unique name)
+            document.getElementById('chore-description').value = data.description || '';
+            document.getElementById('chore-points').value = data.points;
+            document.getElementById('chore-distribution-time').value = data.distribution_time;
+
+            // Set assignment type
+            if (data.is_pool) {
+                document.getElementById('type-pool').checked = true;
+            } else {
+                document.getElementById('type-assigned').checked = true;
+                if (data.assigned_to) {
+                    document.getElementById('chore-assigned-to').value = data.assigned_to;
+                }
+            }
+            updateAssignmentFields();
+
+            // Set checkboxes
+            document.getElementById('chore-undesirable').checked = data.is_undesirable;
+            document.getElementById('chore-is-difficult').checked = data.is_difficult;
+
+            // Set schedule type
+            document.getElementById('chore-schedule-type').value = data.schedule_type;
+            updateScheduleFields();
+
+            // Set schedule-specific fields
+            if (data.weekday !== null) {
+                document.getElementById('chore-weekday').value = data.weekday;
+            }
+            if (data.n_days) {
+                document.getElementById('chore-n-days').value = data.n_days;
+            }
+            if (data.every_n_start_date) {
+                document.getElementById('chore-start-date').value = data.every_n_start_date;
+            }
+            if (data.cron_expr) {
+                document.getElementById('chore-cron').value = data.cron_expr;
+            }
+            if (data.rrule_json) {
+                document.getElementById('chore-rrule-json').value = data.rrule_json;
+            }
+
+            showToast('Template loaded successfully! Please enter a unique chore name.', 'success');
+
+            // Focus on name field
+            document.getElementById('chore-name').focus();
+        } else {
+            showToast(data.error || 'Failed to load template', 'error');
+        }
+    } catch (error) {
+        showToast('Network error loading template', 'error');
+        console.error('Failed to load template:', error);
+    }
+}
+
+// Save current form data as template
+async function saveAsTemplate() {
+    // Prompt for template name
+    const templateName = prompt('Enter a name for this template:');
+
+    if (!templateName || templateName.trim() === '') {
+        return;
+    }
+
+    // Gather form data
+    const formData = new FormData(document.getElementById('chore-form'));
+    formData.set('template_name', templateName.trim());
+
+    // Set booleans
+    const isPool = document.getElementById('type-pool').checked;
+    formData.set('is_pool', isPool ? 'true' : 'false');
+    formData.set('is_undesirable', document.getElementById('chore-undesirable').checked ? 'true' : 'false');
+    formData.set('is_difficult', document.getElementById('chore-is-difficult').checked ? 'true' : 'false');
+
+    // Remove chore-specific fields that shouldn't be in template
+    formData.delete('chore_id');
+    formData.delete('name'); // Template name is separate from chore name
+
+    // Remove assigned_to if pool
+    if (isPool) {
+        formData.delete('assigned_to');
+    }
+
+    try {
+        const response = await fetch('/board/admin-panel/template/save/', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message || 'Template saved successfully!', 'success');
+            // Reload templates list
+            loadTemplatesList();
+        } else {
+            showToast(data.error || 'Failed to save template', 'error');
+        }
+    } catch (error) {
+        showToast('Network error saving template', 'error');
+        console.error('Failed to save template:', error);
+    }
+}
+
+// ==================== END TEMPLATE FUNCTIONS ====================
+
+// Edit existing chore
+async function editChore(choreId) {
+    try {
+        const response = await fetch(`/board/admin-panel/chore/get/${choreId}/`);
+        const data = await response.json();
+
+        if (response.ok) {
+            currentChoreId = choreId;
+            assignableUsers = data.assignable_users;
+
+            // Populate form
+            document.getElementById('dialog-title').textContent = 'Edit Chore';
+            document.getElementById('submit-text').textContent = 'Update Chore';
+            document.getElementById('chore-id').value = data.id;
+            document.getElementById('chore-name').value = data.name;
+            document.getElementById('chore-description').value = data.description || '';
+            document.getElementById('chore-points').value = data.points;
+
+            if (data.is_pool) {
+                document.getElementById('type-pool').checked = true;
+            } else {
+                document.getElementById('type-assigned').checked = true;
+            }
+
+            document.getElementById('chore-undesirable').checked = data.is_undesirable;
+            document.getElementById('chore-is-difficult').checked = data.is_difficult || false;
+            document.getElementById('chore-distribution-time').value = data.distribution_time;
+            document.getElementById('chore-schedule-type').value = data.schedule_type;
+
+            // Populate schedule-specific fields
+            if (data.weekday !== null) {
+                document.getElementById('chore-weekday').value = data.weekday;
+            }
+
+            if (data.n_days !== null) {
+                document.getElementById('chore-n-days').value = data.n_days;
+            }
+
+            if (data.every_n_start_date) {
+                document.getElementById('chore-start-date').value = data.every_n_start_date;
+            }
+
+            if (data.cron_expr) {
+                document.getElementById('chore-cron').value = data.cron_expr;
+            }
+
+            if (data.rrule_json) {
+                document.getElementById('chore-rrule').value = data.rrule_json;
+                // Parse and populate RRULE visual editor
+                loadRRuleFromJSON(data.rrule_json);
+            }
+
+            // Populate dependencies dropdown
+            await populateDependenciesDropdown(choreId);
+
+            // Populate dependency fields
+            if (data.depends_on) {
+                document.getElementById('chore-dependencies').value = data.depends_on;
+                document.getElementById('chore-offset').value = data.offset_hours || 0;
+            } else {
+                document.getElementById('chore-dependencies').value = '';
+                document.getElementById('chore-offset').value = 0;
+            }
+
+            // Handle eligible users for undesirable chores
+            if (data.is_undesirable) {
+                await populateEligibleUsers();
+                toggleEligibleUsers(); // Show the container
+
+                // Select eligible users if they exist
+                if (data.eligible_user_ids && data.eligible_user_ids.length > 0) {
+                    const select = document.getElementById('chore-eligible-users');
+                    Array.from(select.options).forEach(option => {
+                        option.selected = data.eligible_user_ids.includes(parseInt(option.value));
+                    });
+                }
+            } else {
+                toggleEligibleUsers(); // Hide the container
+            }
+
+            updateAssignmentFields();
+            updateScheduleFields();
+            updateDependenciesField();
+
+            if (!data.is_pool && data.assigned_to) {
+                document.getElementById('chore-assigned-to').value = data.assigned_to;
+            }
+
+            document.getElementById('chore-dialog').classList.remove('hidden');
+        } else {
+            showToast(data.error || 'Failed to load chore', 'error');
+        }
+    } catch (error) {
+        showToast('Network error. Please try again.', 'error');
+    }
+}
+
+// Fetch assignable users
+async function fetchAssignableUsers() {
+    try {
+        // Use the first chore's user list or fetch from any chore
+        const response = await fetch('/board/admin-panel/chore/get/1/');
+        const data = await response.json();
+
+        if (response.ok && data.assignable_users) {
+            assignableUsers = data.assignable_users;
+            updateAssignedToDropdown();
+        }
+    } catch (error) {
+        console.error('Failed to fetch assignable users:', error);
+    }
+}
+
+// Update assigned-to dropdown
+function updateAssignedToDropdown() {
+    const select = document.getElementById('chore-assigned-to');
+    select.innerHTML = '<option value="">Select user...</option>';
+
+    assignableUsers.forEach(user => {
+        const option = document.createElement('option');
+        option.value = user.id;
+        option.textContent = user.name;
+        select.appendChild(option);
+    });
+}
+
+// Update assignment fields visibility
+function updateAssignmentFields() {
+    const isPool = document.getElementById('type-pool').checked;
+    const container = document.getElementById('assigned-to-container');
+    const select = document.getElementById('chore-assigned-to');
+
+    if (isPool) {
+        container.classList.add('hidden');
+        select.removeAttribute('required');
+    } else {
+        container.classList.remove('hidden');
+        select.setAttribute('required', 'required');
+        updateAssignedToDropdown();
+    }
+}
+
+// Update schedule fields visibility
+function updateScheduleFields() {
+    const scheduleType = document.getElementById('chore-schedule-type').value;
+
+    // Hide all schedule-specific containers
+    document.getElementById('weekday-container').classList.add('hidden');
+    document.getElementById('every-n-container').classList.add('hidden');
+    document.getElementById('cron-container').classList.add('hidden');
+    document.getElementById('rrule-container').classList.add('hidden');
+
+    // Remove all required attributes
+    document.getElementById('chore-weekday').removeAttribute('required');
+    document.getElementById('chore-n-days').removeAttribute('required');
+    document.getElementById('chore-start-date').removeAttribute('required');
+    document.getElementById('chore-cron').removeAttribute('required');
+    document.getElementById('chore-rrule').removeAttribute('required');
+
+    // Show and require fields based on schedule type
+    if (scheduleType === 'weekly') {
+        document.getElementById('weekday-container').classList.remove('hidden');
+        document.getElementById('chore-weekday').setAttribute('required', 'required');
+    } else if (scheduleType === 'every_n_days') {
+        document.getElementById('every-n-container').classList.remove('hidden');
+        document.getElementById('chore-n-days').setAttribute('required', 'required');
+        document.getElementById('chore-start-date').setAttribute('required', 'required');
+    } else if (scheduleType === 'cron') {
+        document.getElementById('cron-container').classList.remove('hidden');
+        document.getElementById('chore-cron').setAttribute('required', 'required');
+    } else if (scheduleType === 'rrule') {
+        document.getElementById('rrule-container').classList.remove('hidden');
+        document.getElementById('chore-rrule').setAttribute('required', 'required');
+        updateRRuleFields();
+        updateRRulePreview();
+    }
+}
+
+// RRULE Editor Functions
+function updateRRuleFields() {
+    const freq = document.getElementById('rrule-freq').value;
+
+    // Hide all RRULE-specific containers
+    document.getElementById('rrule-weekdays-container').classList.add('hidden');
+    document.getElementById('rrule-monthday-container').classList.add('hidden');
+    document.getElementById('rrule-month-container').classList.add('hidden');
+    document.getElementById('rrule-yearly-day-container').classList.add('hidden');
+
+    // Show appropriate fields based on frequency
+    if (freq === 'WEEKLY') {
+        document.getElementById('rrule-weekdays-container').classList.remove('hidden');
+    } else if (freq === 'MONTHLY') {
+        document.getElementById('rrule-monthday-container').classList.remove('hidden');
+    } else if (freq === 'YEARLY') {
+        document.getElementById('rrule-month-container').classList.remove('hidden');
+        document.getElementById('rrule-yearly-day-container').classList.remove('hidden');
+    }
+
+    updateRRulePreview();
+}
+
+function updateRRulePreview() {
+    const freq = document.getElementById('rrule-freq').value;
+    const interval = parseInt(document.getElementById('rrule-interval').value) || 1;
+    const count = document.getElementById('rrule-count').value;
+
+    let preview = '';
+    let rruleObj = {
+        freq: freq,
+        interval: interval
+    };
+
+    // Build preview text
+    if (freq === 'DAILY') {
+        preview = interval === 1 ? 'Every day' : `Every ${interval} days`;
+    } else if (freq === 'WEEKLY') {
+        const weekdays = Array.from(document.querySelectorAll('.rrule-weekday:checked')).map(cb => cb.value);
+        if (weekdays.length > 0) {
+            rruleObj.byweekday = weekdays;
+            const dayNames = weekdays.map(d => ({MO:'Mon',TU:'Tue',WE:'Wed',TH:'Thu',FR:'Fri',SA:'Sat',SU:'Sun'}[d])).join(', ');
+            preview = interval === 1 ? `Every week on ${dayNames}` : `Every ${interval} weeks on ${dayNames}`;
+        } else {
+            preview = interval === 1 ? 'Every week' : `Every ${interval} weeks`;
+        }
+    } else if (freq === 'MONTHLY') {
+        const monthday = parseInt(document.getElementById('rrule-monthday').value);
+        if (monthday) {
+            rruleObj.bymonthday = monthday;
+            const suffix = {1:'st',2:'nd',3:'rd',21:'st',22:'nd',23:'rd',31:'st'}[monthday] || 'th';
+            preview = interval === 1 ? `Every month on the ${monthday}${suffix}` : `Every ${interval} months on the ${monthday}${suffix}`;
+        } else {
+            preview = interval === 1 ? 'Every month' : `Every ${interval} months`;
+        }
+    } else if (freq === 'YEARLY') {
+        const month = parseInt(document.getElementById('rrule-month').value);
+        const yearlyDay = parseInt(document.getElementById('rrule-yearly-day').value);
+        if (month && yearlyDay) {
+            rruleObj.bymonth = month;
+            rruleObj.bymonthday = yearlyDay;
+            const monthNames = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+            const suffix = {1:'st',2:'nd',3:'rd',21:'st',22:'nd',23:'rd',31:'st'}[yearlyDay] || 'th';
+            preview = interval === 1 ? `Every year on ${monthNames[month]} ${yearlyDay}${suffix}` : `Every ${interval} years on ${monthNames[month]} ${yearlyDay}${suffix}`;
+        } else {
+            preview = interval === 1 ? 'Every year' : `Every ${interval} years`;
+        }
+    }
+
+    if (count) {
+        rruleObj.count = parseInt(count);
+        preview += `, ${count} times`;
+    }
+
+    // Update preview text
+    document.getElementById('rrule-preview').textContent = preview;
+
+    // Update hidden textarea with JSON
+    const json = JSON.stringify(rruleObj, null, 2);
+    document.getElementById('chore-rrule').value = json;
+    document.getElementById('rrule-json-preview').textContent = json;
+}
+
+function validateRRule() {
+    const freq = document.getElementById('rrule-freq').value;
+    const interval = parseInt(document.getElementById('rrule-interval').value) || 0;
+    const errorDiv = document.getElementById('rrule-error');
+    const errorMsg = document.getElementById('rrule-error-message');
+
+    let errors = [];
+
+    // Validate interval
+    if (interval < 1 || interval > 365) {
+        errors.push('Interval must be between 1 and 365');
+    }
+
+    // Validate frequency-specific fields
+    if (freq === 'WEEKLY') {
+        const weekdays = document.querySelectorAll('.rrule-weekday:checked');
+        if (weekdays.length === 0) {
+            errors.push('Please select at least one day of the week');
+        }
+    } else if (freq === 'MONTHLY') {
+        const monthday = parseInt(document.getElementById('rrule-monthday').value);
+        if (!monthday || monthday < 1 || monthday > 31) {
+            errors.push('Day of month must be between 1 and 31');
+        }
+    } else if (freq === 'YEARLY') {
+        const yearlyDay = parseInt(document.getElementById('rrule-yearly-day').value);
+        if (!yearlyDay || yearlyDay < 1 || yearlyDay > 31) {
+            errors.push('Day of month must be between 1 and 31');
+        }
+    }
+
+    // Validate count if provided
+    const count = document.getElementById('rrule-count').value;
+    if (count && (parseInt(count) < 1 || parseInt(count) > 9999)) {
+        errors.push('Count must be between 1 and 9999');
+    }
+
+    // Show/hide error
+    if (errors.length > 0) {
+        errorMsg.textContent = errors.join('. ');
+        errorDiv.classList.remove('hidden');
+        return false;
+    } else {
+        errorDiv.classList.add('hidden');
+        return true;
+    }
+}
+
+// Toggle eligible users visibility based on undesirable checkbox
+function toggleEligibleUsers() {
+    const isUndesirable = document.getElementById('chore-undesirable').checked;
+    const container = document.getElementById('eligible-users-container');
+
+    if (isUndesirable) {
+        container.style.display = 'block';
+        // Populate eligible users if not already populated
+        if (document.getElementById('chore-eligible-users').options.length === 0) {
+            populateEligibleUsers();
+        }
+    } else {
+        container.style.display = 'none';
+    }
+}
+
+// Populate eligible users multi-select
+function populateEligibleUsers() {
+    fetch('/board/admin-panel/users/')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('chore-eligible-users');
+            select.innerHTML = ''; // Clear existing options
+
+            data.users.forEach(user => {
+                if (user.can_be_assigned) {
+                    const option = document.createElement('option');
+                    option.value = user.id;
+                    option.textContent = user.first_name || user.username;
+                    select.appendChild(option);
+                }
+            });
+        })
+        .catch(error => {
+            console.error('Error fetching users:', error);
+            showToast('Failed to load eligible users', 'error');
+        });
+}
+
+function loadRRuleFromJSON(jsonString) {
+    try {
+        const rruleObj = JSON.parse(jsonString);
+
+        // Set frequency
+        if (rruleObj.freq) {
+            document.getElementById('rrule-freq').value = rruleObj.freq;
+        }
+
+        // Set interval
+        if (rruleObj.interval) {
+            document.getElementById('rrule-interval').value = rruleObj.interval;
+        }
+
+        // Set weekdays for WEEKLY
+        if (rruleObj.byweekday && Array.isArray(rruleObj.byweekday)) {
+            document.querySelectorAll('.rrule-weekday').forEach(cb => {
+                cb.checked = rruleObj.byweekday.includes(cb.value);
+            });
+        }
+
+        // Set monthday for MONTHLY
+        if (rruleObj.bymonthday) {
+            document.getElementById('rrule-monthday').value = rruleObj.bymonthday;
+        }
+
+        // Set month and day for YEARLY
+        if (rruleObj.bymonth) {
+            document.getElementById('rrule-month').value = rruleObj.bymonth;
+        }
+        if (rruleObj.freq === 'YEARLY' && rruleObj.bymonthday) {
+            document.getElementById('rrule-yearly-day').value = rruleObj.bymonthday;
+        }
+
+        // Set count if provided
+        if (rruleObj.count) {
+            document.getElementById('rrule-count').value = rruleObj.count;
+        }
+
+        // Update fields visibility and preview
+        updateRRuleFields();
+        updateRRulePreview();
+    } catch (error) {
+        console.error('Failed to parse RRULE JSON:', error);
+    }
+}
+
+// Update dependencies dropdown visibility
+function updateDependenciesField() {
+    const dependsOn = document.getElementById('chore-dependencies').value;
+    const offsetContainer = document.getElementById('offset-container');
+
+    if (dependsOn) {
+        offsetContainer.classList.remove('hidden');
+    } else {
+        offsetContainer.classList.add('hidden');
+    }
+}
+
+// Populate dependencies dropdown
+async function populateDependenciesDropdown(excludeChoreId = null) {
+    try {
+        const select = document.getElementById('chore-dependencies');
+        select.innerHTML = '<option value="">None (No parent)</option>';
+
+        // Fetch all active chores
+        const response = await fetch('/board/admin-panel/chores/list/');
+        if (response.ok) {
+            const data = await response.json();
+            data.chores.forEach(chore => {
+                if (chore.id != excludeChoreId) {
+                    const option = document.createElement('option');
+                    option.value = chore.id;
+                    option.textContent = chore.name;
+                    select.appendChild(option);
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Failed to fetch chores:', error);
+    }
+}
+
+// Toggle chore active status
+async function toggleChoreActive(choreId) {
+    if (!confirm('Are you sure you want to change this chore\'s status?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/board/admin-panel/chore/toggle/${choreId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message, 'success');
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showToast(data.error || 'Failed to update chore status', 'error');
+        }
+    } catch (error) {
+        showToast('Network error. Please try again.', 'error');
+    }
+}
+
+// Handle form submission
+document.getElementById('chore-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    // Validate RRULE if schedule type is rrule
+    const scheduleType = document.getElementById('chore-schedule-type').value;
+    if (scheduleType === 'rrule') {
+        if (!validateRRule()) {
+            showToast('Please fix RRULE validation errors before saving', 'error');
+            return;
+        }
+    }
+
+    const formData = new FormData(this);
+    const isPool = document.getElementById('type-pool').checked;
+    formData.set('is_pool', isPool ? 'true' : 'false');
+    formData.set('is_undesirable', document.getElementById('chore-undesirable').checked ? 'true' : 'false');
+    formData.set('is_difficult', document.getElementById('chore-is-difficult').checked ? 'true' : 'false');
+
+    // Add eligible users for undesirable chores
+    if (document.getElementById('chore-undesirable').checked) {
+        const eligibleSelect = document.getElementById('chore-eligible-users');
+        const selectedUsers = Array.from(eligibleSelect.selectedOptions).map(option => option.value);
+        formData.set('eligible_users', JSON.stringify(selectedUsers));
+    }
+
+    // Remove assigned_to if pool chore
+    if (isPool) {
+        formData.delete('assigned_to');
+    }
+
+    try {
+        let url, method;
+        if (currentChoreId) {
+            url = `/board/admin-panel/chore/update/${currentChoreId}/`;
+            method = 'POST';
+        } else {
+            url = '/board/admin-panel/chore/create/';
+            method = 'POST';
+        }
+
+        const response = await fetch(url, {
+            method: method,
+            body: formData
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message, 'success');
+            closeChoreDialog();
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showToast(data.error || 'Failed to save chore', 'error');
+        }
+    } catch (error) {
+        showToast('Network error. Please try again.', 'error');
+    }
+});
+
+// Close dialog when clicking outside
+document.getElementById('chore-dialog').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeChoreDialog();
+    }
+});
+</script>
+{% endblock %}

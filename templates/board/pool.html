@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+
+{% block title %}ChoreBoard - Pool{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-green-400">Pool Chores</h1>
+            <p class="text-gray-400 mt-1">{{ today|date:"l, F j, Y" }} - {{ pool_chores|length }} available</p>
+        </div>
+    </div>
+
+    {% if pool_chores %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for instance in pool_chores %}
+        <div class="chore-card bg-dark-surface rounded-lg p-6 border-2 border-green-500/50 hover:border-green-500"
+             data-instance-id="{{ instance.id }}">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex-1">
+                    <h3 class="text-lg font-semibold text-white">{{ instance.chore.name }}</h3>
+                    {% if instance.chore.description %}
+                    <p class="text-gray-400 text-sm mt-1">{{ instance.chore.description }}</p>
+                    {% endif %}
+                </div>
+                <span class="status-badge badge-pool ml-2">Pool</span>
+            </div>
+
+            <div class="flex justify-between items-center text-sm mb-4">
+                <div class="flex items-center text-gray-400">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Due: {{ instance.due_at|date:"g:i A" }}
+                </div>
+                <div class="text-primary-400 font-bold">
+                    {{ instance.points_value }} {{ POINTS_LABEL_SHORT }}
+                </div>
+            </div>
+
+            <!-- Primary Action Buttons -->
+            <div class="flex space-x-2">
+                <button
+                    onclick="openClaimDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }})"
+                    class="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-lg transition">
+                    Claim
+                </button>
+                <button
+                    onclick="openCompleteDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }}, 'Kiosk User', null)"
+                    class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition">
+                    Complete
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-dark-surface rounded-lg p-12 text-center border border-dark-border">
+        <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <h3 class="text-xl font-semibold text-gray-300 mb-2">No pool chores</h3>
+        <p class="text-gray-500">All chores have been claimed!</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Claim Dialog -->
+<div id="claim-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeClaimDialog(event)">
+    <div class="bg-dark-surface rounded-lg p-8 max-w-md w-full mx-4 border border-dark-border" onclick="event.stopPropagation()">
+        <h2 class="text-2xl font-bold text-white mb-4">Claim Chore</h2>
+        <div class="mb-6">
+            <p class="text-gray-400 mb-2">Chore:</p>
+            <p id="claim-chore-name" class="text-xl font-semibold text-white"></p>
+        </div>
+        <div class="mb-6">
+            <p class="text-gray-400 mb-2">{{ POINTS_LABEL|title }}:</p>
+            <p id="claim-points" class="text-2xl font-bold text-primary-400"></p>
+        </div>
+        <div class="mb-6">
+            <label for="claim-user-select" class="block text-gray-400 mb-2">Who is claiming this chore?</label>
+            <select id="claim-user-select" required
+                    class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                <option value="">-- Select a person --</option>
+                {% for u in users %}
+                <option value="{{ u.id }}">{{ u.get_display_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="flex space-x-4">
+            <button onclick="confirmClaim()"
+                    class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition">
+                Claim
+            </button>
+            <button onclick="closeClaimDialog()"
+                    class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Complete Dialog -->
+<div id="complete-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeCompleteDialog(event)">
+    <div class="bg-dark-surface rounded-lg p-8 max-w-md w-full mx-4 border border-dark-border" onclick="event.stopPropagation()">
+        <h2 class="text-2xl font-bold text-white mb-4">Complete Chore</h2>
+
+        <div class="mb-6">
+            <p class="text-gray-400 mb-2">Chore:</p>
+            <p id="complete-chore-name" class="text-xl font-semibold text-white"></p>
+        </div>
+
+        <div class="mb-6">
+            <p class="text-gray-400 mb-2">{{ POINTS_LABEL|title }}:</p>
+            <p id="complete-points" class="text-2xl font-bold text-primary-400"></p>
+        </div>
+
+        <div class="mb-6">
+            <label for="complete-user-select" class="block text-gray-400 mb-2">Who completed this chore?</label>
+            <select id="complete-user-select" required
+                    class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                <option value="">-- Select a person --</option>
+                {% for u in users %}
+                <option value="{{ u.id }}">{{ u.get_display_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="mb-6">
+            <label class="block text-gray-400 mb-2">Who helped? (Optional)</label>
+            <select id="helper-select" multiple
+                    class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    size="4">
+                {% for u in users %}
+                <option value="{{ u.id }}">{{ u.get_display_name }}</option>
+                {% endfor %}
+            </select>
+            <p class="text-gray-500 text-sm mt-1">Hold Ctrl/Cmd to select multiple</p>
+        </div>
+
+        <div class="flex space-x-4">
+            <button onclick="confirmComplete()"
+                    class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                Complete
+            </button>
+            <button onclick="closeCompleteDialog()"
+                    class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let currentClaimId = null;
+    let currentCompleteId = null;
+
+    function openClaimDialog(instanceId, choreName, points) {
+        currentClaimId = instanceId;
+        document.getElementById('claim-chore-name').textContent = choreName;
+        document.getElementById('claim-points').textContent = points + ' {{ POINTS_LABEL_SHORT }}';
+        document.getElementById('claim-dialog').classList.remove('hidden');
+    }
+    function closeClaimDialog(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('claim-dialog').classList.add('hidden');
+        currentClaimId = null;
+    }
+
+    function openCompleteDialog(instanceId, choreName, points, assignedTo, preSelectUserId = null) {
+        currentCompleteId = instanceId;
+        document.getElementById('complete-chore-name').textContent = choreName;
+        document.getElementById('complete-points').textContent = points + ' {{ POINTS_LABEL_SHORT }}';
+        document.getElementById('helper-select').value = '';
+
+        // Pre-select user if provided
+        const userSelect = document.getElementById('complete-user-select');
+        if (preSelectUserId) {
+            userSelect.value = preSelectUserId;
+        } else {
+            userSelect.value = '';
+        }
+
+        document.getElementById('complete-dialog').classList.remove('hidden');
+
+        // Focus on the confirm button for accessibility
+        setTimeout(() => {
+            document.querySelector('#complete-dialog button').focus();
+        }, 100);
+    }
+
+    function closeCompleteDialog(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('complete-dialog').classList.add('hidden');
+        currentCompleteId = null;
+    }
+    async function confirmClaim() {
+        if (!currentClaimId) return;
+
+        // Get selected user
+        const userSelect = document.getElementById('claim-user-select');
+        const userId = userSelect.value;
+
+        if (!userId) {
+            showToast('Please select who is claiming this chore', 'error');
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('instance_id', currentClaimId);
+            formData.append('user_id', userId);
+
+            const response = await fetch('/board/action/claim/', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            if (response.ok) {
+                showToast(data.message || 'Chore claimed successfully!', 'success');
+                closeClaimDialog();
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showToast(data.error || 'Failed to claim chore', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    async function confirmComplete() {
+        if (!currentCompleteId) return;
+
+        // Get selected user
+        const userSelect = document.getElementById('complete-user-select');
+        const userId = userSelect.value;
+
+        if (!userId) {
+            showToast('Please select who completed this chore', 'error');
+            return;
+        }
+
+        const helperSelect = document.getElementById('helper-select');
+        const helperIds = Array.from(helperSelect.selectedOptions).map(opt => opt.value);
+
+        try {
+            const formData = new FormData();
+            formData.append('instance_id', currentCompleteId);
+            formData.append('user_id', userId);
+            helperIds.forEach(id => formData.append('helper_ids', id));
+
+            const response = await fetch('/board/action/complete/', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            if (response.ok) {
+                showToast(data.message || 'Chore completed successfully!', 'success');
+                closeCompleteDialog();
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showToast(data.error || 'Failed to complete chore', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeClaimDialog();
+            closeCompleteDialog();
+        }
+    });
+</script>
+{% endblock %}

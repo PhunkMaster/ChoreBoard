@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Admin - ChoreBoard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">System Settings</h1>
+            <p class="text-gray-400 mt-1">Configure conversion rates, limits, and notifications</p>
+        </div>
+    </div>
+
+    {% include "board/admin/_nav.html" with active_page='settings' %}
+
+    <!-- Settings Form -->
+    <form id="settings-form" class="space-y-6">
+        {% csrf_token %}
+
+        <!-- Points & Conversion -->
+        <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
+            <h2 class="text-xl font-semibold text-white mb-4">Points & Conversion</h2>
+
+            <div class="space-y-4">
+                <div>
+                    <label for="points_to_dollar_rate" class="block text-gray-300 mb-2">
+                        Points to Dollar Rate
+                        <span class="text-gray-500 text-sm">(How many points = $1.00)</span>
+                    </label>
+                    <input type="number"
+                           id="points_to_dollar_rate"
+                           name="points_to_dollar_rate"
+                           value="{{ settings.points_to_dollar_rate }}"
+                           step="0.0001"
+                           min="0.0001"
+                           max="1000"
+                           required
+                           class="w-full md:w-64 bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <p class="text-gray-500 text-sm mt-1">Current: {{ settings.points_to_dollar_rate }} pts = $1.00</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Claim Limits -->
+        <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
+            <h2 class="text-xl font-semibold text-white mb-4">Claim Limits</h2>
+
+            <div class="space-y-4">
+                <div>
+                    <label for="max_claims_per_day" class="block text-gray-300 mb-2">
+                        Max Claims Per Day
+                        <span class="text-gray-500 text-sm">(Per user)</span>
+                    </label>
+                    <input type="number"
+                           id="max_claims_per_day"
+                           name="max_claims_per_day"
+                           value="{{ settings.max_claims_per_day }}"
+                           min="0"
+                           max="10"
+                           required
+                           class="w-full md:w-64 bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <p class="text-gray-500 text-sm mt-1">Set to 0 for unlimited claims</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Undo Time Limits -->
+        <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
+            <h2 class="text-xl font-semibold text-white mb-4">Undo Time Limits</h2>
+
+            <div class="space-y-4">
+                <div>
+                    <label for="undo_time_limit_hours" class="block text-gray-300 mb-2">
+                        Completion Undo Window (hours)
+                    </label>
+                    <input type="number"
+                           id="undo_time_limit_hours"
+                           name="undo_time_limit_hours"
+                           value="{{ settings.undo_time_limit_hours }}"
+                           min="1"
+                           max="168"
+                           required
+                           class="w-full md:w-64 bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <p class="text-gray-500 text-sm mt-1">How long after completion can it be undone</p>
+                </div>
+
+                <div>
+                    <label for="weekly_reset_undo_hours" class="block text-gray-300 mb-2">
+                        Weekly Reset Undo Window (hours)
+                    </label>
+                    <input type="number"
+                           id="weekly_reset_undo_hours"
+                           name="weekly_reset_undo_hours"
+                           value="{{ settings.weekly_reset_undo_hours }}"
+                           min="1"
+                           max="168"
+                           required
+                           class="w-full md:w-64 bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <p class="text-gray-500 text-sm mt-1">How long after weekly reset can it be undone</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notifications -->
+        <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
+            <h2 class="text-xl font-semibold text-white mb-4">Notifications</h2>
+
+            <div class="space-y-4">
+                <div class="flex items-center">
+                    <input type="checkbox"
+                           id="enable_notifications"
+                           name="enable_notifications"
+                           {% if settings.enable_notifications %}checked{% endif %}
+                           class="w-4 h-4 text-primary-500 bg-dark-card border-dark-border rounded focus:ring-primary-500 focus:ring-2">
+                    <label for="enable_notifications" class="ml-2 text-gray-300">
+                        Enable Notifications
+                    </label>
+                </div>
+
+                <div>
+                    <label for="home_assistant_webhook_url" class="block text-gray-300 mb-2">
+                        Home Assistant Webhook URL
+                    </label>
+                    <input type="url"
+                           id="home_assistant_webhook_url"
+                           name="home_assistant_webhook_url"
+                           value="{{ settings.home_assistant_webhook_url }}"
+                           placeholder="https://your-home-assistant.local/api/webhook/choreboard"
+                           class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <p class="text-gray-500 text-sm mt-1">Leave blank to disable webhook notifications</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Save Button -->
+        <div class="flex justify-end space-x-4">
+            <button type="button"
+                    onclick="window.location.href='{% url 'board:admin_dashboard' %}'"
+                    class="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition focus:outline-none focus:ring-2 focus:ring-gray-500">
+                Cancel
+            </button>
+            <button type="submit"
+                    class="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition focus:outline-none focus:ring-2 focus:ring-primary-500">
+                Save Settings
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.getElementById('settings-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+
+        try {
+            const response = await fetch('{% url 'board:admin_settings' %}', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message, 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(data.error || 'Failed to save settings', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    });
+</script>
+{% endblock %}

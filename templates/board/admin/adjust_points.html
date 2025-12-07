@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block title %}Adjust Points - Admin - ChoreBoard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Manual Points Adjustment</h1>
+            <p class="text-gray-400 mt-1">Award bonus points or make corrections to user balances</p>
+        </div>
+    </div>
+
+    {% include "board/admin/_nav.html" with active_page='adjust_points' %}
+
+    <!-- Info Box -->
+    <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+        <div class="flex items-start">
+            <svg class="w-6 h-6 text-amber-400 mr-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+                <p class="text-amber-400 font-semibold">About Manual Adjustments</p>
+                <p class="text-amber-300 text-sm mt-1">
+                    Use this feature to award bonus points, correct errors, or make manual adjustments. All adjustments are logged with reasons for audit purposes.
+                    You cannot adjust your own points. Maximum adjustment: ±999.99 points.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Adjustment Form -->
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-xl font-semibold text-white">Adjust User Points</h2>
+            <p class="text-gray-400 text-sm mt-1">Select a user and enter point adjustment amount</p>
+        </div>
+
+        <form id="adjust-points-form" class="p-6 space-y-6">
+            {% csrf_token %}
+
+            <!-- User Selection -->
+            <div>
+                <label for="user-select" class="block text-gray-300 font-medium mb-2">
+                    Select User <span class="text-red-400">*</span>
+                </label>
+                <select id="user-select" name="user_id" required
+                        class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                    <option value="">-- Select User --</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}" data-points="{{ user.all_time_points }}">
+                        {{ user.get_display_name }} ({{ user.all_time_points }} pts)
+                    </option>
+                    {% endfor %}
+                </select>
+                <p class="text-gray-500 text-sm mt-1">Choose the user whose points you want to adjust</p>
+            </div>
+
+            <!-- Current Balance Display -->
+            <div id="balance-display" class="bg-dark-card border border-dark-border rounded-lg p-4 hidden">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Current Balance:</span>
+                    <span id="current-balance" class="text-2xl font-bold text-primary-400">0.00</span>
+                </div>
+            </div>
+
+            <!-- Points Amount -->
+            <div>
+                <label for="points-input" class="block text-gray-300 font-medium mb-2">
+                    Points Adjustment <span class="text-red-400">*</span>
+                </label>
+                <input type="number" id="points-input" name="points" step="0.01" min="-999.99" max="999.99" required
+                       placeholder="Enter amount (positive to add, negative to subtract)"
+                       class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                <p class="text-gray-500 text-sm mt-1">
+                    Enter positive values to add points, negative values to subtract. Max: ±999.99
+                </p>
+            </div>
+
+            <!-- New Balance Preview -->
+            <div id="preview-display" class="bg-dark-card border border-primary-500/30 rounded-lg p-4 hidden">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">New Balance:</span>
+                    <span id="new-balance" class="text-2xl font-bold text-green-400">0.00</span>
+                </div>
+            </div>
+
+            <!-- Reason -->
+            <div>
+                <label for="reason-input" class="block text-gray-300 font-medium mb-2">
+                    Reason for Adjustment <span class="text-red-400">*</span>
+                </label>
+                <textarea id="reason-input" name="reason" rows="3" required minlength="10" maxlength="500"
+                          placeholder="Enter a detailed reason for this adjustment (minimum 10 characters)"
+                          class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition resize-none"></textarea>
+                <p class="text-gray-500 text-sm mt-1">
+                    <span id="char-count">0</span>/500 characters (minimum 10 required)
+                </p>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="flex justify-end space-x-3 pt-4 border-t border-dark-border">
+                <button type="button" onclick="window.location.href='{% url 'board:admin_dashboard' %}'"
+                        class="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition">
+                    Cancel
+                </button>
+                <button type="submit" id="submit-btn"
+                        class="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Apply Adjustment
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Recent Adjustments -->
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-xl font-semibold text-white">Recent Adjustments</h2>
+            <p class="text-gray-400 text-sm mt-1">Last 20 manual point adjustments</p>
+        </div>
+
+        {% if recent_adjustments %}
+        <div class="divide-y divide-dark-border">
+            {% for adjustment in recent_adjustments %}
+            <div class="p-6">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-3">
+                            <h3 class="text-white font-semibold">{{ adjustment.user.get_display_name }}</h3>
+                            <span class="text-lg font-bold {% if adjustment.points_change > 0 %}text-green-400{% else %}text-red-400{% endif %}">
+                                {{ adjustment.points_change|floatformat:2|stringformat:"+.2f" }}
+                            </span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-1">{{ adjustment.description }}</p>
+                        <div class="flex items-center space-x-4 mt-2 text-xs text-gray-500">
+                            <span>
+                                By: {{ adjustment.created_by.get_display_name }}
+                            </span>
+                            <span>{{ adjustment.created_at|date:"M d, Y g:i A" }}</span>
+                            <span>Balance after: {{ adjustment.balance_after }} pts</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <svg class="w-16 h-16 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p class="text-gray-500">No manual adjustments have been made yet</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Toast notification container -->
+<div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+<script>
+// Update balance display when user is selected
+document.getElementById('user-select').addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    const points = selectedOption.dataset.points;
+
+    if (this.value) {
+        document.getElementById('current-balance').textContent = parseFloat(points).toFixed(2);
+        document.getElementById('balance-display').classList.remove('hidden');
+        updatePreview();
+    } else {
+        document.getElementById('balance-display').classList.add('hidden');
+        document.getElementById('preview-display').classList.add('hidden');
+    }
+});
+
+// Update preview when points are entered
+document.getElementById('points-input').addEventListener('input', updatePreview);
+
+function updatePreview() {
+    const userSelect = document.getElementById('user-select');
+    const pointsInput = document.getElementById('points-input');
+
+    if (userSelect.value && pointsInput.value) {
+        const selectedOption = userSelect.options[userSelect.selectedIndex];
+        const currentPoints = parseFloat(selectedOption.dataset.points);
+        const adjustment = parseFloat(pointsInput.value);
+        const newBalance = currentPoints + adjustment;
+
+        document.getElementById('new-balance').textContent = newBalance.toFixed(2);
+        document.getElementById('preview-display').classList.remove('hidden');
+
+        // Color code based on adjustment
+        const newBalanceEl = document.getElementById('new-balance');
+        if (adjustment > 0) {
+            newBalanceEl.className = 'text-2xl font-bold text-green-400';
+        } else if (adjustment < 0) {
+            newBalanceEl.className = 'text-2xl font-bold text-red-400';
+        }
+    } else {
+        document.getElementById('preview-display').classList.add('hidden');
+    }
+}
+
+// Character counter for reason
+document.getElementById('reason-input').addEventListener('input', function() {
+    document.getElementById('char-count').textContent = this.value.length;
+});
+
+// Form submission
+document.getElementById('adjust-points-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const submitBtn = document.getElementById('submit-btn');
+    const formData = new FormData(this);
+
+    // Disable submit button
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<svg class="w-5 h-5 mr-2 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processing...';
+
+    try {
+        const response = await fetch('{% url "board:admin_adjust_points_submit" %}', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message, 'success');
+            // Reset form
+            this.reset();
+            document.getElementById('balance-display').classList.add('hidden');
+            document.getElementById('preview-display').classList.add('hidden');
+            // Reload page after 1.5 seconds to show updated list
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showToast(data.error || 'Failed to adjust points', 'error');
+        }
+    } catch (error) {
+        showToast('An error occurred while adjusting points', 'error');
+        console.error('Error:', error);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> Apply Adjustment';
+    }
+});
+
+// Toast notification function
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `rounded-lg p-4 shadow-lg transform transition-all duration-300 ${
+        type === 'success' ? 'bg-green-600' :
+        type === 'error' ? 'bg-red-600' :
+        'bg-blue-600'
+    } text-white max-w-md`;
+    toast.innerHTML = `
+        <div class="flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                ${type === 'success' ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />' :
+                  type === 'error' ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />' :
+                  '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />'}
+            </svg>
+            <span>${message}</span>
+        </div>
+    `;
+
+    document.getElementById('toast-container').appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block title %}ChoreBoard - Weekly Reset{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-amber-600 to-amber-800 rounded-lg p-6 shadow-xl">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-white">Weekly Reset</h1>
+                <p class="text-amber-100 mt-1">Week ending: {{ week_ending|date:"l, F j, Y" }}</p>
+            </div>
+            <div class="text-right">
+                <p class="text-amber-100 text-sm">Total Payout</p>
+                <p class="text-5xl font-bold text-white">${{ total_cash|floatformat:2 }}</p>
+                <p class="text-amber-200 text-sm mt-1">{{ total_points|floatformat:2 }} {{ POINTS_LABEL }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Perfect Week Status -->
+    {% if is_perfect_week %}
+    <div class="bg-green-500/20 border border-green-500/50 rounded-lg p-4">
+        <div class="flex items-center">
+            <svg class="w-6 h-6 text-green-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+                <p class="text-green-400 font-semibold">Perfect Week!</p>
+                <p class="text-green-300 text-sm">All chores completed on time. Streaks will increment.</p>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-red-500/20 border border-red-500/50 rounded-lg p-4">
+        <div class="flex items-center">
+            <svg class="w-6 h-6 text-red-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+                <p class="text-red-400 font-semibold">{{ late_count }} Late Completion{{ late_count|pluralize }}</p>
+                <p class="text-red-300 text-sm">Streaks will reset to 0.</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- User Summary Table -->
+    {% if user_summaries %}
+    <div class="bg-dark-surface rounded-lg border border-dark-border overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-dark-card">
+                    <tr>
+                        <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">User</th>
+                        <th class="px-6 py-4 text-right text-sm font-semibold text-gray-300">{{ POINTS_LABEL|title }}</th>
+                        <th class="px-6 py-4 text-right text-sm font-semibold text-gray-300">Cash Value</th>
+                        <th class="px-6 py-4 text-center text-sm font-semibold text-gray-300">Current Streak</th>
+                        <th class="px-6 py-4 text-center text-sm font-semibold text-gray-300">New Streak</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-dark-border">
+                    {% for summary in user_summaries %}
+                    <tr class="hover:bg-dark-card/50 transition">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 rounded-full bg-primary-500/20 flex items-center justify-center mr-3">
+                                    <span class="text-primary-400 font-semibold text-lg">
+                                        {{ summary.user.get_display_name|slice:":1"|upper }}
+                                    </span>
+                                </div>
+                                <span class="text-white font-medium">{{ summary.user.get_display_name }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <span class="text-primary-400 font-semibold text-lg">{{ summary.points|floatformat:2 }}</span>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <span class="text-green-400 font-semibold text-lg">${{ summary.cash|floatformat:2 }}</span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                {{ summary.current_streak }} week{{ summary.current_streak|pluralize }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            {% if summary.new_streak > summary.current_streak %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                                {{ summary.new_streak }} week{{ summary.new_streak|pluralize }} ↑
+                            </span>
+                            {% elif summary.new_streak < summary.current_streak %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+                                {{ summary.new_streak }} week{{ summary.new_streak|pluralize }} ↓
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                                {{ summary.new_streak }} week{{ summary.new_streak|pluralize }} →
+                            </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-dark-surface rounded-lg p-12 text-center border border-dark-border">
+        <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <h3 class="text-xl font-semibold text-gray-300 mb-2">No {{ POINTS_LABEL|title }} to Convert</h3>
+        <p class="text-gray-500">No users have earned {{ POINTS_LABEL }} this week.</p>
+    </div>
+    {% endif %}
+
+    <!-- Action Buttons -->
+    <div class="flex gap-4">
+        {% if total_points > 0 %}
+        <button onclick="confirmConvert()"
+                class="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-4 px-8 rounded-lg text-lg shadow-lg transition transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-green-500 focus:ring-opacity-50">
+            <div class="flex items-center justify-center">
+                <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Convert & Reset (${{ total_cash|floatformat:2 }})
+            </div>
+        </button>
+        {% endif %}
+
+        {% if can_undo %}
+        <button onclick="confirmUndo()"
+                class="bg-red-600 hover:bg-red-700 text-white font-semibold py-4 px-6 rounded-lg shadow-lg transition focus:outline-none focus:ring-4 focus:ring-red-500 focus:ring-opacity-50">
+            <div class="flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </svg>
+                Undo Last Reset
+            </div>
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- Info Card -->
+    <div class="bg-primary-500/10 border border-primary-500/30 rounded-lg p-4">
+        <h3 class="text-primary-400 font-semibold mb-2">About Weekly Reset</h3>
+        <ul class="text-gray-300 text-sm space-y-1">
+            <li>• Conversion rate: {{ conversion_rate|floatformat:4 }} {{ POINTS_LABEL }} = $1.00</li>
+            <li>• Perfect week bonus: Increment streak counter</li>
+            <li>• {{ POINTS_LABEL|title }} reset to 0 after conversion</li>
+            <li>• Daily claim limits reset to 0</li>
+            <li>• You can undo within 24 hours if needed</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Confirm Convert Dialog -->
+<div id="convert-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeConvertDialog(event)">
+    <div class="bg-dark-surface rounded-lg p-8 max-w-md w-full mx-4 border border-dark-border" onclick="event.stopPropagation()">
+        <h2 class="text-2xl font-bold text-white mb-4">Confirm Weekly Reset</h2>
+        <p class="text-gray-300 mb-6">
+            Are you sure you want to convert {{ POINTS_LABEL }} and reset the week?
+        </p>
+        <div class="bg-amber-500/20 border border-amber-500/50 rounded-lg p-4 mb-6">
+            <p class="text-amber-400 font-semibold">Total Payout: ${{ total_cash|floatformat:2 }}</p>
+            {% if is_perfect_week %}
+            <p class="text-green-400 text-sm mt-1">✓ Perfect week - streaks will increment</p>
+            {% else %}
+            <p class="text-red-400 text-sm mt-1">⚠ Streaks will reset to 0</p>
+            {% endif %}
+        </div>
+        <div class="flex space-x-4">
+            <button onclick="executeConvert()"
+                    class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                Confirm
+            </button>
+            <button onclick="closeConvertDialog()"
+                    class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Undo Dialog -->
+<div id="undo-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeUndoDialog(event)">
+    <div class="bg-dark-surface rounded-lg p-8 max-w-md w-full mx-4 border border-dark-border" onclick="event.stopPropagation()">
+        <h2 class="text-2xl font-bold text-white mb-4">Confirm Undo</h2>
+        <p class="text-gray-300 mb-6">
+            Are you sure you want to undo the last weekly reset? This will restore all {{ POINTS_LABEL }}.
+        </p>
+        <div class="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-6">
+            <p class="text-red-400 font-semibold">⚠ This action will restore the previous week's {{ POINTS_LABEL }}</p>
+            <p class="text-gray-400 text-sm mt-1">Week ending: {{ last_snapshot.week_ending|date:"M j, Y" }}</p>
+        </div>
+        <div class="flex space-x-4">
+            <button onclick="executeUndo()"
+                    class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                Undo Reset
+            </button>
+            <button onclick="closeUndoDialog()"
+                    class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function confirmConvert() {
+        document.getElementById('convert-dialog').classList.remove('hidden');
+    }
+
+    function closeConvertDialog(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('convert-dialog').classList.add('hidden');
+    }
+
+    async function executeConvert() {
+        try {
+            const response = await fetch('/board/weekly-reset/convert/', {
+                method: 'POST'
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message, 'success');
+                closeConvertDialog();
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(data.error || 'Failed to convert and reset', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    function confirmUndo() {
+        document.getElementById('undo-dialog').classList.remove('hidden');
+    }
+
+    function closeUndoDialog(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('undo-dialog').classList.add('hidden');
+    }
+
+    async function executeUndo() {
+        try {
+            const response = await fetch('/board/weekly-reset/undo/', {
+                method: 'POST'
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message, 'success');
+                closeUndoDialog();
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(data.error || 'Failed to undo reset', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    // Close dialogs with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeConvertDialog();
+            closeUndoDialog();
+        }
+    });
+</script>
+{% endblock %}
