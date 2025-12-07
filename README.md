@@ -233,6 +233,20 @@ ChoreBoard is highly customizable:
 
 For production use, deploy ChoreBoard with Docker:
 
+### Using Pre-built Images
+
+Pre-built Docker images are available from GitHub Container Registry:
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/YOUR_USERNAME/choreboard2:latest
+
+# Or use a specific version
+docker pull ghcr.io/YOUR_USERNAME/choreboard2:v1.0.0
+```
+
+### Building from Source
+
 ```bash
 docker-compose up -d --build
 docker exec -it choreboard python manage.py setup

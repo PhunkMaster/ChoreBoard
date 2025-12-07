@@ -1,6 +1,23 @@
 # ChoreBoard Dockerfile
 FROM python:3.11-slim
 
+# Build arguments for metadata
+ARG BUILD_DATE
+ARG VERSION
+ARG REVISION
+
+# OCI Image metadata
+LABEL org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.authors="ChoreBoard Contributors" \
+      org.opencontainers.image.url="https://github.com/YOUR_USERNAME/ChoreBoard2" \
+      org.opencontainers.image.documentation="https://github.com/YOUR_USERNAME/ChoreBoard2/blob/main/README.md" \
+      org.opencontainers.image.source="https://github.com/YOUR_USERNAME/ChoreBoard2" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.vendor="ChoreBoard" \
+      org.opencontainers.image.title="ChoreBoard" \
+      org.opencontainers.image.description="A smart household chore management system that makes chores fair, fun, and rewarding"
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
