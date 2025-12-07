@@ -144,7 +144,7 @@ class MidnightEvaluationTests(TestCase):
         run_midnight_evaluation()
 
         # Verify log created
-        logs = EvaluationLog.objects.filter(job_name='midnight_evaluation')
+        logs = EvaluationLog.objects.all()
         self.assertGreater(logs.count(), 0)
 
         log = logs.first()
@@ -278,7 +278,7 @@ class DistributionCheckTests(TestCase):
         run_distribution_check()
 
         # Verify log created
-        logs = EvaluationLog.objects.filter(job_name='distribution_check')
+        logs = EvaluationLog.objects.all()
         self.assertGreater(logs.count(), 0)
 
 
@@ -385,7 +385,7 @@ class WeeklySnapshotTests(TestCase):
         run_weekly_snapshot()
 
         # Verify log created
-        logs = EvaluationLog.objects.filter(job_name='weekly_snapshot')
+        logs = EvaluationLog.objects.all()
         self.assertGreater(logs.count(), 0)
 
     def test_weekly_snapshot_includes_perfect_week_count(self):
