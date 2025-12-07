@@ -213,7 +213,7 @@
             formData.append('instance_id', currentClaimId);
             formData.append('user_id', userId);
 
-            const response = await fetch('/board/action/claim/', {
+            const response = await fetch('/action/claim/', {
                 method: 'POST',
                 body: formData
             });
@@ -251,7 +251,7 @@
             formData.append('user_id', userId);
             helperIds.forEach(id => formData.append('helper_ids', id));
 
-            const response = await fetch('/board/action/complete/', {
+            const response = await fetch('/action/complete/', {
                 method: 'POST',
                 body: formData
             });

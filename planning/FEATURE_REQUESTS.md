@@ -573,3 +573,4 @@ Future enhancements for improved UX.
 1. **Create Pages Per User** - Create a page for each user to view their currently assigned chores.
 2. **Split Assigned Chores** - Split assigned chores into groups based on the user they are assigned to.
 3. **Manual Points Adjustment** - Allow staff users to arbitrarily add or adjust points for a specific user (admin-only feature for corrections, bonuses, or manual adjustments).
+4. **GitHub Actions CI/CD Pipeline** ✅ Complete - Automated Docker image build and push to GitHub Container Registry with testing, caching, and vulnerability scanning.
