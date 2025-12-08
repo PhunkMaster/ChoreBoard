@@ -203,6 +203,13 @@ class UserPagesEdgeCasesTest(TestCase):
     def setUp(self):
         """Set up test data."""
         self.client = Client()
+        # Create a dummy user to bypass SetupMiddleware
+        # (middleware redirects if NO users exist at all)
+        User.objects.create_user(
+            username='system',
+            is_active=False,
+            can_be_assigned=False
+        )
 
     def test_user_board_with_no_chores(self):
         """Test user board displays properly when user has no chores."""
