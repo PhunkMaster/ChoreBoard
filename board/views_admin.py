@@ -1,6 +1,8 @@
 """
 Admin panel views for ChoreBoard.
 """
+import os
+import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
@@ -8,14 +10,14 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import transaction
 from django.utils import timezone
 from django.db.models import Sum, Count
+from django.conf import settings
 from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 
 from users.models import User
 from core.models import Settings, ActionLog, WeeklySnapshot, Backup
 from chores.models import Chore, ChoreInstance, Completion, CompletionShare, PointsLedger, ChoreTemplate
 from chores.services import SkipService, RescheduleService
-from decimal import Decimal, InvalidOperation
-import logging
 
 logger = logging.getLogger(__name__)
 

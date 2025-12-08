@@ -1,0 +1,71 @@
+{% extends "base_minimal.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6 p-4">
+    <!-- Type Toggle -->
+    <div class="flex justify-center gap-2">
+        <a href="?type=weekly"
+           class="px-6 py-3 rounded-lg font-semibold transition {% if board_type == 'weekly' %}bg-primary-600 text-white{% else %}bg-dark-surface text-gray-400 hover:bg-dark-hover{% endif %}">
+            Weekly
+        </a>
+        <a href="?type=alltime"
+           class="px-6 py-3 rounded-lg font-semibold transition {% if board_type == 'alltime' %}bg-primary-600 text-white{% else %}bg-dark-surface text-gray-400 hover:bg-dark-hover{% endif %}">
+            All Time
+        </a>
+    </div>
+
+    <!-- Leaderboard -->
+    {% if ranked_list %}
+    <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
+        <div class="space-y-3">
+            {% for item in ranked_list %}
+            <div class="flex items-center gap-4 p-4 bg-dark-card rounded-lg border border-dark-border hover:border-primary-500 transition
+                        {% if item.rank == 1 %}border-yellow-500/50 bg-gradient-to-r from-yellow-900/20 to-dark-card{% elif item.rank == 2 %}border-gray-400/50{% elif item.rank == 3 %}border-orange-700/50{% endif %}">
+
+                <!-- Rank -->
+                <div class="flex-shrink-0 w-16 text-center">
+                    {% if item.rank == 1 %}
+                        <div class="text-4xl">🥇</div>
+                    {% elif item.rank == 2 %}
+                        <div class="text-4xl">🥈</div>
+                    {% elif item.rank == 3 %}
+                        <div class="text-4xl">🥉</div>
+                    {% else %}
+                        <div class="text-3xl font-bold text-gray-400">#{{ item.rank }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- User Info -->
+                <div class="flex-1">
+                    <div class="text-xl font-bold text-white">{{ item.user.get_display_name }}</div>
+                </div>
+
+                <!-- Points -->
+                <div class="text-right">
+                    <div class="text-3xl font-bold text-primary-400">{{ item.points }}</div>
+                    <div class="text-sm text-gray-400">{{ POINTS_LABEL_SHORT }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-dark-surface rounded-lg p-12 border border-dark-border text-center">
+        <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+        </svg>
+        <h3 class="text-xl font-semibold text-gray-300 mb-2">No Rankings Yet</h3>
+        <p class="text-gray-500">Complete chores to earn points and climb the leaderboard!</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Auto-refresh every 60 seconds -->
+<script>
+    setInterval(function() {
+        window.location.reload();
+    }, 60000);
+</script>
+{% endblock %}

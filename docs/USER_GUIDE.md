@@ -245,6 +245,248 @@ If your admin has configured notifications:
 
 ---
 
+## Kiosk Mode & Minimal Pages
+
+ChoreBoard includes **minimal pages** designed for kiosk displays, tablets, or dedicated chore stations. These pages remove navigation, headers, and extra chrome for a clean, focused interface.
+
+### Why Use Minimal Pages?
+
+- **Kiosk Stations**: Set up a dedicated tablet or screen for family members to check and complete chores
+- **Embedded Displays**: Use in iframes, dashboards, or home automation interfaces
+- **Simplified Interface**: Remove distractions and show only essential information
+- **Auto-Refresh**: Pages automatically reload to show updated information
+- **No Login Required**: Work without authentication for household use
+
+### Available Minimal Pages
+
+All minimal pages auto-refresh every 30-60 seconds to show the latest chore status.
+
+#### 1. Pool Chores Minimal
+**URL**: `/pool/minimal/`
+
+**What it shows:**
+- All unclaimed pool chores
+- Arcade mode banner (if active)
+- Claim and Complete buttons for each chore
+- High score display for arcade-enabled chores
+
+**Use case:**
+- Kitchen tablet showing available chores
+- Quick-claim station in common areas
+
+**Features:**
+- Responsive grid (1-4 columns based on screen size)
+- User selection dialogs for claiming/completing
+- Helper selection for shared completions
+
+---
+
+#### 2. User Board Minimal
+**URL**: `/user/<username>/minimal/`
+
+**What it shows:**
+- Single user's assigned chores for today
+- Overdue chores (red)
+- On-time chores (blue)
+- Arcade mode banner for that user
+
+**Use case:**
+- Personal tablet in bedroom showing only your chores
+- Kids' room display with just their tasks
+
+**Features:**
+- Clean card layout
+- Complete button on each chore
+- Auto-refresh to track progress
+
+---
+
+#### 3. Assigned Chores Minimal
+**URL**: `/assigned/minimal/`
+
+**What it shows:**
+- All users with their assigned chores
+- Grouped by user in separate sections
+- Each user's chore count
+- Complete button per chore
+
+**Use case:**
+- Family room display showing everyone's status
+- Central hub for viewing all household chores
+
+**Features:**
+- Responsive grid (1-4 columns per user section)
+- Pre-selects assigned user in complete dialog
+- Shows overdue vs on-time breakdown
+
+---
+
+#### 4. Users Overview Minimal
+**URL**: `/users/minimal/`
+
+**What it shows:**
+- Grid of all user cards
+- Each card displays:
+  - User name
+  - Chore count for today
+  - Weekly points
+  - All-time points
+
+**Use case:**
+- Quick overview of household status
+- Points tracking display
+- Navigation hub to user boards
+
+**Features:**
+- Responsive grid (2-6 columns based on screen size)
+- Clickable cards navigate to user's minimal board
+- Color-coded badges for chore counts
+
+---
+
+#### 5. Leaderboard Minimal
+**URL**: `/leaderboard/minimal/`
+
+**What it shows:**
+- Ranked list of users by points
+- Toggle between Weekly and All-Time
+- Top 3 with medal emojis (🥇🥈🥉)
+- Points for each user
+
+**Use case:**
+- Motivational display in common area
+- Competition tracker for families
+- Weekly standings board
+
+**Features:**
+- Gold/silver/bronze visual highlights
+- Large, readable font sizes
+- Auto-refresh to show live standings
+
+---
+
+#### 6. Arcade Leaderboard Minimal
+**URL**: `/arcade/leaderboard/minimal/`
+
+**What it shows:**
+- Time records for arcade-enabled chores
+- Top 3 times per chore
+- User names and completion dates
+- Completion times
+
+**Use case:**
+- Speed challenge display
+- Record board for competitive chores
+- Achievement showcase
+
+**Features:**
+- Grouped by chore type
+- Medal emojis for top performers
+- Live timer displays
+- Shows all arcade records
+
+---
+
+#### 7. Judge Approval Minimal
+**URL**: `/arcade/judge-approval/minimal/`
+
+**What it shows:**
+- Pending arcade completions awaiting approval
+- Completion times and user info
+- Current high score comparison
+- "NEW RECORD!" indicators
+- Approve/Deny buttons
+
+**Use case:**
+- Judge station for arcade mode
+- Review screen for completed speed challenges
+- Parent approval interface
+
+**Features:**
+- Large, clear action buttons
+- Judge selection in approval dialog
+- Optional notes for approval/denial
+- Shows if submission beats current record
+- Faster refresh (30 seconds)
+
+---
+
+### Setting Up a Kiosk Station
+
+**Recommended Setup:**
+
+1. **Hardware:**
+   - Tablet (iPad, Android, Fire) mounted on wall or stand
+   - Old phone or small touchscreen
+   - Dedicated monitor with Raspberry Pi
+
+2. **Browser Setup:**
+   - Use kiosk mode browser or full-screen mode
+   - Disable sleep/screen timeout
+   - Enable auto-reload (pages already auto-refresh)
+   - Bookmark your preferred minimal page
+
+3. **Suggested Page Choices:**
+   - **Kitchen/Common Area**: `/assigned/minimal/` or `/pool/minimal/`
+   - **Personal Bedrooms**: `/user/<username>/minimal/`
+   - **Family Leaderboard**: `/leaderboard/minimal/`
+   - **Arcade Judge**: `/arcade/judge-approval/minimal/`
+
+4. **Tips:**
+   - Use portrait orientation for user boards
+   - Use landscape orientation for pool/assigned views
+   - Adjust tablet brightness for visibility
+   - Consider using tablet stands with adjustable angles
+
+5. **Embedding in Other Apps:**
+   - ChoreBoard supports iframe embedding for dashboards and home automation interfaces
+   - Works with Home Assistant, SmartThings, and custom web dashboards
+   - Example iframe code:
+     ```html
+     <iframe src="http://yourserver:8000/pool/minimal/"
+             width="100%" height="800px"
+             frameborder="0"></iframe>
+     ```
+   - All minimal pages are optimized for iframe embedding
+
+---
+
+### Minimal Pages vs Regular Pages
+
+| Feature | Regular Pages | Minimal Pages |
+|---------|---------------|---------------|
+| Navigation Menu | ✅ Yes | ❌ No |
+| Header/Logo | ✅ Yes | ❌ No |
+| Back Buttons | ✅ Yes | ❌ No |
+| Auto-Refresh | ❌ No | ✅ Yes (30-60s) |
+| Arcade Banner | ✅ Yes | ✅ Yes |
+| Login Required | ✅ Yes | ❌ No |
+| Responsive | ✅ Yes | ✅ Yes |
+| Touch Friendly | ✅ Yes | ✅ Yes |
+
+---
+
+### Browser Recommendations for Kiosk
+
+**iOS (iPad/iPhone):**
+- Safari in Guided Access mode (Settings → Accessibility)
+- Kiosk Pro app for advanced kiosk features
+
+**Android:**
+- Chrome with "Add to Home Screen" and full-screen
+- Fully Kiosk Browser app (recommended)
+- Kiosk Browser Lockdown
+
+**Fire Tablet:**
+- Silk Browser in full-screen mode
+- Enable Show Mode for hands-free display
+
+**Raspberry Pi:**
+- Chromium in kiosk mode
+- `chromium-browser --kiosk --app=http://yourserver/pool/minimal/`
+
+---
+
 ## Common Questions
 
 **Q: Why can't I claim more chores?**

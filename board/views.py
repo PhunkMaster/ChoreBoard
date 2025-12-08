@@ -52,7 +52,7 @@ def main_board(request):
             chores_by_user[user]['ontime'].append(chore)
 
     # Convert to list of dicts for template
-    # Filter out users not eligible for points
+    # Filter out users not eligible for points (and None users from unassigned chores)
     assigned_by_user = [
         {
             'user': user,
@@ -61,7 +61,7 @@ def main_board(request):
             'total': len(chores['overdue']) + len(chores['ontime'])
         }
         for user, chores in chores_by_user.items()
-        if user.eligible_for_points
+        if user is not None and user.eligible_for_points
     ]
 
     # Sort by user name
@@ -71,10 +71,11 @@ def main_board(request):
     overdue_assigned = assigned_chores.filter(is_overdue=True)
     ontime_assigned = assigned_chores.filter(is_overdue=False)
 
-    # Get all users for the user selector
+    # Get all users for the user selector (only those eligible for points)
     users = User.objects.filter(
         is_active=True,
-        can_be_assigned=True
+        can_be_assigned=True,
+        eligible_for_points=True
     ).order_by('first_name', 'username')
 
     # Get admin users only for reschedule function
@@ -119,10 +120,11 @@ def pool_only(request):
         chore__is_active=True
     ).exclude(status=ChoreInstance.SKIPPED).select_related('chore').order_by('due_at')
 
-    # Get all users for the user selector
+    # Get all users for the user selector (only those eligible for points)
     users = User.objects.filter(
         is_active=True,
-        can_be_assigned=True
+        can_be_assigned=True,
+        eligible_for_points=True
     ).order_by('first_name', 'username')
 
     context = {
@@ -158,10 +160,11 @@ def user_board(request, username):
     weekly_points = user.weekly_points
     all_time_points = user.all_time_points
 
-    # Get all users for switching
+    # Get all users for switching (only those eligible for points)
     users = User.objects.filter(
         is_active=True,
-        can_be_assigned=True
+        can_be_assigned=True,
+        eligible_for_points=True
     ).order_by('first_name', 'username')
 
     # Check for active arcade session for THIS user only (kiosk-mode compatible)
@@ -215,10 +218,11 @@ def user_board_minimal(request, username):
         user=user  # Filter by user from URL, not request.user
     ).select_related('chore', 'user').first()
 
-    # Get all users for arcade mode selection
+    # Get all users for arcade mode selection (only those eligible for points)
     users = User.objects.filter(
         is_active=True,
-        can_be_assigned=True
+        can_be_assigned=True,
+        eligible_for_points=True
     ).order_by('first_name', 'username')
 
     context = {
@@ -255,10 +259,11 @@ def pool_minimal(request):
         status=ArcadeSession.STATUS_ACTIVE
     ).select_related('chore', 'user').first()
 
-    # Get all users for arcade mode and claiming
+    # Get all users for arcade mode and claiming (only those eligible for points)
     users = User.objects.filter(
         is_active=True,
-        can_be_assigned=True
+        can_be_assigned=True,
+        eligible_for_points=True
     ).order_by('first_name', 'username')
 
     context = {
@@ -269,6 +274,127 @@ def pool_minimal(request):
     }
 
     return render(request, 'board/pool_minimal.html', context)
+
+
+def assigned_minimal(request):
+    """
+    Minimal view showing all assigned chores grouped by user.
+    No navigation, no header - just the assigned chores by user.
+    Kiosk-mode compatible.
+    """
+    from collections import defaultdict
+    from chores.models import ArcadeSession
+
+    now = timezone.now()
+    today = now.date()
+
+    # Get all assigned chores for today
+    assigned_chores = ChoreInstance.objects.filter(
+        status=ChoreInstance.ASSIGNED,
+        due_at__date=today,
+        chore__is_active=True
+    ).exclude(status=ChoreInstance.SKIPPED).select_related('chore', 'assigned_to').order_by('due_at')
+
+    # Group assigned chores by user
+    chores_by_user = defaultdict(lambda: {'overdue': [], 'ontime': []})
+
+    for chore in assigned_chores:
+        user = chore.assigned_to
+        if chore.is_overdue:
+            chores_by_user[user]['overdue'].append(chore)
+        else:
+            chores_by_user[user]['ontime'].append(chore)
+
+    # Convert to list of dicts for template
+    # Filter out users not eligible for points (and None users from unassigned chores)
+    assigned_by_user = [
+        {
+            'user': user,
+            'overdue': chores['overdue'],
+            'ontime': chores['ontime'],
+            'total': len(chores['overdue']) + len(chores['ontime'])
+        }
+        for user, chores in chores_by_user.items()
+        if user is not None and user.eligible_for_points
+    ]
+
+    # Sort by user name
+    assigned_by_user.sort(key=lambda x: x['user'].first_name or x['user'].username)
+
+    # Check for any active arcade session (kiosk-mode compatible)
+    active_arcade_session = ArcadeSession.objects.filter(
+        status=ArcadeSession.STATUS_ACTIVE
+    ).select_related('chore', 'user').first()
+
+    # Get all users for completing chores (only those eligible for points)
+    users = User.objects.filter(
+        is_active=True,
+        can_be_assigned=True,
+        eligible_for_points=True
+    ).order_by('first_name', 'username')
+
+    context = {
+        'assigned_by_user': assigned_by_user,
+        'today': today,
+        'active_arcade_session': active_arcade_session,
+        'users': users,
+    }
+
+    return render(request, 'board/assigned_minimal.html', context)
+
+
+def users_minimal(request):
+    """
+    Minimal view showing all users as cards.
+    No navigation, no header - just user cards with their weekly and all-time points.
+    Kiosk-mode compatible.
+    """
+    from chores.models import ArcadeSession
+
+    now = timezone.now()
+    today = now.date()
+
+    # Get all users eligible for points
+    users = User.objects.filter(
+        is_active=True,
+        can_be_assigned=True,
+        eligible_for_points=True
+    ).order_by('first_name', 'username')
+
+    # Get chore counts per user for today
+    assigned_chores = ChoreInstance.objects.filter(
+        status=ChoreInstance.ASSIGNED,
+        due_at__date=today,
+        chore__is_active=True
+    ).exclude(status=ChoreInstance.SKIPPED).select_related('assigned_to')
+
+    # Count chores per user
+    chore_counts = {}
+    for chore in assigned_chores:
+        if chore.assigned_to and chore.assigned_to.eligible_for_points:
+            user_id = chore.assigned_to.id
+            chore_counts[user_id] = chore_counts.get(user_id, 0) + 1
+
+    # Attach chore counts to users
+    users_with_counts = []
+    for user in users:
+        users_with_counts.append({
+            'user': user,
+            'chore_count': chore_counts.get(user.id, 0)
+        })
+
+    # Check for any active arcade session (kiosk-mode compatible)
+    active_arcade_session = ArcadeSession.objects.filter(
+        status=ArcadeSession.STATUS_ACTIVE
+    ).select_related('chore', 'user').first()
+
+    context = {
+        'users_with_counts': users_with_counts,
+        'today': today,
+        'active_arcade_session': active_arcade_session,
+    }
+
+    return render(request, 'board/users_minimal.html', context)
 
 
 def leaderboard(request):
@@ -312,6 +438,51 @@ def leaderboard(request):
     }
 
     return render(request, 'board/leaderboard.html', context)
+
+
+def leaderboard_minimal(request):
+    """
+    Minimal leaderboard view showing weekly and all-time rankings.
+    No navigation, no header - just the leaderboard.
+    Kiosk-mode compatible.
+    """
+    # Get leaderboard type from query param (default: weekly)
+    board_type = request.GET.get('type', 'weekly')
+
+    if board_type == 'alltime':
+        # All-time points
+        ranked_users = User.objects.filter(
+            eligible_for_points=True,
+            is_active=True
+        ).order_by('-all_time_points')
+        points_field = 'all_time_points'
+        title = 'All-Time Leaderboard'
+    else:
+        # Weekly points
+        ranked_users = User.objects.filter(
+            eligible_for_points=True,
+            is_active=True
+        ).order_by('-weekly_points')
+        points_field = 'weekly_points'
+        title = 'Weekly Leaderboard'
+
+    # Add rank to each user
+    ranked_list = []
+    for idx, user in enumerate(ranked_users, start=1):
+        points = getattr(user, points_field)
+        ranked_list.append({
+            'rank': idx,
+            'user': user,
+            'points': points,
+        })
+
+    context = {
+        'board_type': board_type,
+        'title': title,
+        'ranked_list': ranked_list,
+    }
+
+    return render(request, 'board/leaderboard_minimal.html', context)
 
 
 @require_http_methods(["POST"])

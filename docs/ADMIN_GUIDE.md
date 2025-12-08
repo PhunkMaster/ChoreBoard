@@ -643,6 +643,13 @@ Edit `.env` file:
 - Default: `./db.sqlite3`
 - For Docker: `/app/data/db.sqlite3`
 
+**ALLOW_IFRAME_EMBEDDING:**
+- Allow ChoreBoard to be embedded in iframes
+- Set to `True` to allow embedding (default)
+- Set to `False` to block iframe embedding for security
+- Use case: Enable for kiosk displays, dashboards, or embedded views
+- **Security Note**: Enabling this disables clickjacking protection. Only enable if you trust the sites embedding ChoreBoard.
+
 **TZ:**
 - Timezone for scheduled jobs
 - Default: `America/Chicago`
