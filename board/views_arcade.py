@@ -61,16 +61,16 @@ def start_arcade(request):
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
 
-@login_required
 @require_POST
 def stop_arcade(request):
-    """Stop arcade timer and prepare for judge selection."""
+    """Stop arcade timer and submit for judging. Supports kiosk mode."""
     try:
         session_id = request.POST.get('session_id')
         if not session_id:
             return JsonResponse({'success': False, 'message': 'Missing session_id'}, status=400)
 
-        arcade_session = get_object_or_404(ArcadeSession, id=session_id, user=request.user)
+        # Kiosk-mode compatible: Get session by ID only, not filtering by user
+        arcade_session = get_object_or_404(ArcadeSession, id=session_id)
 
         success, message, elapsed_seconds = ArcadeService.stop_arcade(arcade_session)
 
@@ -80,7 +80,7 @@ def stop_arcade(request):
                 'message': message,
                 'elapsed_seconds': elapsed_seconds,
                 'formatted_time': arcade_session.format_time(),
-                'redirect': f'/arcade/judge-select/{session_id}/'
+                'redirect': f'/arcade/submitted/{session_id}/'
             })
         else:
             return JsonResponse({'success': False, 'message': message}, status=400)
@@ -89,16 +89,16 @@ def stop_arcade(request):
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
 
-@login_required
 @require_POST
 def cancel_arcade(request):
-    """Cancel arcade mode."""
+    """Cancel arcade mode. Supports kiosk mode."""
     try:
         session_id = request.POST.get('session_id')
         if not session_id:
             return JsonResponse({'success': False, 'message': 'Missing session_id'}, status=400)
 
-        arcade_session = get_object_or_404(ArcadeSession, id=session_id, user=request.user)
+        # Kiosk-mode compatible: Get session by ID only, not filtering by user
+        arcade_session = get_object_or_404(ArcadeSession, id=session_id)
 
         success, message = ArcadeService.cancel_arcade(arcade_session)
 
@@ -112,11 +112,21 @@ def cancel_arcade(request):
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
 
-@login_required
 def get_arcade_status(request):
-    """Get current arcade session status for user."""
+    """Get current arcade session status for user. Supports kiosk mode."""
     try:
-        active_session = ArcadeService.get_active_session(request.user)
+        # Support kiosk mode - get user from user_id parameter or request.user
+        user_id = request.GET.get('user_id')
+        if user_id:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            user = get_object_or_404(User, id=user_id)
+        elif request.user.is_authenticated:
+            user = request.user
+        else:
+            return JsonResponse({'success': False, 'message': 'User must be specified'}, status=400)
+
+        active_session = ArcadeService.get_active_session(user)
 
         if not active_session:
             return JsonResponse({
@@ -140,19 +150,42 @@ def get_arcade_status(request):
 # Judge Selection & Approval
 # ===========================
 
-@login_required
+def arcade_submitted(request, session_id):
+    """Confirmation page after submitting arcade for judging. Supports kiosk mode."""
+    from core.models import Settings
+
+    # Kiosk-mode compatible: Get session by ID only, not filtering by user
+    arcade_session = get_object_or_404(ArcadeSession, id=session_id)
+
+    # Get redirect timeout from settings
+    settings = Settings.get_settings()
+    redirect_seconds = settings.arcade_submission_redirect_seconds
+
+    # Get the referring URL (where they came from)
+    referer = request.META.get('HTTP_REFERER', '/')
+
+    context = {
+        'arcade_session': arcade_session,
+        'redirect_seconds': redirect_seconds,
+        'redirect_url': referer,
+    }
+
+    return render(request, 'board/arcade/submitted.html', context)
+
+
 def judge_select(request, session_id):
-    """Judge selection page after stopping arcade timer."""
-    arcade_session = get_object_or_404(ArcadeSession, id=session_id, user=request.user)
+    """Judge selection page after stopping arcade timer. Supports kiosk mode."""
+    # Kiosk-mode compatible: Get session by ID only, not filtering by user
+    arcade_session = get_object_or_404(ArcadeSession, id=session_id)
 
     if arcade_session.status != ArcadeSession.STATUS_STOPPED:
         messages.error(request, 'This arcade session is not ready for judge selection.')
         return redirect('board:main')
 
-    # Get all active users except the current user (can't judge yourself)
+    # Get all active users except the session user (can't judge yourself)
     available_judges = User.objects.filter(
         is_active=True
-    ).exclude(id=request.user.id).order_by('first_name', 'username')
+    ).exclude(id=arcade_session.user.id).order_by('first_name', 'username')
 
     # Get high score for this chore
     high_score = ArcadeService.get_high_score(arcade_session.chore)
@@ -166,12 +199,12 @@ def judge_select(request, session_id):
     return render(request, 'board/arcade/judge_select.html', context)
 
 
-@login_required
 @require_POST
 def submit_for_approval(request, session_id):
-    """Submit arcade session to judge for approval."""
+    """Submit arcade session to judge for approval. Supports kiosk mode."""
     try:
-        arcade_session = get_object_or_404(ArcadeSession, id=session_id, user=request.user)
+        # Kiosk-mode compatible: Get session by ID only, not filtering by user
+        arcade_session = get_object_or_404(ArcadeSession, id=session_id)
 
         judge_id = request.POST.get('judge_id')
         if not judge_id:
@@ -180,7 +213,8 @@ def submit_for_approval(request, session_id):
 
         judge = get_object_or_404(User, id=judge_id, is_active=True)
 
-        if judge == request.user:
+        # Kiosk-mode compatible: Check against session user, not request.user
+        if judge == arcade_session.user:
             messages.error(request, 'You cannot judge your own arcade completion.')
             return redirect('board:arcade_judge_select', session_id=session_id)
 
@@ -197,10 +231,10 @@ def submit_for_approval(request, session_id):
         return redirect('board:main')
 
 
-@login_required
 def pending_approval(request, session_id):
-    """Waiting page for arcade approval."""
-    arcade_session = get_object_or_404(ArcadeSession, id=session_id, user=request.user)
+    """Waiting page for arcade approval. Supports kiosk mode."""
+    # Kiosk-mode compatible: Get session by ID only, not filtering by user
+    arcade_session = get_object_or_404(ArcadeSession, id=session_id)
 
     context = {
         'arcade_session': arcade_session,
@@ -320,12 +354,12 @@ def deny_submission(request, session_id):
         return redirect('board:arcade_judge_approval')
 
 
-@login_required
 @require_POST
 def continue_after_denial(request, session_id):
-    """Continue arcade mode after denial."""
+    """Continue arcade mode after denial. Supports kiosk mode."""
     try:
-        arcade_session = get_object_or_404(ArcadeSession, id=session_id, user=request.user)
+        # Kiosk-mode compatible: Get session by ID only, not filtering by user
+        arcade_session = get_object_or_404(ArcadeSession, id=session_id)
 
         success, message = ArcadeService.continue_arcade(arcade_session)
 

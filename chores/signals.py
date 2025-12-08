@@ -59,7 +59,9 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
 
             # Determine status and assignment based on chore type
             if instance.is_undesirable:
-                # Undesirable chores: create as POOL, then immediately assign via rotation
+                # Undesirable chores: create as POOL
+                # Assignment happens later in admin view after ChoreEligibility records are created
+                logger.info(f"Creating undesirable instance for {instance.name} (is_pool={instance.is_pool})")
                 new_instance = ChoreInstance.objects.create(
                     chore=instance,
                     status=ChoreInstance.POOL,
@@ -67,16 +69,7 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
                     due_at=due_at,
                     distribution_at=distribution_at
                 )
-                logger.info(f"Created undesirable instance {new_instance.id} for {instance.name}, attempting assignment")
-
-                # Immediately assign via rotation using AssignmentService
-                from chores.services import AssignmentService
-                success, message, assigned_user = AssignmentService.assign_chore(new_instance)
-
-                if success:
-                    logger.info(f"Successfully assigned {instance.name} to {assigned_user.username}")
-                else:
-                    logger.warning(f"Could not assign {instance.name}: {message}")
+                logger.info(f"Created undesirable instance {new_instance.id} for {instance.name} (will be assigned after ChoreEligibility records are created)")
 
             elif instance.is_pool:
                 # Regular pool chore: create as POOL, users can claim it

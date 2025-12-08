@@ -967,19 +967,17 @@ function toggleEligibleUsers() {
 
 // Populate eligible users multi-select
 function populateEligibleUsers() {
-    fetch('/admin-panel/users/')
+    fetch('/admin-panel/users/list/')
         .then(response => response.json())
         .then(data => {
             const select = document.getElementById('chore-eligible-users');
             select.innerHTML = ''; // Clear existing options
 
             data.users.forEach(user => {
-                if (user.can_be_assigned) {
-                    const option = document.createElement('option');
-                    option.value = user.id;
-                    option.textContent = user.first_name || user.username;
-                    select.appendChild(option);
-                }
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = user.display_name || user.first_name || user.username;
+                select.appendChild(option);
             });
         })
         .catch(error => {

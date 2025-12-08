@@ -1,0 +1,500 @@
+{% extends "base_minimal.html" %}
+
+{% block title %}{{ user.get_display_name }}'s Chores{% endblock %}
+
+{% block content %}
+<div class="space-y-4 p-4">
+    <!-- Arcade Mode Banner (if user has active session) -->
+    {% if active_arcade_session %}
+    <div id="arcade-banner" class="bg-gradient-to-r from-purple-900/80 to-pink-900/80 border-2 border-purple-500 rounded-lg p-6 animate-pulse">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+            <!-- Left: Chore Info -->
+            <div class="flex items-center space-x-4">
+                <div class="text-4xl">⏱️</div>
+                <div>
+                    <h3 class="text-xl font-bold text-white">Arcade Mode Active</h3>
+                    <p class="text-purple-300">{{ active_arcade_session.chore.name }}</p>
+                </div>
+            </div>
+
+            <!-- Center: Timer Display -->
+            <div class="text-center">
+                <div id="arcade-timer" class="text-5xl font-bold text-yellow-400 tabular-nums">
+                    00:00
+                </div>
+                <p class="text-purple-300 text-sm mt-1">Elapsed Time</p>
+            </div>
+
+            <!-- Right: Actions -->
+            <div class="flex space-x-3">
+                <button onclick="stopArcade({{ active_arcade_session.id }})"
+                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                    🏁 Stop & Judge
+                </button>
+                <button onclick="cancelArcade({{ active_arcade_session.id }})"
+                        class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                    ❌ Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Chore Cards Only -->
+    {% if assigned_chores %}
+    <div class="space-y-4">
+        {% for chore_instance in assigned_chores %}
+        <!-- Minimal Chore Card -->
+        <div class="bg-dark-surface rounded-lg p-6 border {% if chore_instance.is_overdue %}border-red-500{% else %}border-dark-border{% endif %} hover:border-primary-500 transition">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex-1">
+                    <h3 class="text-xl font-bold text-white mb-2">{{ chore_instance.chore.name }}</h3>
+                    {% if chore_instance.chore.description %}
+                    <p class="text-gray-400 mb-2">{{ chore_instance.chore.description }}</p>
+                    {% endif %}
+
+                    <!-- Status Badge -->
+                    <div class="flex items-center gap-2 mt-2">
+                        {% if chore_instance.is_overdue %}
+                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+                            Overdue
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                            On Time
+                        </span>
+                        {% endif %}
+
+                        <span class="text-gray-500 text-sm">
+                            {{ chore_instance.points_value }} {{ POINTS_LABEL_SHORT }}
+                        </span>
+
+                        {% if chore_instance.chore.is_difficult %}
+                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                            Difficult
+                        </span>
+                        {% endif %}
+
+                        {% if chore_instance.chore.is_undesirable %}
+                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                            Undesirable
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap gap-2">
+                <button onclick="openCompleteDialog({{ chore_instance.id }}, '{{ chore_instance.chore.name }}', {{ chore_instance.points_value }}, '{{ user.get_display_name }}', '{{ user.id }}')"
+                        class="flex-1 min-w-[120px] bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                    Complete
+                </button>
+
+                <button onclick="openArcadeStartDialog({{ chore_instance.id }}, '{{ chore_instance.chore.name }}', '{{ user.id }}')"
+                        class="flex-1 min-w-[120px] bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-6 rounded-lg transition flex items-center justify-center space-x-2">
+                    <span>🎮</span>
+                    <span>Arcade</span>
+                    {% if chore_instance.chore.high_scores.first %}
+                    <span class="text-yellow-300">🏆</span>
+                    {% endif %}
+                </button>
+
+                {% if chore_instance.chore.is_pool %}
+                <button onclick="openUnclaimDialog({{ chore_instance.id }}, '{{ chore_instance.chore.name }}', {{ chore_instance.points_value }}, '{{ user.get_display_name }}')"
+                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                    Unclaim
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12">
+        <svg class="w-24 h-24 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p class="text-2xl text-gray-400">No chores assigned today!</p>
+        <p class="text-gray-500 mt-2">Enjoy your free time</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Arcade Start Dialog -->
+<div id="arcade-start-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeArcadeStartDialog(event)">
+    <div class="bg-dark-surface rounded-lg p-8 max-w-md w-full mx-4 border border-purple-500/50" onclick="event.stopPropagation()">
+        <h2 class="text-2xl font-bold text-white mb-4">🎮 Start Arcade Mode</h2>
+
+        <div class="mb-6">
+            <p class="text-gray-400 mb-2">Chore:</p>
+            <p id="arcade-start-chore-name" class="text-xl font-semibold text-white"></p>
+        </div>
+
+        <div class="mb-6 p-4 bg-purple-900/20 border border-purple-500/30 rounded-lg">
+            <p class="text-purple-300 text-sm">
+                ⏱️ Race against the clock to complete this chore as fast as possible!
+            </p>
+        </div>
+
+        <div class="mb-6">
+            <label for="arcade-user-select" class="block text-gray-400 mb-2">Who is playing?</label>
+            <select id="arcade-user-select" required
+                    class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+                <option value="">-- Select a player --</option>
+                {% for u in users %}
+                <option value="{{ u.id }}">{{ u.get_display_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="flex space-x-4">
+            <button onclick="confirmStartArcade()"
+                    class="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                Start Timer!
+            </button>
+            <button onclick="closeArcadeStartDialog()"
+                    class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Complete Dialog -->
+<div id="complete-dialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-dark-surface rounded-lg p-6 max-w-md w-full mx-4 border border-dark-border">
+        <h3 class="text-xl font-bold text-white mb-4">Complete Chore</h3>
+        <p class="text-gray-400 mb-4">
+            <span class="font-semibold text-white" id="complete-chore-name"></span><br>
+            <span id="complete-points-value" class="text-primary-400"></span>
+        </p>
+        <input type="hidden" id="complete-instance-id">
+        <div class="flex gap-3 mt-6">
+            <button onclick="closeCompleteDialog()" class="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition">
+                Cancel
+            </button>
+            <button onclick="submitComplete()" class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition">
+                Complete
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Unclaim Dialog -->
+<div id="unclaim-dialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-dark-surface rounded-lg p-6 max-w-md w-full mx-4 border border-dark-border">
+        <h3 class="text-xl font-bold text-white mb-4">Unclaim Chore</h3>
+        <p class="text-gray-400 mb-4">
+            <span class="font-semibold text-white" id="unclaim-chore-name"></span><br>
+            <span id="unclaim-points-value" class="text-primary-400"></span>
+        </p>
+        <input type="hidden" id="unclaim-instance-id">
+        <div class="flex gap-3 mt-6">
+            <button onclick="closeUnclaimDialog()" class="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition">
+                Cancel
+            </button>
+            <button onclick="submitUnclaim()" class="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition">
+                Unclaim
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+<script>
+// Dialog functions (simplified for minimal page)
+function openCompleteDialog(instanceId, choreName, pointsValue, assignedToName, assignedToId) {
+    // Set form values
+    document.getElementById('complete-instance-id').value = instanceId;
+    document.getElementById('complete-chore-name').textContent = choreName;
+    document.getElementById('complete-points-value').textContent = pointsValue + ' {{ POINTS_LABEL_SHORT }}';
+    document.getElementById('complete-assigned-to').textContent = assignedToName;
+
+    // Show dialog
+    document.getElementById('complete-dialog').classList.remove('hidden');
+}
+
+function openUnclaimDialog(instanceId, choreName, pointsValue, assignedToName) {
+    // Set form values
+    document.getElementById('unclaim-instance-id').value = instanceId;
+    document.getElementById('unclaim-chore-name').textContent = choreName;
+    document.getElementById('unclaim-points-value').textContent = pointsValue + ' {{ POINTS_LABEL_SHORT }}';
+    document.getElementById('unclaim-assigned-to').textContent = assignedToName;
+
+    // Show dialog
+    document.getElementById('unclaim-dialog').classList.remove('hidden');
+}
+
+// Close dialogs
+function closeCompleteDialog() {
+    document.getElementById('complete-dialog').classList.add('hidden');
+}
+
+function closeUnclaimDialog() {
+    document.getElementById('unclaim-dialog').classList.add('hidden');
+}
+
+// Form submissions
+async function submitComplete() {
+    const instanceId = document.getElementById('complete-instance-id').value;
+    const formData = new FormData();
+    formData.append('instance_id', instanceId);
+    formData.append('user_id', '{{ user.id }}');
+
+    try {
+        const response = await fetch('{% url "board:complete_action" %}', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            showToast(result.message, 'success');
+            closeCompleteDialog();
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showToast(result.error || 'Failed to complete chore', 'error');
+        }
+    } catch (error) {
+        showToast('An error occurred', 'error');
+    }
+}
+
+async function submitUnclaim() {
+    const instanceId = document.getElementById('unclaim-instance-id').value;
+    const formData = new FormData();
+    formData.append('instance_id', instanceId);
+
+    try {
+        const response = await fetch('{% url "board:unclaim_action" %}', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            showToast(result.message, 'success');
+            closeUnclaimDialog();
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showToast(result.error || 'Failed to unclaim chore', 'error');
+        }
+    } catch (error) {
+        showToast('An error occurred', 'error');
+    }
+}
+
+// Toast notifications
+function showToast(message, type) {
+    const toastContainer = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `px-6 py-3 rounded-lg shadow-lg ${type === 'success' ? 'bg-green-600' : 'bg-red-600'} text-white`;
+    toast.textContent = message;
+
+    toastContainer.appendChild(toast);
+
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// ===========================
+// Arcade Mode Functions
+// ===========================
+
+let arcadeTimerInterval = null;
+let arcadeStartTime = null;
+let currentArcadeInstanceId = null;
+
+// Open Arcade Start Dialog
+function openArcadeStartDialog(instanceId, choreName, preSelectUserId) {
+    currentArcadeInstanceId = instanceId;
+    document.getElementById('arcade-start-chore-name').textContent = choreName;
+
+    // Pre-select user if provided (for assigned chores)
+    const userSelect = document.getElementById('arcade-user-select');
+    if (preSelectUserId) {
+        userSelect.value = preSelectUserId;
+    } else {
+        userSelect.value = '';
+    }
+
+    document.getElementById('arcade-start-dialog').classList.remove('hidden');
+}
+
+// Close Arcade Start Dialog
+function closeArcadeStartDialog(event) {
+    if (event && event.target !== event.currentTarget) return;
+    document.getElementById('arcade-start-dialog').classList.add('hidden');
+    currentArcadeInstanceId = null;
+}
+
+// Confirm Start Arcade with User Selection
+async function confirmStartArcade() {
+    if (!currentArcadeInstanceId) return;
+
+    const userSelect = document.getElementById('arcade-user-select');
+    const userId = userSelect.value;
+
+    if (!userId) {
+        showToast('Please select who is playing', 'error');
+        return;
+    }
+
+    // Call startArcade with user info
+    await startArcade(currentArcadeInstanceId, userId);
+    closeArcadeStartDialog();
+}
+
+// Start Arcade Mode
+async function startArcade(instanceId, userId) {
+    try {
+        const formData = new FormData();
+        formData.append('instance_id', instanceId);
+        if (userId) {
+            formData.append('user_id', userId);
+        }
+
+        const response = await fetch('/action/arcade/start/', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            showToast(data.message || 'Arcade mode started! Good luck!', 'success');
+            // Reload to show arcade banner
+            setTimeout(() => window.location.reload(), 500);
+        } else {
+            showToast(data.message || 'Failed to start arcade mode', 'error');
+        }
+    } catch (error) {
+        console.error('Arcade start error:', error);
+        showToast('Network error. Please try again.', 'error');
+    }
+}
+
+// Stop Arcade Mode
+async function stopArcade(sessionId) {
+    try {
+        const formData = new FormData();
+        formData.append('session_id', sessionId);
+
+        const response = await fetch('/action/arcade/stop/', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            showToast(data.message || 'Time stopped! Select a judge.', 'success');
+            // Stop timer
+            if (arcadeTimerInterval) {
+                clearInterval(arcadeTimerInterval);
+            }
+            // Redirect to judge selection
+            setTimeout(() => {
+                window.location.href = data.redirect;
+            }, 500);
+        } else {
+            showToast(data.message || 'Failed to stop arcade mode', 'error');
+        }
+    } catch (error) {
+        console.error('Arcade stop error:', error);
+        showToast('Network error. Please try again.', 'error');
+    }
+}
+
+// Cancel Arcade Mode
+async function cancelArcade(sessionId) {
+    if (!confirm('Are you sure you want to cancel arcade mode? Your time will not be saved.')) {
+        return;
+    }
+
+    try {
+        const formData = new FormData();
+        formData.append('session_id', sessionId);
+
+        const response = await fetch('/action/arcade/cancel/', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            showToast(data.message || 'Arcade mode cancelled', 'info');
+            // Stop timer
+            if (arcadeTimerInterval) {
+                clearInterval(arcadeTimerInterval);
+            }
+            // Reload page
+            setTimeout(() => window.location.reload(), 500);
+        } else {
+            showToast(data.message || 'Failed to cancel arcade mode', 'error');
+        }
+    } catch (error) {
+        console.error('Arcade cancel error:', error);
+        showToast('Network error. Please try again.', 'error');
+    }
+}
+
+// Update Arcade Timer Display
+function updateArcadeTimer() {
+    const timerElement = document.getElementById('arcade-timer');
+    if (!timerElement) return;
+
+    const now = Date.now();
+    const elapsed = Math.floor((now - arcadeStartTime) / 1000);
+
+    const hours = Math.floor(elapsed / 3600);
+    const minutes = Math.floor((elapsed % 3600) / 60);
+    const seconds = elapsed % 60;
+
+    if (hours > 0) {
+        timerElement.textContent = `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    } else {
+        timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+}
+
+// Initialize Arcade Timer (if active session exists)
+{% if active_arcade_session %}
+document.addEventListener('DOMContentLoaded', function() {
+    // Calculate start time based on server data
+    const sessionStartTime = new Date('{{ active_arcade_session.start_time|date:"c" }}');
+    arcadeStartTime = sessionStartTime.getTime();
+
+    // Update immediately
+    updateArcadeTimer();
+
+    // Update every second
+    arcadeTimerInterval = setInterval(updateArcadeTimer, 1000);
+
+    console.log('Arcade timer initialized for session {{ active_arcade_session.id }}');
+});
+{% endif %}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeCompleteDialog();
+        closeUnclaimDialog();
+        closeArcadeStartDialog();
+    }
+});
+
+// Auto-refresh page every 60 seconds to check for chore assignment updates
+setInterval(function() {
+    console.log('Auto-refreshing to check for chore updates...');
+    window.location.reload();
+}, 60000); // 60 seconds
+</script>
+{% endblock %}

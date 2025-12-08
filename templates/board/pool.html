@@ -288,5 +288,11 @@
             closeCompleteDialog();
         }
     });
+
+    // Auto-refresh page every 60 seconds to check for chore assignment updates
+    setInterval(function() {
+        console.log('Auto-refreshing to check for chore updates...');
+        window.location.reload();
+    }, 60000); // 60 seconds
 </script>
 {% endblock %}

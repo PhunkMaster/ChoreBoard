@@ -132,6 +132,36 @@ def admin_users(request):
 
 @login_required
 @user_passes_test(is_staff_user)
+@require_http_methods(["GET"])
+def admin_users_list(request):
+    """
+    Get list of all active users for dropdowns/selectors.
+    Returns JSON array of user objects.
+    """
+    try:
+        users = User.objects.filter(
+            is_active=True,
+            can_be_assigned=True
+        ).order_by('first_name', 'username')
+
+        users_list = [
+            {
+                'id': u.id,
+                'username': u.username,
+                'first_name': u.first_name,
+                'display_name': u.get_display_name()
+            }
+            for u in users
+        ]
+
+        return JsonResponse({'users': users_list})
+    except Exception as e:
+        logger.error(f"Error fetching users list: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
 def admin_settings(request):
     """
     Settings management page.
@@ -147,7 +177,16 @@ def admin_settings(request):
             settings.weekly_reset_undo_hours = request.POST.get('weekly_reset_undo_hours')
             settings.enable_notifications = request.POST.get('enable_notifications') == 'on'
             settings.home_assistant_webhook_url = request.POST.get('home_assistant_webhook_url', '')
+            settings.arcade_submission_redirect_seconds = request.POST.get('arcade_submission_redirect_seconds', 5)
             settings.updated_by = request.user
+
+            # Handle SiteSettings for point labels
+            from board.models import SiteSettings
+            site_settings = SiteSettings.get_settings()
+            site_settings.points_label = request.POST.get('points_label', 'points').strip()
+            site_settings.points_label_short = request.POST.get('points_label_short', 'pts').strip()
+            site_settings.save()
+
             settings.save()
 
             # Log the action
@@ -166,8 +205,11 @@ def admin_settings(request):
             logger.error(f"Error updating settings: {str(e)}")
             return JsonResponse({'error': str(e)}, status=500)
 
+    from board.models import SiteSettings
+
     context = {
         'settings': settings,
+        'site_settings': SiteSettings.get_settings(),
     }
 
     return render(request, 'board/admin/settings.html', context)
@@ -462,6 +504,7 @@ def admin_chore_create(request):
                 rrule_json=rrule_json,
                 is_active=True
             )
+            logger.info(f"Created chore {chore.id}: {chore.name}, is_undesirable={chore.is_undesirable}")
 
             # Create dependency if specified
             if depends_on_id:
@@ -477,12 +520,31 @@ def admin_chore_create(request):
                 eligible_users_json = request.POST.get('eligible_users', '[]')
                 try:
                     eligible_user_ids = json.loads(eligible_users_json)
-                    from chores.models import ChoreEligibility
+                    from chores.models import ChoreEligibility, ChoreInstance
+                    from chores.services import AssignmentService
+
+                    # Create ChoreEligibility records
                     for user_id in eligible_user_ids:
                         ChoreEligibility.objects.create(
                             chore=chore,
                             user_id=int(user_id)
                         )
+                    logger.info(f"Created {len(eligible_user_ids)} ChoreEligibility records for {chore.name}")
+
+                    # NOW that ChoreEligibility records exist, try to assign any pool instances created by the signal
+                    pool_instances = ChoreInstance.objects.filter(
+                        chore=chore,
+                        status=ChoreInstance.POOL,
+                        assigned_to__isnull=True
+                    )
+
+                    for instance in pool_instances:
+                        success, message, assigned_user = AssignmentService.assign_chore(instance)
+                        if success:
+                            logger.info(f"✓ Assigned undesirable chore {chore.name} to {assigned_user.username}")
+                        else:
+                            logger.warning(f"✗ Could not assign undesirable chore {chore.name}: {message}")
+
                 except (json.JSONDecodeError, ValueError) as e:
                     logger.warning(f"Error parsing eligible users: {str(e)}")
 
@@ -1102,6 +1164,203 @@ def admin_backup_create(request):
 
     except Exception as e:
         logger.error(f"Error creating backup: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_http_methods(["GET"])
+def admin_backup_download(request, backup_id):
+    """
+    Download a backup file.
+    """
+    try:
+        from django.http import FileResponse
+        import os
+
+        backup = get_object_or_404(Backup, id=backup_id)
+
+        if not os.path.exists(backup.file_path):
+            logger.error(f"Backup file not found: {backup.file_path}")
+            return JsonResponse({'error': 'Backup file not found'}, status=404)
+
+        # Log the download action
+        ActionLog.objects.create(
+            action_type=ActionLog.ACTION_ADMIN,
+            user=request.user,
+            description=f"Downloaded backup: {backup.filename}",
+            metadata={
+                'backup_id': backup.id,
+                'filename': backup.filename,
+                'file_size': backup.file_size_bytes
+            }
+        )
+
+        logger.info(f"Admin {request.user.username} downloading backup {backup.filename}")
+
+        # Return file as download
+        response = FileResponse(
+            open(backup.file_path, 'rb'),
+            as_attachment=True,
+            filename=backup.filename
+        )
+        response['Content-Length'] = backup.file_size_bytes
+        return response
+
+    except Exception as e:
+        logger.error(f"Error downloading backup: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_http_methods(["POST"])
+def admin_backup_upload(request):
+    """
+    Upload a backup file.
+    Validates that it's a SQLite database with required tables.
+    """
+    try:
+        import sqlite3
+        from pathlib import Path
+
+        uploaded_file = request.FILES.get('backup_file')
+        if not uploaded_file:
+            return JsonResponse({'error': 'No file uploaded'}, status=400)
+
+        notes = request.POST.get('notes', 'Uploaded backup')
+
+        # Validate file extension
+        if not uploaded_file.name.endswith('.sqlite3'):
+            return JsonResponse({'error': 'File must be a .sqlite3 file'}, status=400)
+
+        # Validate file size (max 500MB)
+        max_size = 500 * 1024 * 1024  # 500MB in bytes
+        if uploaded_file.size > max_size:
+            return JsonResponse({'error': f'File too large. Maximum size is 500MB'}, status=400)
+
+        # Save to temporary location
+        temp_path = Path(settings.BASE_DIR) / 'data' / 'backups' / f'temp_{uploaded_file.name}'
+        with open(temp_path, 'wb') as f:
+            for chunk in uploaded_file.chunks():
+                f.write(chunk)
+
+        # Validate it's a SQLite database
+        try:
+            conn = sqlite3.connect(temp_path)
+            cursor = conn.cursor()
+
+            # Check for required tables
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = {row[0] for row in cursor.fetchall()}
+
+            required_tables = {'users_user', 'chores_chore', 'chores_choreinstance', 'core_settings'}
+            missing_tables = required_tables - tables
+
+            if missing_tables:
+                conn.close()
+                os.remove(temp_path)
+                return JsonResponse({
+                    'error': f'Invalid ChoreBoard backup. Missing tables: {", ".join(missing_tables)}'
+                }, status=400)
+
+            conn.close()
+
+        except sqlite3.Error as e:
+            if temp_path.exists():
+                os.remove(temp_path)
+            return JsonResponse({'error': f'Invalid SQLite database: {str(e)}'}, status=400)
+
+        # Generate proper filename
+        from datetime import datetime
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'db_backup_uploaded_{timestamp}.sqlite3'
+        final_path = Path(settings.BASE_DIR) / 'data' / 'backups' / filename
+
+        # Move to final location
+        os.rename(temp_path, final_path)
+
+        # Create Backup record
+        backup = Backup.objects.create(
+            filename=filename,
+            file_path=str(final_path),
+            file_size_bytes=uploaded_file.size,
+            created_by=request.user,
+            notes=notes,
+            is_manual=True
+        )
+
+        # Log action
+        ActionLog.objects.create(
+            action_type=ActionLog.ACTION_ADMIN,
+            user=request.user,
+            description=f"Uploaded backup: {filename}",
+            metadata={'backup_id': backup.id, 'filename': filename, 'size': uploaded_file.size}
+        )
+
+        logger.info(f"Admin {request.user.username} uploaded backup {filename}")
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Backup uploaded successfully: {filename}',
+            'backup_id': backup.id
+        })
+
+    except Exception as e:
+        logger.error(f"Error uploading backup: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_http_methods(["POST"])
+def admin_backup_restore(request):
+    """
+    Queue a backup for restore on next server restart.
+    """
+    try:
+        backup_id = request.POST.get('backup_id')
+        create_safety_backup = request.POST.get('create_safety_backup') == 'true'
+
+        if not backup_id:
+            return JsonResponse({'error': 'Backup ID required'}, status=400)
+
+        backup = get_object_or_404(Backup, id=backup_id)
+
+        # Verify backup file exists
+        if not os.path.exists(backup.file_path):
+            return JsonResponse({'error': 'Backup file not found on disk'}, status=404)
+
+        # Queue the restore
+        from core.restore_queue import RestoreQueue
+        RestoreQueue.queue_restore(
+            backup_id=backup.id,
+            backup_filepath=backup.file_path,
+            create_safety_backup=create_safety_backup
+        )
+
+        # Log action
+        ActionLog.objects.create(
+            action_type=ActionLog.ACTION_ADMIN,
+            user=request.user,
+            description=f"Queued restore: {backup.filename}",
+            metadata={
+                'backup_id': backup.id,
+                'filename': backup.filename,
+                'create_safety_backup': create_safety_backup
+            }
+        )
+
+        logger.info(f"Admin {request.user.username} queued restore of {backup.filename}")
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Restore queued. Restart the server to apply.',
+            'requires_restart': True
+        })
+
+    except Exception as e:
+        logger.error(f"Error queuing restore: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 

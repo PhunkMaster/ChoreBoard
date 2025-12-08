@@ -1,12 +1,13 @@
 """
 APScheduler configuration for ChoreBoard.
 """
+import logging
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from django.utils import timezone
 from django_apscheduler.jobstores import DjangoJobStore
 from django_apscheduler.models import DjangoJobExecution
-from django.utils import timezone
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +35,10 @@ def start_scheduler():
         name="Midnight Evaluation - Create instances and mark overdue"
     )
 
-    # Distribution check (17:30 daily in America/Chicago timezone)
+    # Distribution check (every 5 minutes)
     scheduler.add_job(
         distribution_check,
-        trigger=CronTrigger(hour=17, minute=30, timezone="America/Chicago"),
+        trigger=CronTrigger(minute='*/5', timezone="America/Chicago"),
         id="distribution_check",
         max_instances=1,
         replace_existing=True,
