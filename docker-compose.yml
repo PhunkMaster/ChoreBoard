@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  web:
+    # Option 1: Build from source
+    build: .
+    # Option 2: Use pre-built image (uncomment and remove 'build' line above)
+    # image: ghcr.io/YOUR_USERNAME/choreboard2:latest
+    container_name: choreboard
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount database directory for persistence
+      - ./data:/app/data
+      # Mount static files
+      - ./staticfiles:/app/staticfiles
+    environment:
+      # Django settings
+      - DJANGO_SETTINGS_MODULE=ChoreBoard.settings
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-change-this-in-production}
+      - DEBUG=${DEBUG:-False}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      # Database path (SQLite)
+      - DATABASE_PATH=/app/data/db.sqlite3
+      # Timezone
+      - TZ=America/Chicago
+    restart: unless-stopped
+    command: python manage.py runserver 0.0.0.0:8000
+
+volumes:
+  # Named volumes for data persistence
+  data:
+  staticfiles:

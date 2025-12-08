@@ -17,11 +17,11 @@ class CoreConfig(AppConfig):
         # Configure SQLite for better concurrency
         self._configure_sqlite()
 
-        # Execute any queued database restore
-        self._execute_queued_restore()
-
-        # Don't start scheduler during migrations or other management commands
+        # Don't start scheduler or execute restores during migrations or other management commands
         if 'runserver' in sys.argv or 'gunicorn' in sys.argv[0]:
+            # Execute any queued database restore
+            self._execute_queued_restore()
+
             from core.scheduler import start_scheduler
             try:
                 start_scheduler()
