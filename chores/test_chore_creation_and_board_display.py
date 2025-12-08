@@ -280,7 +280,7 @@ class BoardDisplayTests(TestCase):
         )
 
         # Request pool view
-        response = self.client.get('/board/pool/')
+        response = self.client.get('/pool/')
         self.assertEqual(response.status_code, 200)
 
         # Verify instance is in context
@@ -571,7 +571,7 @@ class ImmediateChoreInstanceCreationTests(TestCase):
         client.force_login(admin_user)
 
         # Create chore via admin interface
-        response = client.post('/board/admin-panel/chore/create/', {
+        response = client.post('/admin-panel/chore/create/', {
             'name': 'Test Admin Daily Chore',
             'description': 'Testing immediate instance creation',
             'points': '15.00',

@@ -329,7 +329,7 @@ class InactiveChoreInstanceTest(TestCase):
         chore.save()
 
         # Fetch the chore list page
-        response = self.client.get('/board/admin-panel/chores/')
+        response = self.client.get('/admin-panel/chores/')
         self.assertEqual(response.status_code, 200)
 
         # Verify the chore appears in the list with inactive status
