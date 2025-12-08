@@ -162,10 +162,7 @@
 
         try {
             const response = await fetch(`/board/admin-panel/undo-completion/${currentCompletionId}/`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': '{{ csrf_token }}'
-                }
+                method: 'POST'
             });
 
             const data = await response.json();

@@ -1067,21 +1067,6 @@
         }
     }
 
-    // Helper function to get CSRF token from cookies
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
 
     // Close dialogs with Escape key
     document.addEventListener('keydown', function(e) {
@@ -1154,9 +1139,6 @@
 
             const response = await fetch('/action/arcade/start/', {
                 method: 'POST',
-                headers: {
-                    'X-CSRFToken': getCookie('csrftoken')
-                },
                 body: formData
             });
 
@@ -1183,9 +1165,6 @@
 
             const response = await fetch('/action/arcade/stop/', {
                 method: 'POST',
-                headers: {
-                    'X-CSRFToken': getCookie('csrftoken')
-                },
                 body: formData
             });
 
@@ -1222,9 +1201,6 @@
 
             const response = await fetch('/action/arcade/cancel/', {
                 method: 'POST',
-                headers: {
-                    'X-CSRFToken': getCookie('csrftoken')
-                },
                 body: formData
             });
 

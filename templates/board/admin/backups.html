@@ -168,9 +168,6 @@
 
             const response = await fetch('{% url "board:admin_backup_create" %}', {
                 method: 'POST',
-                headers: {
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
                 body: formData
             });
 
