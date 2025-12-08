@@ -130,6 +130,13 @@ class SiteSettingsIntegrationTest(TestCase):
 
     def setUp(self):
         """Set up test data"""
+        from users.models import User
+        # Create dummy user to bypass SetupMiddleware
+        User.objects.create_user(
+            username='system',
+            is_active=False,
+            can_be_assigned=False
+        )
         SiteSettings.objects.all().delete()
 
     def test_settings_available_in_template_context(self):

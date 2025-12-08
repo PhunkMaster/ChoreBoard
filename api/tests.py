@@ -585,6 +585,11 @@ class LateAndOutstandingChoresAPITests(TestCase):
     """Test late and outstanding chores API endpoints."""
 
     def setUp(self):
+        # Disconnect signal to prevent auto-creation of ChoreInstance
+        from django.db.models.signals import post_save
+        from chores.signals import create_chore_instance_on_creation
+        post_save.disconnect(create_chore_instance_on_creation, sender=Chore)
+
         self.user = User.objects.create_user(
             username='alice',
             password='test123',
@@ -598,6 +603,9 @@ class LateAndOutstandingChoresAPITests(TestCase):
             is_pool=True,
             schedule_type=Chore.DAILY
         )
+
+        # Reconnect signal for other tests
+        post_save.connect(create_chore_instance_on_creation, sender=Chore)
 
         now = timezone.now()
 
