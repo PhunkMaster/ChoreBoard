@@ -57,7 +57,7 @@ class MidnightEvaluationTests(TestCase):
             is_pool=True,
             schedule_type=Chore.EVERY_N_DAYS,
             n_days=3,
-            every_n_start_date=date.today() - timedelta(days=3),  # Due today
+            every_n_start_date=timezone.now().date() - timedelta(days=3),  # Due today
             distribution_time=time(19, 0)
         )
 
@@ -402,7 +402,7 @@ class WeeklySnapshotTests(TestCase):
 
         snapshot = WeeklySnapshot.objects.first()
         # Week ending should be today (Sunday at midnight)
-        self.assertEqual(snapshot.week_ending, date.today())
+        self.assertEqual(snapshot.week_ending, timezone.now().date())
 
 
 class RotationStateTests(TestCase):
@@ -462,7 +462,7 @@ class RotationStateTests(TestCase):
             chore=self.undesirable_chore,
             user=self.user1
         )
-        self.assertEqual(rotation_state.last_completed_date, date.today())
+        self.assertEqual(rotation_state.last_completed_date, timezone.now().date())
 
     def test_rotation_selects_oldest_completer(self):
         """Test that rotation assigns to user who completed longest ago."""
@@ -503,13 +503,13 @@ class RotationStateTests(TestCase):
         RotationState.objects.create(
             chore=self.undesirable_chore,
             user=self.user1,
-            last_completed_date=date.today() - timedelta(days=1)
+            last_completed_date=timezone.now().date() - timedelta(days=1)
         )
 
         RotationState.objects.create(
             chore=self.undesirable_chore,
             user=self.user2,
-            last_completed_date=date.today() - timedelta(days=1)
+            last_completed_date=timezone.now().date() - timedelta(days=1)
         )
 
         # Try to assign
