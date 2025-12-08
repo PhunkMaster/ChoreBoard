@@ -141,7 +141,7 @@ class SiteSettingsIntegrationTest(TestCase):
         settings.save()
 
         # Make a request to a view that renders a template
-        response = self.client.get('/board/')
+        response = self.client.get('/')
 
         # Check that the response is successful
         self.assertEqual(response.status_code, 200)
