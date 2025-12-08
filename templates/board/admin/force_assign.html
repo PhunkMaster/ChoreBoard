@@ -79,9 +79,6 @@
 
             const response = await fetch(`/board/admin-panel/force-assign/${instanceId}/`, {
                 method: 'POST',
-                headers: {
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
                 body: formData
             });
 

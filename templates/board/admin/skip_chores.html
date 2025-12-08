@@ -227,9 +227,6 @@
 
             const response = await fetch(`/board/admin-panel/chore/skip/${currentInstanceId}/`, {
                 method: 'POST',
-                headers: {
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
                 body: formData
             });
 
@@ -254,10 +251,7 @@
 
         try {
             const response = await fetch(`/board/admin-panel/chore/unskip/${instanceId}/`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': '{{ csrf_token }}'
-                }
+                method: 'POST'
             });
 
             const data = await response.json();

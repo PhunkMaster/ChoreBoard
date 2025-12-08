@@ -136,7 +136,6 @@
         </div>
 
         <form id="chore-form" class="p-6 space-y-6">
-            {% csrf_token %}
             <input type="hidden" id="chore-id" name="chore_id">
 
             <!-- Load from Template -->
@@ -1080,10 +1079,7 @@ async function toggleChoreActive(choreId) {
 
     try {
         const response = await fetch(`/admin-panel/chore/toggle/${choreId}/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}'
-            }
+            method: 'POST'
         });
         const data = await response.json();
 

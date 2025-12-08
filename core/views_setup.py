@@ -4,7 +4,6 @@ Views for the first-run setup wizard.
 from django.shortcuts import render, redirect
 from django.contrib.auth import get_user_model, login
 from django.contrib import messages
-from django.views.decorators.csrf import csrf_exempt
 
 from core.setup_utils import needs_setup
 from core.models import Settings
@@ -13,7 +12,6 @@ from board.models import SiteSettings
 User = get_user_model()
 
 
-@csrf_exempt
 def setup_wizard(request):
     """
     First-run setup wizard view.

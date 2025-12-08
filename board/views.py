@@ -4,7 +4,6 @@ Views for ChoreBoard frontend.
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q
@@ -217,7 +216,6 @@ def leaderboard(request):
 
 
 @require_http_methods(["POST"])
-@csrf_exempt  # For kiosk mode - no authentication required
 def claim_chore_view(request):
     """Handle chore claim from frontend (kiosk mode with user selection)."""
     try:
@@ -277,7 +275,6 @@ def claim_chore_view(request):
 
 
 @require_http_methods(["POST"])
-@csrf_exempt  # For kiosk mode - no authentication required
 def complete_chore_view(request):
     """Handle chore completion from frontend (kiosk mode with user selection)."""
     try:
@@ -392,7 +389,6 @@ def complete_chore_view(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@csrf_exempt
 def unclaim_chore_view(request):
     """Handle unclaiming a chore (returning it to the pool)."""
     try:
@@ -418,7 +414,6 @@ def unclaim_chore_view(request):
 
 
 @require_http_methods(["POST"])
-@csrf_exempt  # For kiosk mode - no authentication required
 def skip_chore_view(request):
     """Handle skipping a chore from frontend (kiosk mode with user selection)."""
     try:
@@ -462,7 +457,6 @@ def skip_chore_view(request):
 
 
 @require_http_methods(["POST"])
-@csrf_exempt  # For kiosk mode - no authentication required
 def reschedule_chore_view(request):
     """Handle rescheduling a chore instance from frontend (kiosk mode with user selection)."""
     try:
@@ -535,7 +529,6 @@ def reschedule_chore_view(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@csrf_exempt
 def health_check(request):
     """
     Health check endpoint for monitoring.

@@ -4,7 +4,6 @@ Weekly reset views for ChoreBoard.
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
 from django.utils import timezone
 from django.db.models import Sum
@@ -89,7 +88,6 @@ def weekly_reset(request):
 
 
 @require_http_methods(["POST"])
-@csrf_exempt  # For kiosk mode
 def weekly_reset_convert(request):
     """
     Convert weekly points to cash and reset counters.
@@ -197,7 +195,6 @@ def weekly_reset_convert(request):
 
 
 @require_http_methods(["POST"])
-@csrf_exempt  # For kiosk mode
 def weekly_reset_undo(request):
     """
     Undo the last weekly reset (only if within 24 hours).
