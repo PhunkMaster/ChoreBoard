@@ -183,9 +183,9 @@ class SplitAssignedChoresTest(TestCase):
         response = self.client.get(reverse('board:main'))
 
         # Check HTML contains links to user boards
-        self.assertContains(response, '/board/user/john/',
+        self.assertContains(response, '/user/john/',
                           msg_prefix="Should contain link to John's user board")
-        self.assertContains(response, '/board/user/jane/',
+        self.assertContains(response, '/user/jane/',
                           msg_prefix="Should contain link to Jane's user board")
 
     def test_empty_user_section(self):

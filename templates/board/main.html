@@ -16,7 +16,7 @@
             <label for="user-selector" class="text-gray-300">View by user:</label>
             <select id="user-selector"
                     class="bg-dark-surface text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    onchange="if(this.value) window.location.href='/board/user/' + this.value + '/'">
+                    onchange="if(this.value) window.location.href='/user/' + this.value + '/'">
                 <option value="">All Users</option>
                 {% for u in users %}
                 <option value="{{ u.username }}">{{ u.get_display_name }}</option>
@@ -66,7 +66,7 @@
         <h2 class="text-xl font-bold text-white mb-4">View By User</h2>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             {% for u in users %}
-            <a href="/board/user/{{ u.username }}/"
+            <a href="/user/{{ u.username }}/"
                class="bg-dark-card hover:bg-dark-hover border border-dark-border hover:border-primary-500 p-4 rounded-lg text-center transition group">
                 <div class="text-lg font-semibold text-white group-hover:text-primary-400 transition">
                     {{ u.get_display_name }}
@@ -239,7 +239,7 @@
                     {{ user_data.user.get_display_name }}
                     <span class="text-sm text-gray-400 font-normal ml-2">({{ user_data.total }} chore{{ user_data.total|pluralize }})</span>
                 </h3>
-                <a href="/board/user/{{ user_data.user.username }}/"
+                <a href="/user/{{ user_data.user.username }}/"
                    class="text-primary-400 hover:text-primary-300 text-sm transition flex items-center">
                     View All
                     <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

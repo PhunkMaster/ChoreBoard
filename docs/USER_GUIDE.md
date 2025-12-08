@@ -16,10 +16,10 @@
 ### Accessing ChoreBoard
 
 1. **Open your web browser** and navigate to your ChoreBoard URL (e.g., `http://localhost:8000` or your deployed URL)
-2. **Main Board**: Navigate to `/board/` to see all chores
-3. **Your Personal View**: Navigate to `/board/user/<your-username>` to see only your chores
-4. **Pool View**: Navigate to `/board/pool/` to see kiosk mode with only pool chores
-5. **Leaderboard**: Navigate to `/board/leaderboard/` to see rankings
+2. **Main Board**: Navigate to `/` to see all chores
+3. **Your Personal View**: Navigate to `/user/<your-username>` to see only your chores
+4. **Pool View**: Navigate to `/pool/` to see kiosk mode with only pool chores
+5. **Leaderboard**: Navigate to `/leaderboard/` to see rankings
 
 ### Understanding the Dashboard
 
@@ -129,7 +129,7 @@ At the top of the board, you'll see:
 
 ### Leaderboard
 
-Navigate to `/board/leaderboard/` to see:
+Navigate to `/leaderboard/` to see:
 
 **Weekly Tab:**
 - Points earned this week only
@@ -143,7 +143,7 @@ Navigate to `/board/leaderboard/` to see:
 
 ### Points History
 
-Visit your personal page (`/board/user/<your-username>`) to see:
+Visit your personal page (`/user/<your-username>`) to see:
 - Recent chore completions
 - Points earned for each chore
 - Chores shared with helpers

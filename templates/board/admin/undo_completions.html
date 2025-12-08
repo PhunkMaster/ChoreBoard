@@ -161,7 +161,7 @@
         if (!currentCompletionId) return;
 
         try {
-            const response = await fetch(`/board/admin-panel/undo-completion/${currentCompletionId}/`, {
+            const response = await fetch(`/admin-panel/undo-completion/${currentCompletionId}/`, {
                 method: 'POST'
             });
 

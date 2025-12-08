@@ -805,7 +805,7 @@ Django Admin → Evaluation Logs
 
 Navigate to `/board/health/` (or via API):
 ```bash
-curl http://localhost:8000/board/health/
+curl http://localhost:8000/health/
 ```
 
 **Returns:**

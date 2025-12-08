@@ -193,7 +193,7 @@ class UserPagesTest(TestCase):
 
         # Check for breadcrumb elements
         self.assertContains(response, 'Main Board', msg_prefix="Breadcrumb should contain link to Main Board")
-        self.assertContains(response, "/board/", msg_prefix="Breadcrumb should contain link to /board/")
+        self.assertContains(response, "/", msg_prefix="Breadcrumb should contain link to /board/")
         self.assertContains(response, "John's Chores", msg_prefix="Breadcrumb should show current user")
 
 

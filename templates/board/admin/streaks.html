@@ -131,7 +131,7 @@
 
     async function incrementStreak(userId, userName) {
         try {
-            const response = await fetch(`/board/admin-panel/streak/${userId}/increment/`, {
+            const response = await fetch(`/admin-panel/streak/${userId}/increment/`, {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': '{{ csrf_token }}'
@@ -169,7 +169,7 @@
         if (!currentResetUserId) return;
 
         try {
-            const response = await fetch(`/board/admin-panel/streak/${currentResetUserId}/reset/`, {
+            const response = await fetch(`/admin-panel/streak/${currentResetUserId}/reset/`, {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': '{{ csrf_token }}'

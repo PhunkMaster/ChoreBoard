@@ -6,7 +6,7 @@
 <div class="space-y-6">
     <!-- Breadcrumb Navigation -->
     <nav class="text-sm">
-        <a href="/board/" class="text-primary-400 hover:text-primary-300 transition">
+        <a href="/" class="text-primary-400 hover:text-primary-300 transition">
             <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
@@ -34,7 +34,7 @@
     <!-- User Switcher -->
     <div class="flex items-center justify-between">
         <h2 class="text-xl font-semibold text-gray-300">Switch User:</h2>
-        <select onchange="if(this.value) window.location.href='/board/user/' + this.value + '/'"
+        <select onchange="if(this.value) window.location.href='/user/' + this.value + '/'"
                 class="bg-dark-surface text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500">
             {% for u in users %}
             <option value="{{ u.username }}" {% if u.id == selected_user.id %}selected{% endif %}>
