@@ -171,7 +171,7 @@ class UserPagesTest(TestCase):
     def test_user_board_url_structure(self):
         """Test that user board URL is correctly formatted."""
         url = reverse('board:user', args=['john'])
-        self.assertEqual(url, '/board/user/john/')
+        self.assertEqual(url, '/user/john/')
 
     def test_user_quick_links_show_points(self):
         """Test that user quick-links display current points."""
