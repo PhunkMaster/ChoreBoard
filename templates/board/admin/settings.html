@@ -41,6 +41,43 @@
             </div>
         </div>
 
+        <!-- Point Label Customization -->
+        <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
+            <h2 class="text-xl font-semibold text-white mb-4">Point Label Customization</h2>
+
+            <div class="space-y-4">
+                <div>
+                    <label for="points_label" class="block text-gray-300 mb-2">
+                        Points Label (Full)
+                        <span class="text-gray-500 text-sm">(e.g., "points", "stars", "coins")</span>
+                    </label>
+                    <input type="text"
+                           id="points_label"
+                           name="points_label"
+                           value="{{ site_settings.points_label }}"
+                           maxlength="50"
+                           placeholder="points"
+                           class="w-full md:w-96 bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <p class="text-gray-500 text-sm mt-1">The full label used throughout the site</p>
+                </div>
+
+                <div>
+                    <label for="points_label_short" class="block text-gray-300 mb-2">
+                        Points Label (Short)
+                        <span class="text-gray-500 text-sm">(e.g., "pts", "★", "coins")</span>
+                    </label>
+                    <input type="text"
+                           id="points_label_short"
+                           name="points_label_short"
+                           value="{{ site_settings.points_label_short }}"
+                           maxlength="10"
+                           placeholder="pts"
+                           class="w-full md:w-64 bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <p class="text-gray-500 text-sm mt-1">Short version used in compact displays (max 10 chars)</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Claim Limits -->
         <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
             <h2 class="text-xl font-semibold text-white mb-4">Claim Limits</h2>
@@ -128,6 +165,29 @@
                            placeholder="https://your-home-assistant.local/api/webhook/choreboard"
                            class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
                     <p class="text-gray-500 text-sm mt-1">Leave blank to disable webhook notifications</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Arcade Mode Settings -->
+        <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
+            <h2 class="text-xl font-semibold text-white mb-4">Arcade Mode</h2>
+
+            <div class="space-y-4">
+                <div>
+                    <label for="arcade_submission_redirect_seconds" class="block text-gray-300 mb-2">
+                        Submission Redirect Delay (seconds)
+                        <span class="text-gray-500 text-sm">(Time to show "Submitted for judging" message)</span>
+                    </label>
+                    <input type="number"
+                           id="arcade_submission_redirect_seconds"
+                           name="arcade_submission_redirect_seconds"
+                           value="{{ settings.arcade_submission_redirect_seconds }}"
+                           min="1"
+                           max="30"
+                           required
+                           class="w-full md:w-64 bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <p class="text-gray-500 text-sm mt-1">How long to show confirmation before redirecting back (default: 5 seconds)</p>
                 </div>
             </div>
         </div>

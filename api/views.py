@@ -184,8 +184,20 @@ def complete_chore(request):
                         eligible_for_points=True
                     ))
                 else:
-                    # Give all points to completer
-                    helpers_list = [user] if user.eligible_for_points else []
+                    # Check if completing user is eligible for points
+                    if user.eligible_for_points:
+                        helpers_list = [user]
+                    else:
+                        # User is not eligible - redistribute to ALL eligible users
+                        helpers_list = list(User.objects.filter(
+                            eligible_for_points=True,
+                            can_be_assigned=True,
+                            is_active=True
+                        ))
+                        logger.info(
+                            f"User {user.username} not eligible for points. "
+                            f"Redistributing {instance.points_value} pts to {len(helpers_list)} eligible users"
+                        )
 
             # Split points among helpers
             if helpers_list:

@@ -306,7 +306,7 @@
 
                 <!-- Action Buttons -->
                 <div class="flex flex-col gap-2">
-                    <div class="flex gap-2">
+                    <div class="flex flex-wrap gap-2">
                         <button
                             onclick="openCompleteDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }}, '{{ instance.assigned_to.get_display_name }}', '{{ instance.assigned_to.id }}')"
                             class="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition">
@@ -414,7 +414,7 @@
 
                 <!-- Action Buttons -->
                 <div class="flex flex-col gap-2">
-                    <div class="flex gap-2">
+                    <div class="flex flex-wrap gap-2">
                         <button
                             onclick="openCompleteDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }}, '{{ instance.assigned_to.get_display_name }}', '{{ instance.assigned_to.id }}')"
                             class="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition">
@@ -1258,5 +1258,11 @@
         console.log('Arcade timer initialized for session {{ active_arcade_session.id }}');
     });
     {% endif %}
+
+    // Auto-refresh page every 60 seconds to check for chore assignment updates
+    setInterval(function() {
+        console.log('Auto-refreshing to check for chore updates...');
+        window.location.reload();
+    }, 60000); // 60 seconds
 </script>
 {% endblock %}

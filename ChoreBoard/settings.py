@@ -89,6 +89,9 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": os.getenv('DATABASE_PATH', str(BASE_DIR / "data/db.sqlite3")),
+        "OPTIONS": {
+            "timeout": 20,  # Wait up to 20 seconds for lock to clear
+        },
     }
 }
 

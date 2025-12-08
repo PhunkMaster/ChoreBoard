@@ -85,10 +85,8 @@ class AssignmentService:
         instance.status = ChoreInstance.ASSIGNED
         instance.assigned_to = selected_user
         instance.assigned_at = timezone.now()
-        instance.assignment_reason = (
-            ChoreInstance.REASON_FORCE_ASSIGNED if force_assign
-            else ChoreInstance.REASON_FORCE_ASSIGNED
-        )
+        # This method is used for automatic system distribution
+        instance.assignment_reason = ChoreInstance.REASON_FORCE_ASSIGNED
         instance.save()
 
         # Log action
@@ -202,6 +200,7 @@ class AssignmentService:
             User or None
         """
         today = timezone.now().date()
+        logger.info(f"Fairness selection: is_difficult={is_difficult}, eligible_users_count={eligible_users.count()}")
 
         # Annotate users with count of assigned chores today
         users_with_counts = eligible_users.annotate(
@@ -216,10 +215,16 @@ class AssignmentService:
 
         if is_difficult:
             # Exclude users with difficult chores already assigned
+            before_filter_count = users_with_counts.count()
             users_with_counts = users_with_counts.exclude(
                 assigned_instances__chore__is_difficult=True,
                 assigned_instances__status=ChoreInstance.ASSIGNED,
                 assigned_instances__due_at__date=today
+            )
+            after_filter_count = users_with_counts.count()
+            logger.info(
+                f"Difficult chore filter: {before_filter_count} users before, "
+                f"{after_filter_count} users after"
             )
 
         selected = users_with_counts.first()
@@ -643,6 +648,10 @@ class UnclaimService:
 
         if not instance.chore.is_pool:
             return False, "Only pool chores can be unclaimed", None
+
+        # Prevent unclaiming force-assigned or manually-assigned chores
+        if instance.assignment_reason in [ChoreInstance.REASON_FORCE_ASSIGNED, ChoreInstance.REASON_MANUAL]:
+            return False, "Cannot unclaim force-assigned or manually-assigned chores", None
 
         if instance.status == ChoreInstance.COMPLETED:
             return False, "This chore has already been completed", None

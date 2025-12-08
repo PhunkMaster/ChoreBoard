@@ -91,6 +91,24 @@ def midnight_evaluation():
                         chores_created += 1
                         logger.info(f"Created instance for chore: {chore.name}")
 
+                        # If chore is undesirable and in pool, assign immediately
+                        if chore.is_undesirable and chore.is_pool:
+                            from chores.services import AssignmentService
+                            success, message, assigned_user = AssignmentService.assign_chore(
+                                instance,
+                                force_assign=False,
+                                assigned_by=None
+                            )
+                            if success:
+                                logger.info(
+                                    f"Auto-assigned undesirable chore '{chore.name}' to "
+                                    f"{assigned_user.username} at midnight"
+                                )
+                            else:
+                                logger.warning(
+                                    f"Could not assign undesirable chore '{chore.name}': {message}"
+                                )
+
                 except Exception as e:
                     error_msg = f"Error creating instance for chore {chore.name}: {str(e)}"
                     logger.error(error_msg)
@@ -219,6 +237,8 @@ def distribution_check():
     logger.info("Starting distribution check")
 
     now = timezone.now()
+    current_tz = timezone.get_current_timezone()
+    logger.info(f"Distribution check running at {now} (timezone: {current_tz})")
 
     # Find pool chores that need distribution
     instances_to_distribute = ChoreInstance.objects.filter(
@@ -226,6 +246,13 @@ def distribution_check():
         distribution_at__lte=now,
         due_at__gt=now  # Not yet due
     )
+
+    logger.info(f"Found {instances_to_distribute.count()} instances to distribute")
+    for instance in instances_to_distribute:
+        logger.info(
+            f"  - {instance.chore.name}: distribution_at={instance.distribution_at}, "
+            f"now={now}, status={instance.status}"
+        )
 
     assigned_count = 0
     failed_count = 0

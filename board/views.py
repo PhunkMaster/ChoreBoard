@@ -82,10 +82,12 @@ def main_board(request):
         is_active=True
     ).order_by('first_name', 'username')
 
-    # Get active arcade session for logged-in user
-    active_arcade_session = None
-    if request.user.is_authenticated:
-        active_arcade_session = ArcadeService.get_active_session(request.user)
+    # Get active arcade session (kiosk-mode compatible)
+    # Check if ANY user has an active arcade session
+    from chores.models import ArcadeSession
+    active_arcade_session = ArcadeSession.objects.filter(
+        status=ArcadeSession.STATUS_ACTIVE
+    ).select_related('chore', 'user').first()
 
     context = {
         'pool_chores': pool_chores,
@@ -159,6 +161,13 @@ def user_board(request, username):
         can_be_assigned=True
     ).order_by('first_name', 'username')
 
+    # Check for active arcade session for THIS user only (kiosk-mode compatible)
+    from chores.models import ArcadeSession
+    active_arcade_session = ArcadeSession.objects.filter(
+        status=ArcadeSession.STATUS_ACTIVE,
+        user=user  # Only show arcade banner if this user is playing
+    ).select_related('chore', 'user').first()
+
     context = {
         'selected_user': user,
         'overdue_chores': overdue_chores,
@@ -167,9 +176,57 @@ def user_board(request, username):
         'all_time_points': all_time_points,
         'users': users,
         'today': today,
+        'active_arcade_session': active_arcade_session,
     }
 
     return render(request, 'board/user.html', context)
+
+
+def user_board_minimal(request, username):
+    """
+    Minimal user board showing ONLY chores assigned to user.
+    No points, no user selector, no stats - just the chores.
+
+    Kiosk-mode compatible: Uses username from URL, not logged-in user.
+    """
+    from chores.models import ArcadeSession
+
+    # Get user from URL parameter (kiosk-mode compatible, no login required)
+    user = get_object_or_404(User, username=username, is_active=True)
+    now = timezone.now()
+    today = now.date()
+
+    # Get chores assigned to this user for today
+    assigned_chores = ChoreInstance.objects.filter(
+        assigned_to=user,
+        due_at__date=today,
+        status__in=[ChoreInstance.ASSIGNED, ChoreInstance.POOL],
+        chore__is_active=True
+    ).select_related('chore').order_by('is_overdue', 'due_at')
+
+    # Check for active arcade session for THIS user only (from URL username)
+    # This ensures Alice's arcade session only shows on /user/alice/minimal/
+    # and not on /user/bob/minimal/ (kiosk-mode friendly)
+    active_arcade_session = ArcadeSession.objects.filter(
+        status=ArcadeSession.STATUS_ACTIVE,
+        user=user  # Filter by user from URL, not request.user
+    ).select_related('chore', 'user').first()
+
+    # Get all users for arcade mode selection
+    users = User.objects.filter(
+        is_active=True,
+        can_be_assigned=True
+    ).order_by('first_name', 'username')
+
+    context = {
+        'user': user,
+        'assigned_chores': assigned_chores,
+        'today': today,
+        'active_arcade_session': active_arcade_session,
+        'users': users,
+    }
+
+    return render(request, 'board/user_minimal.html', context)
 
 
 def leaderboard(request):
@@ -333,7 +390,20 @@ def complete_chore_view(request):
                         eligible_for_points=True
                     ))
                 else:
-                    helpers_list = [user] if user.eligible_for_points else []
+                    # Check if completing user is eligible for points
+                    if user.eligible_for_points:
+                        helpers_list = [user]
+                    else:
+                        # User is not eligible - redistribute to ALL eligible users
+                        helpers_list = list(User.objects.filter(
+                            eligible_for_points=True,
+                            can_be_assigned=True,
+                            is_active=True
+                        ))
+                        logger.info(
+                            f"User {user.username} not eligible for points. "
+                            f"Redistributing {instance.points_value} pts to {len(helpers_list)} eligible users"
+                        )
 
             # Split points
             if helpers_list:

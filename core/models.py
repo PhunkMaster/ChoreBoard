@@ -112,6 +112,13 @@ class Settings(models.Model):
     enable_notifications = models.BooleanField(default=True)
     home_assistant_webhook_url = models.URLField(blank=True, max_length=500)
 
+    # Arcade Mode
+    arcade_submission_redirect_seconds = models.IntegerField(
+        default=5,
+        validators=[MinValueValidator(1), MaxValueValidator(30)],
+        help_text="Seconds to show 'Submitted for judging' message before redirecting (default: 5)"
+    )
+
     # Timestamps
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
