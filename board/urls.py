@@ -13,6 +13,7 @@ app_name = 'board'
 urlpatterns = [
     path('', views.main_board, name='main'),
     path('pool/', views.pool_only, name='pool'),
+    path('pool/minimal/', views.pool_minimal, name='pool_minimal'),
     path('user/<str:username>/', views.user_board, name='user'),
     path('user/<str:username>/minimal/', views.user_board_minimal, name='user_minimal'),
     path('leaderboard/', views.leaderboard, name='leaderboard'),

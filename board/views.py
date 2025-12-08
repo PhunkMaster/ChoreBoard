@@ -52,6 +52,7 @@ def main_board(request):
             chores_by_user[user]['ontime'].append(chore)
 
     # Convert to list of dicts for template
+    # Filter out users not eligible for points
     assigned_by_user = [
         {
             'user': user,
@@ -60,6 +61,7 @@ def main_board(request):
             'total': len(chores['overdue']) + len(chores['ontime'])
         }
         for user, chores in chores_by_user.items()
+        if user.eligible_for_points
     ]
 
     # Sort by user name
@@ -97,6 +99,7 @@ def main_board(request):
         'users': users,
         'admin_users': admin_users,
         'today': today,
+        'now': now,
         'active_arcade_session': active_arcade_session,  # Arcade mode
     }
 
@@ -227,6 +230,45 @@ def user_board_minimal(request, username):
     }
 
     return render(request, 'board/user_minimal.html', context)
+
+
+def pool_minimal(request):
+    """
+    Minimal pool view showing ONLY unclaimed chores.
+    No navigation, no header, no user selector - just the pool chores.
+    Kiosk-mode compatible.
+    """
+    from chores.models import ArcadeSession
+
+    now = timezone.now()
+    today = now.date()
+
+    # Get all pool chores for today
+    pool_chores = ChoreInstance.objects.filter(
+        status=ChoreInstance.POOL,
+        due_at__date=today,
+        chore__is_active=True
+    ).exclude(status=ChoreInstance.SKIPPED).select_related('chore').order_by('due_at')
+
+    # Check for any active arcade session (kiosk-mode compatible)
+    active_arcade_session = ArcadeSession.objects.filter(
+        status=ArcadeSession.STATUS_ACTIVE
+    ).select_related('chore', 'user').first()
+
+    # Get all users for arcade mode and claiming
+    users = User.objects.filter(
+        is_active=True,
+        can_be_assigned=True
+    ).order_by('first_name', 'username')
+
+    context = {
+        'pool_chores': pool_chores,
+        'today': today,
+        'active_arcade_session': active_arcade_session,
+        'users': users,
+    }
+
+    return render(request, 'board/pool_minimal.html', context)
 
 
 def leaderboard(request):

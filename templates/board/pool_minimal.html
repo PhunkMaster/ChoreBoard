@@ -1,0 +1,272 @@
+{% extends "base_minimal.html" %}
+
+{% block title %}Pool Chores{% endblock %}
+
+{% block content %}
+<div class="space-y-4 p-4">
+    <!-- Arcade Mode Banner (if any user has active session) -->
+    {% if active_arcade_session %}
+    <div id="arcade-banner" class="bg-gradient-to-r from-purple-900/80 to-pink-900/80 border-2 border-purple-500 rounded-lg p-6 animate-pulse">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+            <!-- Left: Chore Info -->
+            <div class="flex items-center space-x-4">
+                <div class="text-4xl">⏱️</div>
+                <div>
+                    <h3 class="text-xl font-bold text-white">Arcade Mode Active</h3>
+                    <p class="text-purple-300">{{ active_arcade_session.chore.name }} - {{ active_arcade_session.user.get_display_name }}</p>
+                </div>
+            </div>
+
+            <!-- Center: Timer Display -->
+            <div class="text-center">
+                <div id="arcade-timer" class="text-5xl font-bold text-yellow-400 tabular-nums">
+                    00:00
+                </div>
+                <p class="text-purple-300 text-sm mt-1">Elapsed Time</p>
+            </div>
+
+            <!-- Right: Actions -->
+            <div class="flex space-x-3">
+                <button onclick="stopArcade({{ active_arcade_session.id }})"
+                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                    🏁 Stop & Judge
+                </button>
+                <button onclick="cancelArcade({{ active_arcade_session.id }})"
+                        class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                    ❌ Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Pool Chore Cards -->
+    {% if pool_chores %}
+    <div class="space-y-4">
+        {% for instance in pool_chores %}
+        <!-- Minimal Pool Chore Card -->
+        <div class="bg-dark-surface rounded-lg p-6 border-2 border-green-500/50 hover:border-green-500 transition">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex-1">
+                    <h3 class="text-xl font-semibold text-white mb-2">{{ instance.chore.name }}</h3>
+                    {% if instance.chore.description %}
+                    <p class="text-gray-400 text-sm">{{ instance.chore.description }}</p>
+                    {% endif %}
+                </div>
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30 ml-2">
+                    Pool
+                </span>
+            </div>
+
+            <div class="flex justify-between items-center text-sm mb-4">
+                <div class="flex items-center text-gray-400">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Due: {{ instance.due_at|date:"M j, Y g:i A" }}
+                </div>
+                <div class="text-primary-400 font-bold text-lg">
+                    {{ instance.points_value }} {{ POINTS_LABEL_SHORT }}
+                </div>
+            </div>
+
+            <!-- Arcade High Score Display -->
+            {% if instance.chore.high_scores.first %}
+            <div class="mb-4 p-3 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-2xl">🏆</span>
+                        <div>
+                            <p class="text-yellow-400 font-semibold text-sm">High Score</p>
+                            <p class="text-yellow-300 text-xs">{{ instance.chore.high_scores.first.user.get_display_name }}</p>
+                        </div>
+                    </div>
+                    <div class="text-yellow-400 font-bold text-lg">
+                        {{ instance.chore.high_scores.first.format_time }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Claim Button -->
+            <button onclick="openClaimDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }})"
+                    class="w-full px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition focus:outline-none focus:ring-2 focus:ring-green-500">
+                Claim This Chore
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-dark-surface rounded-lg p-12 border border-dark-border text-center">
+        <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <h3 class="text-xl font-semibold text-gray-300 mb-2">No Pool Chores Available</h3>
+        <p class="text-gray-500">All chores have been claimed or completed!</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Claim Chore Dialog -->
+<div id="claim-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeClaimDialog(event)">
+    <div class="bg-dark-surface rounded-lg p-8 max-w-md w-full mx-4 border border-dark-border" onclick="event.stopPropagation()">
+        <h2 class="text-2xl font-bold text-white mb-4">Claim Chore</h2>
+        <p class="text-gray-300 mb-2">Chore: <span id="claim-chore-name" class="text-primary-400 font-semibold"></span></p>
+        <p class="text-gray-300 mb-6">Points: <span id="claim-points" class="text-primary-400 font-semibold"></span></p>
+
+        <div class="mb-6">
+            <label for="claim-user-select" class="block text-sm font-medium text-gray-300 mb-2">
+                Who is claiming this chore?
+            </label>
+            <select id="claim-user-select"
+                    class="w-full px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">Select user...</option>
+                {% for user in users %}
+                <option value="{{ user.id }}">{{ user.get_display_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <input type="hidden" id="claim-instance-id">
+
+        <div class="flex space-x-4">
+            <button onclick="executeClaim()"
+                    class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition">
+                Claim
+            </button>
+            <button onclick="closeClaimDialog()"
+                    class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- Arcade Timer Script -->
+{% if active_arcade_session %}
+<script>
+    const startTime = new Date("{{ active_arcade_session.started_at|date:'c' }}");
+
+    function updateArcadeTimer() {
+        const now = new Date();
+        const elapsed = Math.floor((now - startTime) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        document.getElementById('arcade-timer').textContent =
+            `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    updateArcadeTimer();
+    setInterval(updateArcadeTimer, 1000);
+
+    async function stopArcade(sessionId) {
+        try {
+            const response = await fetch(`/arcade/stop/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `session_id=${sessionId}`
+            });
+
+            const data = await response.json();
+            if (data.success && data.redirect) {
+                window.location.href = data.redirect;
+            } else {
+                showToast(data.error || 'Failed to stop arcade', 'error');
+            }
+        } catch (error) {
+            showToast('Network error', 'error');
+        }
+    }
+
+    async function cancelArcade(sessionId) {
+        if (!confirm('Are you sure you want to cancel arcade mode?')) return;
+
+        try {
+            const response = await fetch(`/arcade/cancel/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `session_id=${sessionId}`
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                showToast('Arcade mode cancelled', 'success');
+                window.location.reload();
+            } else {
+                showToast(data.error || 'Failed to cancel arcade', 'error');
+            }
+        } catch (error) {
+            showToast('Network error', 'error');
+        }
+    }
+</script>
+{% endif %}
+
+<!-- Claim Dialog Script -->
+<script>
+    function openClaimDialog(instanceId, choreName, points) {
+        document.getElementById('claim-dialog').classList.remove('hidden');
+        document.getElementById('claim-instance-id').value = instanceId;
+        document.getElementById('claim-chore-name').textContent = choreName;
+        document.getElementById('claim-points').textContent = points;
+        document.getElementById('claim-user-select').value = '';
+    }
+
+    function closeClaimDialog(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('claim-dialog').classList.add('hidden');
+    }
+
+    async function executeClaim() {
+        const instanceId = document.getElementById('claim-instance-id').value;
+        const userId = document.getElementById('claim-user-select').value;
+
+        if (!userId) {
+            showToast('Please select a user', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/chore/${instanceId}/claim/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `user_id=${userId}`
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message, 'success');
+                closeClaimDialog();
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showToast(data.error || 'Failed to claim chore', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    // Close dialog with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeClaimDialog();
+        }
+    });
+</script>
+
+<!-- Auto-refresh every 60 seconds -->
+<script>
+    setInterval(function() {
+        window.location.reload();
+    }, 60000);
+</script>
+{% endblock %}

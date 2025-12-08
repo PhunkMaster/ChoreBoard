@@ -3,7 +3,9 @@
     "allow": [
       "Bash(\".venv/Scripts/python.exe\" manage.py shell:*)",
       "Bash(\".venv/Scripts/python.exe\" manage.py makemigrations core)",
-      "Bash(\".venv/Scripts/python.exe\" manage.py migrate)"
+      "Bash(\".venv/Scripts/python.exe\" manage.py migrate)",
+      "Bash(\".venv/Scripts/python.exe\" manage.py test board.tests.test_user_pages --verbosity=2)",
+      "Bash(\".venv/Scripts/python.exe\" manage.py test:*)"
     ],
     "deny": [],
     "ask": []
