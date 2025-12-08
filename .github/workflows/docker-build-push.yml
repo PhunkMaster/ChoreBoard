@@ -36,10 +36,18 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run migrations
+        env:
+          SECRET_KEY: 'test-secret-key-for-ci-only-not-for-production'
+          DEBUG: 'False'
+          ALLOWED_HOSTS: 'localhost,127.0.0.1'
         run: |
           python manage.py migrate --noinput
 
       - name: Run tests
+        env:
+          SECRET_KEY: 'test-secret-key-for-ci-only-not-for-production'
+          DEBUG: 'False'
+          ALLOWED_HOSTS: 'localhost,127.0.0.1'
         run: |
           python manage.py test --noinput
 

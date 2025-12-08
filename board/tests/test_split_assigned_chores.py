@@ -44,31 +44,38 @@ class SplitAssignedChoresTest(TestCase):
             is_active=True
         )
 
+        # Ensure chores are due today (not tomorrow)
+        from datetime import datetime
         now = timezone.now()
+        today = now.date()
+
+        # Set due_at to end of today, distribution_at to start of today
+        due_at_today = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+        distribution_at_today = timezone.make_aware(datetime.combine(today, datetime.min.time()))
 
         # Create instances for different users
         self.instance1 = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user1,
-            distribution_at=now,
-            due_at=now + timedelta(hours=12),
+            distribution_at=distribution_at_today,
+            due_at=due_at_today,
             points_value=10
         )
         self.instance2 = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user2,
-            distribution_at=now,
-            due_at=now + timedelta(hours=12),
+            distribution_at=distribution_at_today,
+            due_at=due_at_today,
             points_value=10
         )
         self.instance3 = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user1,  # Second chore for user1
-            distribution_at=now,
-            due_at=now + timedelta(hours=14),
+            distribution_at=distribution_at_today,
+            due_at=due_at_today,
             points_value=15
         )
 

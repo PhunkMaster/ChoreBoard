@@ -130,6 +130,13 @@ class SiteSettingsIntegrationTest(TestCase):
 
     def setUp(self):
         """Set up test data"""
+        from users.models import User
+        # Create dummy user to bypass SetupMiddleware
+        User.objects.create_user(
+            username='system',
+            is_active=False,
+            can_be_assigned=False
+        )
         SiteSettings.objects.all().delete()
 
     def test_settings_available_in_template_context(self):
@@ -141,7 +148,7 @@ class SiteSettingsIntegrationTest(TestCase):
         settings.save()
 
         # Make a request to a view that renders a template
-        response = self.client.get('/board/')
+        response = self.client.get('/')
 
         # Check that the response is successful
         self.assertEqual(response.status_code, 200)

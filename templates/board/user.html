@@ -235,7 +235,7 @@
             formData.append('user_id', userId);
             helperIds.forEach(id => formData.append('helper_ids', id));
 
-            const response = await fetch('/board/action/complete/', {
+            const response = await fetch('/action/complete/', {
                 method: 'POST',
                 body: formData
             });

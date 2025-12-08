@@ -409,9 +409,11 @@ def outstanding_chores(request):
     """
     now = timezone.now()
     outstanding_instances = ChoreInstance.objects.filter(
-        Q(status=ChoreInstance.POOL) | Q(status=ChoreInstance.ASSIGNED),
+        status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED],
         is_overdue=False,
         due_at__gt=now
+    ).exclude(
+        status=ChoreInstance.COMPLETED
     ).select_related('chore', 'assigned_to').order_by('due_at')
 
     serializer = ChoreInstanceSerializer(outstanding_instances, many=True)
@@ -480,11 +482,12 @@ def my_chores(request):
         200: List of chore instances assigned to user
     """
     user = request.user
-    today = timezone.now().date()
 
     my_instances = ChoreInstance.objects.filter(
         assigned_to=user,
-        due_at__date=today
+        status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+    ).exclude(
+        status=ChoreInstance.COMPLETED
     ).select_related('chore').order_by('due_at')
 
     serializer = ChoreInstanceSerializer(my_instances, many=True)

@@ -11,6 +11,7 @@ from django.db.models import Q
 from decimal import Decimal
 from chores.models import ChoreInstance, Completion, CompletionShare, PointsLedger
 from chores.services import AssignmentService, DependencyService
+from chores.arcade_service import ArcadeService
 from users.models import User
 from core.models import Settings, ActionLog, WeeklySnapshot
 from datetime import timedelta
@@ -82,6 +83,11 @@ def main_board(request):
         is_active=True
     ).order_by('first_name', 'username')
 
+    # Get active arcade session for logged-in user
+    active_arcade_session = None
+    if request.user.is_authenticated:
+        active_arcade_session = ArcadeService.get_active_session(request.user)
+
     context = {
         'pool_chores': pool_chores,
         'assigned_by_user': assigned_by_user,  # NEW: Grouped by user
@@ -90,6 +96,7 @@ def main_board(request):
         'users': users,
         'admin_users': admin_users,
         'today': today,
+        'active_arcade_session': active_arcade_session,  # Arcade mode
     }
 
     return render(request, 'board/main.html', context)

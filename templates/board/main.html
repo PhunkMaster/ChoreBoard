@@ -25,6 +25,42 @@
         </div>
     </div>
 
+    <!-- Arcade Mode Banner (if user has active session) -->
+    {% if active_arcade_session %}
+    <div id="arcade-banner" class="bg-gradient-to-r from-purple-900/80 to-pink-900/80 border-2 border-purple-500 rounded-lg p-6 animate-pulse">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+            <!-- Left: Chore Info -->
+            <div class="flex items-center space-x-4">
+                <div class="text-4xl">⏱️</div>
+                <div>
+                    <h3 class="text-xl font-bold text-white">Arcade Mode Active</h3>
+                    <p class="text-purple-300">{{ active_arcade_session.chore.name }}</p>
+                </div>
+            </div>
+
+            <!-- Center: Timer Display -->
+            <div class="text-center">
+                <div id="arcade-timer" class="text-5xl font-bold text-yellow-400 tabular-nums">
+                    00:00
+                </div>
+                <p class="text-purple-300 text-sm mt-1">Elapsed Time</p>
+            </div>
+
+            <!-- Right: Actions -->
+            <div class="flex space-x-3">
+                <button onclick="stopArcade({{ active_arcade_session.id }})"
+                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                    🏁 Stop & Judge
+                </button>
+                <button onclick="cancelArcade({{ active_arcade_session.id }})"
+                        class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                    ❌ Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- User Quick Links -->
     <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
         <h2 class="text-xl font-bold text-white mb-4">View By User</h2>
@@ -121,6 +157,19 @@
                     </div>
                 </div>
 
+                <!-- Arcade High Score Display -->
+                {% if instance.chore.high_scores.first %}
+                <div class="mb-3 p-2 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-yellow-400 font-semibold">🏆 Record:</span>
+                        <div class="text-right">
+                            <span class="text-yellow-300">{{ instance.chore.high_scores.first.user.get_display_name }}</span>
+                            <span class="text-yellow-400 font-bold ml-2">{{ instance.chore.high_scores.first.format_time }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
                 <!-- Primary Action Buttons -->
                 <div class="flex space-x-2 mb-2">
                     <button
@@ -136,6 +185,19 @@
                         {% endif %}
                         class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition">
                         Complete
+                    </button>
+                </div>
+
+                <!-- Arcade Mode Button -->
+                <div class="mb-2">
+                    <button
+                        onclick="openArcadeStartDialog({{ instance.id }}, '{{ instance.chore.name }}', null)"
+                        class="w-full px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-sm font-bold rounded-lg transition flex items-center justify-center space-x-2">
+                        <span>🎮</span>
+                        <span>Start Arcade</span>
+                        {% if instance.chore.high_scores.first %}
+                        <span class="text-yellow-300">🏆</span>
+                        {% endif %}
                     </button>
                 </div>
 
@@ -229,34 +291,64 @@
                     </div>
                 </div>
 
+                <!-- Arcade High Score Display -->
+                {% if instance.chore.high_scores.first %}
+                <div class="mb-3 p-2 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-yellow-400 font-semibold">🏆 Record:</span>
+                        <div class="text-right">
+                            <span class="text-yellow-300">{{ instance.chore.high_scores.first.user.get_display_name }}</span>
+                            <span class="text-yellow-400 font-bold ml-2">{{ instance.chore.high_scores.first.format_time }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
                 <!-- Action Buttons -->
-                <div class="flex gap-2">
+                <div class="flex flex-col gap-2">
+                    <div class="flex gap-2">
+                        <button
+                            onclick="openCompleteDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }}, '{{ instance.assigned_to.get_display_name }}', '{{ instance.assigned_to.id }}')"
+                            class="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition">
+                            Complete
+                        </button>
+                        {% if request.user.is_authenticated %}
+                            {% if request.user.is_staff or request.user.is_superuser %}
+                        <button
+                            onclick="event.stopPropagation(); openSkipDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }})"
+                            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition">
+                            Skip
+                        </button>
+                            {% endif %}
+                        {% endif %}
+                        {% if request.user.is_authenticated %}
+                            {% if request.user.is_staff or request.user.is_superuser %}
+                        <button
+                            onclick="event.stopPropagation(); openRescheduleDialog({{ instance.id }}, '{{ instance.chore.name }}', '{{ instance.due_at|date:'F j \a\t g:i A' }}')"
+                            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition">
+                            Reschedule
+                        </button>
+                            {% endif %}
+                        {% endif %}
+                        {% if instance.chore.is_pool %}
+                        <button
+                            onclick="event.stopPropagation(); openUnclaimDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }}, '{{ instance.assigned_to.get_display_name }}')"
+                            class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition">
+                            Un-claim
+                        </button>
+                        {% endif %}
+                    </div>
+
+                    <!-- Arcade Mode Button -->
                     <button
-                        onclick="openCompleteDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }}, '{{ instance.assigned_to.get_display_name }}', '{{ instance.assigned_to.id }}')"
-                        class="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition">
-                        Complete
+                        onclick="openArcadeStartDialog({{ instance.id }}, '{{ instance.chore.name }}', '{{ instance.assigned_to.id }}')"
+                        class="w-full px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-sm font-bold rounded-lg transition flex items-center justify-center space-x-2">
+                        <span>🎮</span>
+                        <span>Start Arcade</span>
+                        {% if instance.chore.high_scores.first %}
+                        <span class="text-yellow-300">🏆</span>
+                        {% endif %}
                     </button>
-                    {% if request.user.is_authenticated %}{% if request.user.is_staff or request.user.is_superuser %}
-                    <button
-                        onclick="event.stopPropagation(); openSkipDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }})"
-                        class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition">
-                        Skip
-                    </button>
-                    {% endif %}{% endif %}
-                    {% if request.user.is_authenticated %}{% if request.user.is_staff or request.user.is_superuser %}
-                    <button
-                        onclick="event.stopPropagation(); openRescheduleDialog({{ instance.id }}, '{{ instance.chore.name }}', '{{ instance.due_at|date:'F j \a\t g:i A' }}')"
-                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition">
-                        Reschedule
-                    </button>
-                    {% endif %}{% endif %}
-                    {% if instance.chore.is_pool %}
-                    <button
-                        onclick="event.stopPropagation(); openUnclaimDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }}, '{{ instance.assigned_to.get_display_name }}')"
-                        class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition">
-                        Un-claim
-                    </button>
-                    {% endif %}
                 </div>
             </div>
             {% endfor %}
@@ -307,34 +399,64 @@
                     </div>
                 </div>
 
+                <!-- Arcade High Score Display -->
+                {% if instance.chore.high_scores.first %}
+                <div class="mb-3 p-2 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-yellow-400 font-semibold">🏆 Record:</span>
+                        <div class="text-right">
+                            <span class="text-yellow-300">{{ instance.chore.high_scores.first.user.get_display_name }}</span>
+                            <span class="text-yellow-400 font-bold ml-2">{{ instance.chore.high_scores.first.format_time }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
                 <!-- Action Buttons -->
-                <div class="flex gap-2">
+                <div class="flex flex-col gap-2">
+                    <div class="flex gap-2">
+                        <button
+                            onclick="openCompleteDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }}, '{{ instance.assigned_to.get_display_name }}', '{{ instance.assigned_to.id }}')"
+                            class="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition">
+                            Complete
+                        </button>
+                        {% if request.user.is_authenticated %}
+                            {% if request.user.is_staff or request.user.is_superuser %}
+                        <button
+                            onclick="event.stopPropagation(); openSkipDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }})"
+                            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition">
+                            Skip
+                        </button>
+                            {% endif %}
+                        {% endif %}
+                        {% if request.user.is_authenticated %}
+                            {% if request.user.is_staff or request.user.is_superuser %}
+                        <button
+                            onclick="event.stopPropagation(); openRescheduleDialog({{ instance.id }}, '{{ instance.chore.name }}', '{{ instance.due_at|date:'F j \a\t g:i A' }}')"
+                            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition">
+                            Reschedule
+                        </button>
+                            {% endif %}
+                        {% endif %}
+                        {% if instance.chore.is_pool %}
+                        <button
+                            onclick="event.stopPropagation(); openUnclaimDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }}, '{{ instance.assigned_to.get_display_name }}')"
+                            class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition">
+                            Un-claim
+                        </button>
+                        {% endif %}
+                    </div>
+
+                    <!-- Arcade Mode Button -->
                     <button
-                        onclick="openCompleteDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }}, '{{ instance.assigned_to.get_display_name }}', '{{ instance.assigned_to.id }}')"
-                        class="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition">
-                        Complete
+                        onclick="openArcadeStartDialog({{ instance.id }}, '{{ instance.chore.name }}', '{{ instance.assigned_to.id }}')"
+                        class="w-full px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-sm font-bold rounded-lg transition flex items-center justify-center space-x-2">
+                        <span>🎮</span>
+                        <span>Start Arcade</span>
+                        {% if instance.chore.high_scores.first %}
+                        <span class="text-yellow-300">🏆</span>
+                        {% endif %}
                     </button>
-                    {% if request.user.is_authenticated %}{% if request.user.is_staff or request.user.is_superuser %}
-                    <button
-                        onclick="event.stopPropagation(); openSkipDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }})"
-                        class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition">
-                        Skip
-                    </button>
-                    {% endif %}{% endif %}
-                    {% if request.user.is_authenticated %}{% if request.user.is_staff or request.user.is_superuser %}
-                    <button
-                        onclick="event.stopPropagation(); openRescheduleDialog({{ instance.id }}, '{{ instance.chore.name }}', '{{ instance.due_at|date:'F j \a\t g:i A' }}')"
-                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition">
-                        Reschedule
-                    </button>
-                    {% endif %}{% endif %}
-                    {% if instance.chore.is_pool %}
-                    <button
-                        onclick="event.stopPropagation(); openUnclaimDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }}, '{{ instance.assigned_to.get_display_name }}')"
-                        class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition">
-                        Un-claim
-                    </button>
-                    {% endif %}
                 </div>
             </div>
             {% endfor %}
@@ -586,6 +708,46 @@
     </div>
 </div>
 
+<!-- Arcade Start Dialog -->
+<div id="arcade-start-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeArcadeStartDialog(event)">
+    <div class="bg-dark-surface rounded-lg p-8 max-w-md w-full mx-4 border border-purple-500/50" onclick="event.stopPropagation()">
+        <h2 class="text-2xl font-bold text-white mb-4">🎮 Start Arcade Mode</h2>
+
+        <div class="mb-6">
+            <p class="text-gray-400 mb-2">Chore:</p>
+            <p id="arcade-start-chore-name" class="text-xl font-semibold text-white"></p>
+        </div>
+
+        <div class="mb-6 p-4 bg-purple-900/20 border border-purple-500/30 rounded-lg">
+            <p class="text-purple-300 text-sm">
+                ⏱️ Race against the clock to complete this chore as fast as possible!
+            </p>
+        </div>
+
+        <div class="mb-6">
+            <label for="arcade-user-select" class="block text-gray-400 mb-2">Who is playing?</label>
+            <select id="arcade-user-select" required
+                    class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+                <option value="">-- Select a player --</option>
+                {% for u in users %}
+                <option value="{{ u.id }}">{{ u.get_display_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="flex space-x-4">
+            <button onclick="confirmStartArcade()"
+                    class="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                Start Timer!
+            </button>
+            <button onclick="closeArcadeStartDialog()"
+                    class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_scripts %}
@@ -663,7 +825,7 @@
             formData.append('instance_id', currentClaimId);
             formData.append('user_id', userId);
 
-            const response = await fetch('/board/action/claim/', {
+            const response = await fetch('/action/claim/', {
                 method: 'POST',
                 body: formData
             });
@@ -704,7 +866,7 @@
             formData.append('user_id', userId);
             helperIds.forEach(id => formData.append('helper_ids', id));
 
-            const response = await fetch('/board/action/complete/', {
+            const response = await fetch('/action/complete/', {
                 method: 'POST',
                 body: formData
             });
@@ -750,7 +912,7 @@
             const formData = new FormData();
             formData.append('instance_id', currentUnclaimId);
 
-            const response = await fetch('/board/action/unclaim/', {
+            const response = await fetch('/action/unclaim/', {
                 method: 'POST',
                 body: formData
             });
@@ -813,7 +975,7 @@
                 formData.append('skip_reason', skipReason);
             }
 
-            const response = await fetch('/board/action/skip/', {
+            const response = await fetch('/action/skip/', {
                 method: 'POST',
                 body: formData
             });
@@ -885,7 +1047,7 @@
                 formData.append('reschedule_reason', rescheduleReason);
             }
 
-            const response = await fetch('/board/action/reschedule/', {
+            const response = await fetch('/action/reschedule/', {
                 method: 'POST',
                 body: formData
             });
@@ -929,7 +1091,196 @@
             closeUnclaimDialog();
             closeSkipDialog();
             closeRescheduleDialog();
+            closeArcadeStartDialog();
         }
     });
+
+    // ===========================
+    // Arcade Mode Functions
+    // ===========================
+
+    let arcadeTimerInterval = null;
+    let arcadeStartTime = null;
+    let currentArcadeInstanceId = null;
+
+    // Open Arcade Start Dialog
+    function openArcadeStartDialog(instanceId, choreName, preSelectUserId) {
+        currentArcadeInstanceId = instanceId;
+        document.getElementById('arcade-start-chore-name').textContent = choreName;
+
+        // Pre-select user if provided (for assigned chores)
+        const userSelect = document.getElementById('arcade-user-select');
+        if (preSelectUserId) {
+            userSelect.value = preSelectUserId;
+        } else {
+            userSelect.value = '';
+        }
+
+        document.getElementById('arcade-start-dialog').classList.remove('hidden');
+    }
+
+    // Close Arcade Start Dialog
+    function closeArcadeStartDialog(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('arcade-start-dialog').classList.add('hidden');
+        currentArcadeInstanceId = null;
+    }
+
+    // Confirm Start Arcade with User Selection
+    async function confirmStartArcade() {
+        if (!currentArcadeInstanceId) return;
+
+        const userSelect = document.getElementById('arcade-user-select');
+        const userId = userSelect.value;
+
+        if (!userId) {
+            showToast('Please select who is playing', 'error');
+            return;
+        }
+
+        // Call startArcade with user info
+        await startArcade(currentArcadeInstanceId, userId);
+        closeArcadeStartDialog();
+    }
+
+    // Start Arcade Mode
+    async function startArcade(instanceId, userId) {
+        try {
+            const formData = new FormData();
+            formData.append('instance_id', instanceId);
+            if (userId) {
+                formData.append('user_id', userId);
+            }
+
+            const response = await fetch('/action/arcade/start/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                showToast(data.message || 'Arcade mode started! Good luck!', 'success');
+                // Reload to show arcade banner
+                setTimeout(() => window.location.reload(), 500);
+            } else {
+                showToast(data.message || 'Failed to start arcade mode', 'error');
+            }
+        } catch (error) {
+            console.error('Arcade start error:', error);
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    // Stop Arcade Mode
+    async function stopArcade(sessionId) {
+        try {
+            const formData = new FormData();
+            formData.append('session_id', sessionId);
+
+            const response = await fetch('/action/arcade/stop/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                showToast(data.message || 'Time stopped! Select a judge.', 'success');
+                // Stop timer
+                if (arcadeTimerInterval) {
+                    clearInterval(arcadeTimerInterval);
+                }
+                // Redirect to judge selection
+                setTimeout(() => {
+                    window.location.href = data.redirect;
+                }, 500);
+            } else {
+                showToast(data.message || 'Failed to stop arcade mode', 'error');
+            }
+        } catch (error) {
+            console.error('Arcade stop error:', error);
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    // Cancel Arcade Mode
+    async function cancelArcade(sessionId) {
+        if (!confirm('Are you sure you want to cancel arcade mode? Your time will not be saved.')) {
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('session_id', sessionId);
+
+            const response = await fetch('/action/arcade/cancel/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                showToast(data.message || 'Arcade mode cancelled', 'info');
+                // Stop timer
+                if (arcadeTimerInterval) {
+                    clearInterval(arcadeTimerInterval);
+                }
+                // Reload page
+                setTimeout(() => window.location.reload(), 500);
+            } else {
+                showToast(data.message || 'Failed to cancel arcade mode', 'error');
+            }
+        } catch (error) {
+            console.error('Arcade cancel error:', error);
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    // Update Arcade Timer Display
+    function updateArcadeTimer() {
+        const timerElement = document.getElementById('arcade-timer');
+        if (!timerElement) return;
+
+        const now = Date.now();
+        const elapsed = Math.floor((now - arcadeStartTime) / 1000);
+
+        const hours = Math.floor(elapsed / 3600);
+        const minutes = Math.floor((elapsed % 3600) / 60);
+        const seconds = elapsed % 60;
+
+        if (hours > 0) {
+            timerElement.textContent = `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        } else {
+            timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+    }
+
+    // Initialize Arcade Timer (if active session exists)
+    {% if active_arcade_session %}
+    document.addEventListener('DOMContentLoaded', function() {
+        // Calculate start time based on server data
+        const sessionStartTime = new Date('{{ active_arcade_session.start_time|date:"c" }}');
+        arcadeStartTime = sessionStartTime.getTime();
+
+        // Update immediately
+        updateArcadeTimer();
+
+        // Update every second
+        arcadeTimerInterval = setInterval(updateArcadeTimer, 1000);
+
+        console.log('Arcade timer initialized for session {{ active_arcade_session.id }}');
+    });
+    {% endif %}
 </script>
 {% endblock %}

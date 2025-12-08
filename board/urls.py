@@ -6,6 +6,7 @@ from board import views
 from board import views_weekly
 from board import views_admin
 from board import views_auth
+from board import views_arcade
 
 app_name = 'board'
 
@@ -73,4 +74,19 @@ urlpatterns = [
     # Manual Points Adjustment
     path('admin-panel/adjust-points/', views_admin.admin_adjust_points, name='admin_adjust_points'),
     path('admin-panel/adjust-points/submit/', views_admin.admin_adjust_points_submit, name='admin_adjust_points_submit'),
+    # Arcade Mode
+    path('action/arcade/start/', views_arcade.start_arcade, name='arcade_start'),
+    path('action/arcade/stop/', views_arcade.stop_arcade, name='arcade_stop'),
+    path('action/arcade/cancel/', views_arcade.cancel_arcade, name='arcade_cancel'),
+    path('action/arcade/status/', views_arcade.get_arcade_status, name='arcade_status'),
+    path('arcade/judge-select/<int:session_id>/', views_arcade.judge_select, name='arcade_judge_select'),
+    path('arcade/submit-approval/<int:session_id>/', views_arcade.submit_for_approval, name='arcade_submit_approval'),
+    path('arcade/pending/<int:session_id>/', views_arcade.pending_approval, name='arcade_pending_approval'),
+    path('arcade/judge-approval/', views_arcade.judge_approval, name='arcade_judge_approval'),
+    path('arcade/approve/<int:session_id>/', views_arcade.approve_submission, name='arcade_approve'),
+    path('arcade/deny/<int:session_id>/', views_arcade.deny_submission, name='arcade_deny'),
+    path('arcade/continue/<int:session_id>/', views_arcade.continue_after_denial, name='arcade_continue'),
+    path('arcade/leaderboard/', views_arcade.arcade_leaderboard, name='arcade_leaderboard'),
+    path('user-profile/<str:username>/', views_arcade.user_profile, name='user_profile'),
+    path('api/arcade/high-score/<int:chore_id>/', views_arcade.get_high_score, name='arcade_high_score'),
 ]

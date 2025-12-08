@@ -506,7 +506,7 @@ function closeChoreDialog() {
 // Load templates list into dropdown
 async function loadTemplatesList() {
     try {
-        const response = await fetch('/board/admin-panel/templates/list/');
+        const response = await fetch('/admin-panel/templates/list/');
         const data = await response.json();
 
         if (response.ok && data.templates) {
@@ -532,7 +532,7 @@ async function loadTemplate(templateId) {
     if (!templateId) return;
 
     try {
-        const response = await fetch(`/board/admin-panel/template/get/${templateId}/`);
+        const response = await fetch(`/admin-panel/template/get/${templateId}/`);
         const data = await response.json();
 
         if (response.ok) {
@@ -619,7 +619,7 @@ async function saveAsTemplate() {
     }
 
     try {
-        const response = await fetch('/board/admin-panel/template/save/', {
+        const response = await fetch('/admin-panel/template/save/', {
             method: 'POST',
             body: formData
         });
@@ -644,7 +644,7 @@ async function saveAsTemplate() {
 // Edit existing chore
 async function editChore(choreId) {
     try {
-        const response = await fetch(`/board/admin-panel/chore/get/${choreId}/`);
+        const response = await fetch(`/admin-panel/chore/get/${choreId}/`);
         const data = await response.json();
 
         if (response.ok) {
@@ -742,7 +742,7 @@ async function editChore(choreId) {
 async function fetchAssignableUsers() {
     try {
         // Use the first chore's user list or fetch from any chore
-        const response = await fetch('/board/admin-panel/chore/get/1/');
+        const response = await fetch('/admin-panel/chore/get/1/');
         const data = await response.json();
 
         if (response.ok && data.assignable_users) {
@@ -968,7 +968,7 @@ function toggleEligibleUsers() {
 
 // Populate eligible users multi-select
 function populateEligibleUsers() {
-    fetch('/board/admin-panel/users/')
+    fetch('/admin-panel/users/')
         .then(response => response.json())
         .then(data => {
             const select = document.getElementById('chore-eligible-users');
@@ -1055,7 +1055,7 @@ async function populateDependenciesDropdown(excludeChoreId = null) {
         select.innerHTML = '<option value="">None (No parent)</option>';
 
         // Fetch all active chores
-        const response = await fetch('/board/admin-panel/chores/list/');
+        const response = await fetch('/admin-panel/chores/list/');
         if (response.ok) {
             const data = await response.json();
             data.chores.forEach(chore => {
@@ -1079,7 +1079,7 @@ async function toggleChoreActive(choreId) {
     }
 
     try {
-        const response = await fetch(`/board/admin-panel/chore/toggle/${choreId}/`, {
+        const response = await fetch(`/admin-panel/chore/toggle/${choreId}/`, {
             method: 'POST',
             headers: {
                 'X-CSRFToken': '{{ csrf_token }}'
@@ -1132,10 +1132,10 @@ document.getElementById('chore-form').addEventListener('submit', async function(
     try {
         let url, method;
         if (currentChoreId) {
-            url = `/board/admin-panel/chore/update/${currentChoreId}/`;
+            url = `/admin-panel/chore/update/${currentChoreId}/`;
             method = 'POST';
         } else {
-            url = '/board/admin-panel/chore/create/';
+            url = '/admin-panel/chore/create/';
             method = 'POST';
         }
 

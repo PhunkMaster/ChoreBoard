@@ -202,7 +202,7 @@ class BoardDisplayTests(TestCase):
         )
 
         # Request main board
-        response = self.client.get('/board/')
+        response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
 
         # Verify instance is in context
@@ -229,7 +229,7 @@ class BoardDisplayTests(TestCase):
         )
 
         # Request main board
-        response = self.client.get('/board/')
+        response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
 
         # Verify instance is in assigned chores context
@@ -252,7 +252,7 @@ class BoardDisplayTests(TestCase):
         )
 
         # Request main board
-        response = self.client.get('/board/')
+        response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
 
         # Verify completed instance is NOT in pool or assigned chores
@@ -280,7 +280,7 @@ class BoardDisplayTests(TestCase):
         )
 
         # Request pool view
-        response = self.client.get('/board/pool/')
+        response = self.client.get('/pool/')
         self.assertEqual(response.status_code, 200)
 
         # Verify instance is in context
@@ -321,7 +321,7 @@ class BoardDisplayTests(TestCase):
         )
 
         # Request main board
-        response = self.client.get('/board/')
+        response = self.client.get('/')
         pool_chores = response.context['pool_chores']
 
         # Only today's instance should be shown
@@ -366,7 +366,7 @@ class EndToEndChoreCreationTests(TestCase):
         self.assertEqual(instances_immediate, 1, "Instance should be created immediately by signal")
 
         # Step 3: Board should immediately show the chore (no need to wait for midnight eval)
-        response_immediate = self.client.get('/board/')
+        response_immediate = self.client.get('/')
         self.assertEqual(response_immediate.status_code, 200)
         pool_chores_immediate = response_immediate.context['pool_chores']
         chore_names_immediate = [inst.chore.name for inst in pool_chores_immediate]
@@ -383,7 +383,7 @@ class EndToEndChoreCreationTests(TestCase):
         self.assertEqual(instances_after.count(), 1, "Midnight eval should not create duplicate")
 
         # Step 6: Board should still show exactly one instance
-        response_after = self.client.get('/board/')
+        response_after = self.client.get('/')
         self.assertEqual(response_after.status_code, 200)
         pool_chores_after = response_after.context['pool_chores']
         chore_names_after = [inst.chore.name for inst in pool_chores_after]
@@ -571,7 +571,7 @@ class ImmediateChoreInstanceCreationTests(TestCase):
         client.force_login(admin_user)
 
         # Create chore via admin interface
-        response = client.post('/board/admin-panel/chore/create/', {
+        response = client.post('/admin-panel/chore/create/', {
             'name': 'Test Admin Daily Chore',
             'description': 'Testing immediate instance creation',
             'points': '15.00',

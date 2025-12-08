@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}{{ profile_user.get_display_name }} - Arcade Profile{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="flex items-center space-x-4">
+            <div class="w-20 h-20 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center text-3xl font-bold text-white">
+                {{ profile_user.get_display_name|slice:":1"|upper }}
+            </div>
+            <div>
+                <h1 class="text-4xl font-bold text-white">{{ profile_user.get_display_name }}</h1>
+                <p class="text-gray-400">@{{ profile_user.username }}</p>
+            </div>
+        </div>
+        <div class="flex space-x-3">
+            <a href="{% url 'board:arcade_leaderboard' %}" class="text-primary-400 hover:text-primary-300 font-semibold">
+                ← Leaderboard
+            </a>
+            <span class="text-gray-600">|</span>
+            <a href="/" class="text-primary-400 hover:text-primary-300 font-semibold">
+                Board
+            </a>
+        </div>
+    </div>
+
+    <!-- Overall Stats Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Total Points -->
+        <div class="bg-gradient-to-br from-green-900/40 to-emerald-900/40 border-2 border-green-500 rounded-lg p-6">
+            <div class="text-green-400 text-sm font-semibold mb-2">💰 Total Points</div>
+            <div class="text-4xl font-bold text-white">{{ profile_user.total_points|floatformat:0 }}</div>
+            <div class="text-gray-400 text-sm mt-1">All-time</div>
+        </div>
+
+        <!-- Weekly Points -->
+        <div class="bg-gradient-to-br from-blue-900/40 to-cyan-900/40 border-2 border-blue-500 rounded-lg p-6">
+            <div class="text-blue-400 text-sm font-semibold mb-2">📅 Weekly Points</div>
+            <div class="text-4xl font-bold text-white">{{ profile_user.weekly_points|floatformat:0 }}</div>
+            <div class="text-gray-400 text-sm mt-1">This week</div>
+        </div>
+
+        <!-- Perfect Week Streak -->
+        <div class="bg-gradient-to-br from-yellow-900/40 to-orange-900/40 border-2 border-yellow-500 rounded-lg p-6">
+            <div class="text-yellow-400 text-sm font-semibold mb-2">🔥 Perfect Weeks</div>
+            <div class="text-4xl font-bold text-white">{{ profile_user.perfect_week_streak }}</div>
+            <div class="text-gray-400 text-sm mt-1">Current streak</div>
+        </div>
+
+        <!-- High Scores Held -->
+        <div class="bg-gradient-to-br from-purple-900/40 to-pink-900/40 border-2 border-purple-500 rounded-lg p-6">
+            <div class="text-purple-400 text-sm font-semibold mb-2">🏆 High Scores</div>
+            <div class="text-4xl font-bold text-white">{{ personal_bests|length }}</div>
+            <div class="text-gray-400 text-sm mt-1">Records held</div>
+        </div>
+    </div>
+
+    <!-- Arcade Stats -->
+    <div class="bg-dark-surface rounded-lg border border-dark-border p-6">
+        <h2 class="text-2xl font-bold text-white mb-6">🎮 Arcade Statistics</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="text-center">
+                <div class="text-gray-400 text-sm mb-2">Total Attempts</div>
+                <div class="text-3xl font-bold text-white">{{ stats.total_attempts }}</div>
+            </div>
+            <div class="text-center">
+                <div class="text-gray-400 text-sm mb-2">Completions</div>
+                <div class="text-3xl font-bold text-green-400">{{ stats.total_completions }}</div>
+            </div>
+            <div class="text-center">
+                <div class="text-gray-400 text-sm mb-2">Success Rate</div>
+                <div class="text-3xl font-bold text-blue-400">{{ stats.success_rate|floatformat:0 }}%</div>
+            </div>
+            <div class="text-center">
+                <div class="text-gray-400 text-sm mb-2">Records Held</div>
+                <div class="text-3xl font-bold text-yellow-400">{{ stats.high_scores_count }}</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <div class="bg-dark-card rounded-lg p-4">
+                <div class="text-gray-400 text-sm mb-2">Total Arcade Points</div>
+                <div class="text-2xl font-bold text-purple-400">{{ stats.total_arcade_points|floatformat:0 }} pts</div>
+                <div class="text-gray-500 text-xs mt-1">Base + Bonus Points</div>
+            </div>
+            <div class="bg-dark-card rounded-lg p-4">
+                <div class="text-gray-400 text-sm mb-2">Denials</div>
+                <div class="text-2xl font-bold text-red-400">{{ stats.denials }}</div>
+                <div class="text-gray-500 text-xs mt-1">Judge rejections</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Personal Bests -->
+    {% if personal_bests %}
+    <div class="bg-dark-surface rounded-lg border border-dark-border p-6">
+        <h2 class="text-2xl font-bold text-white mb-4">🏆 Personal Best Records</h2>
+        <div class="space-y-3">
+            {% for high_score in personal_bests %}
+            <div class="flex items-center justify-between p-4 bg-dark-card rounded-lg border-2
+                        {% if high_score.rank == 1 %}border-yellow-500/50 bg-yellow-900/10
+                        {% elif high_score.rank == 2 %}border-gray-400/50 bg-gray-800/10
+                        {% elif high_score.rank == 3 %}border-orange-700/50 bg-orange-900/10
+                        {% else %}border-dark-border{% endif %}">
+
+                <div class="flex items-center space-x-4">
+                    <div class="text-3xl">
+                        {% if high_score.rank == 1 %}🥇
+                        {% elif high_score.rank == 2 %}🥈
+                        {% elif high_score.rank == 3 %}🥉
+                        {% endif %}
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-white">{{ high_score.chore.name }}</h3>
+                        <p class="text-gray-400 text-sm">
+                            Set {{ high_score.achieved_at|timesince }} ago
+                        </p>
+                    </div>
+                </div>
+
+                <div class="text-right">
+                    <div class="text-2xl font-bold
+                                {% if high_score.rank == 1 %}text-yellow-400
+                                {% elif high_score.rank == 2 %}text-gray-300
+                                {% elif high_score.rank == 3 %}text-orange-400
+                                {% else %}text-purple-400{% endif %}">
+                        {{ high_score.format_time }}
+                    </div>
+                    <p class="text-gray-500 text-sm">
+                        {% if high_score.rank == 1 %}World Record
+                        {% elif high_score.rank == 2 %}2nd Place
+                        {% elif high_score.rank == 3 %}3rd Place
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Completions -->
+    {% if recent_completions %}
+    <div class="bg-dark-surface rounded-lg border border-dark-border p-6">
+        <h2 class="text-2xl font-bold text-white mb-4">📜 Recent Arcade History</h2>
+        <div class="space-y-2">
+            {% for completion in recent_completions %}
+            <div class="flex items-center justify-between p-3 bg-dark-card rounded-lg">
+                <div class="flex items-center space-x-3">
+                    {% if completion.is_high_score %}
+                    <span class="text-2xl">🏆</span>
+                    {% else %}
+                    <span class="text-2xl">✅</span>
+                    {% endif %}
+                    <div>
+                        <h4 class="font-semibold text-white">{{ completion.chore.name }}</h4>
+                        <p class="text-gray-400 text-sm">
+                            {{ completion.completed_at|timesince }} ago
+                            {% if completion.is_high_score %}
+                            • <span class="text-yellow-400 font-semibold">High Score!</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="text-right">
+                    <div class="text-xl font-bold text-purple-400">
+                        {{ completion.arcade_session.format_time }}
+                    </div>
+                    <p class="text-gray-500 text-sm">{{ completion.total_points }} pts</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Denials -->
+    {% if recent_denials %}
+    <div class="bg-dark-surface rounded-lg border border-red-500/30 p-6">
+        <h2 class="text-2xl font-bold text-white mb-4">❌ Recent Denials</h2>
+        <div class="space-y-2">
+            {% for denial in recent_denials %}
+            <div class="flex items-center justify-between p-3 bg-dark-card rounded-lg border border-red-500/20">
+                <div>
+                    <h4 class="font-semibold text-white">{{ denial.chore.name }}</h4>
+                    <p class="text-gray-400 text-sm">
+                        Denied {{ denial.updated_at|timesince }} ago
+                        {% if denial.judge %} by {{ denial.judge.get_display_name }}{% endif %}
+                    </p>
+                </div>
+
+                <div class="text-right">
+                    <div class="text-lg font-bold text-red-400">{{ denial.format_time }}</div>
+                    <p class="text-gray-500 text-sm">Attempt #{{ denial.attempt_number }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Empty State -->
+    {% if not recent_completions and not personal_bests %}
+    <div class="bg-dark-surface rounded-lg p-12 border border-dark-border text-center">
+        <div class="text-6xl mb-4">🎮</div>
+        <h2 class="text-2xl font-bold text-white mb-2">No Arcade Activity Yet</h2>
+        <p class="text-gray-400 mb-6">
+            {{ profile_user.get_display_name }} hasn't completed any arcade mode chores yet.
+        </p>
+        <a href="/"
+           class="inline-block bg-primary-600 hover:bg-primary-700 text-white font-bold py-2 px-6 rounded-lg transition">
+            Go to Board
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

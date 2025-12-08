@@ -248,7 +248,7 @@ function closeUserDialog() {
 // Edit existing user
 async function editUser(userId) {
     try {
-        const response = await fetch(`/board/admin-panel/user/get/${userId}/`);
+        const response = await fetch(`/admin-panel/user/get/${userId}/`);
         const data = await response.json();
 
         if (response.ok) {
@@ -285,7 +285,7 @@ async function toggleUserActive(userId) {
     }
 
     try {
-        const response = await fetch(`/board/admin-panel/user/toggle/${userId}/`, {
+        const response = await fetch(`/admin-panel/user/toggle/${userId}/`, {
             method: 'POST',
             headers: {
                 'X-CSRFToken': '{{ csrf_token }}'
@@ -316,10 +316,10 @@ document.getElementById('user-form').addEventListener('submit', async function(e
     try {
         let url, method;
         if (currentUserId) {
-            url = `/board/admin-panel/user/update/${currentUserId}/`;
+            url = `/admin-panel/user/update/${currentUserId}/`;
             method = 'POST';
         } else {
-            url = '/board/admin-panel/user/create/';
+            url = '/admin-panel/user/create/';
             method = 'POST';
         }
 

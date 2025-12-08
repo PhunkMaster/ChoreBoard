@@ -137,6 +137,17 @@
                        aria-label="View leaderboard">
                         Leaderboard
                     </a>
+                    <a href="{% url 'board:arcade_leaderboard' %}"
+                       class="px-3 py-2 rounded-md text-sm font-medium text-purple-400 hover:bg-dark-card hover:text-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                       aria-label="View arcade leaderboard">
+                        🎮 Arcade
+                    </a>
+
+                    <a href="{% url 'board:arcade_judge_approval' %}"
+                       class="px-3 py-2 rounded-md text-sm font-medium text-pink-400 hover:bg-dark-card hover:text-pink-300 focus:outline-none focus:ring-2 focus:ring-pink-500 relative"
+                       aria-label="Judge arcade approvals">
+                        👨‍⚖️ Judge
+                    </a>
 
                     {% if user.is_authenticated and user.is_staff %}
                     <a href="{% url 'board:admin_dashboard' %}"
@@ -253,7 +264,7 @@
         (function() {
             // Real-time update configuration
             const POLL_INTERVAL = 5000; // Poll every 5 seconds
-            const UPDATE_ENDPOINT = '{% url "board:get_updates" %}';
+            const UPDATE_ENDPOINT = '/api/updates/';
 
             let lastUpdateTime = new Date().toISOString();
             let pollTimer = null;

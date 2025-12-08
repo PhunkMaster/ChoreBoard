@@ -64,7 +64,7 @@ class InactiveChoreInstanceTest(TestCase):
         )
 
         # Verify instance appears on board (before deactivation)
-        response = self.client.get('/board/')
+        response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
 
         # Get pool chores from context
@@ -82,7 +82,7 @@ class InactiveChoreInstanceTest(TestCase):
         chore.save()
 
         # Verify instance DOES NOT appear on board (after deactivation)
-        response = self.client.get('/board/')
+        response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
 
         pool_chores = response.context.get('pool_chores', [])
@@ -125,7 +125,7 @@ class InactiveChoreInstanceTest(TestCase):
         )
 
         # Verify instance appears on board (before deactivation)
-        response = self.client.get('/board/')
+        response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
 
         # Get all chores from context (pool + assigned)
@@ -145,7 +145,7 @@ class InactiveChoreInstanceTest(TestCase):
         chore.save()
 
         # Verify instance DOES NOT appear on board (after deactivation)
-        response = self.client.get('/board/')
+        response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
 
         all_chores = list(response.context.get('pool_chores', [])) + \
@@ -192,7 +192,7 @@ class InactiveChoreInstanceTest(TestCase):
         chore.save()
 
         # Verify instance does not appear
-        response = self.client.get('/board/')
+        response = self.client.get('/')
         pool_chores = response.context.get('pool_chores', [])
         pool_chore_ids = [c.id for c in pool_chores]
         self.assertNotIn(instance.id, pool_chore_ids)
@@ -202,7 +202,7 @@ class InactiveChoreInstanceTest(TestCase):
         chore.save()
 
         # Verify instance reappears on board
-        response = self.client.get('/board/')
+        response = self.client.get('/')
         pool_chores = response.context.get('pool_chores', [])
         pool_chore_ids = [c.id for c in pool_chores]
 
@@ -295,7 +295,7 @@ class InactiveChoreInstanceTest(TestCase):
         chore.save()
 
         # Verify NONE of the instances appear on board
-        response = self.client.get('/board/')
+        response = self.client.get('/')
         pool_chores = response.context.get('pool_chores', [])
         pool_chore_ids = [c.id for c in pool_chores]
 
@@ -329,7 +329,7 @@ class InactiveChoreInstanceTest(TestCase):
         chore.save()
 
         # Fetch the chore list page
-        response = self.client.get('/board/admin-panel/chores/')
+        response = self.client.get('/admin-panel/chores/')
         self.assertEqual(response.status_code, 200)
 
         # Verify the chore appears in the list with inactive status
