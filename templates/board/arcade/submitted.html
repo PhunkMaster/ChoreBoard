@@ -1,0 +1,67 @@
+{% extends "base_minimal.html" %}
+
+{% block title %}Submitted for Judging - Arcade Mode{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-center min-h-screen p-4">
+    <div class="max-w-2xl w-full">
+        <!-- Success Card -->
+        <div class="bg-gradient-to-br from-green-900/40 to-emerald-900/40 border-2 border-green-500 rounded-lg p-12">
+            <div class="text-center space-y-6">
+                <!-- Success Icon -->
+                <div class="relative inline-block">
+                    <div class="text-8xl animate-bounce">✓</div>
+                </div>
+
+                <!-- Main Message -->
+                <div>
+                    <h1 class="text-4xl font-bold text-white mb-4">Submitted for Judging!</h1>
+                    <p class="text-2xl text-green-400 mb-2">{{ arcade_session.chore.name }}</p>
+                    <div class="text-6xl font-bold text-green-300 mb-4">{{ arcade_session.format_time }}</div>
+                    <p class="text-gray-300 text-lg">Completed by {{ arcade_session.user.get_display_name }}</p>
+                </div>
+
+                <!-- Info Box -->
+                <div class="bg-dark-surface rounded-lg p-6 border border-green-500/30">
+                    <p class="text-green-300 text-lg mb-2">
+                        🎯 Your completion has been submitted for review.
+                    </p>
+                    <p class="text-gray-400">
+                        A judge will review your submission and award points if approved.
+                    </p>
+                </div>
+
+                <!-- Countdown -->
+                <div class="bg-dark-card rounded-lg p-6">
+                    <p class="text-gray-400 mb-2">Redirecting in...</p>
+                    <div id="countdown" class="text-5xl font-bold text-green-400">{{ redirect_seconds }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-redirect after countdown
+let secondsLeft = {{ redirect_seconds }};
+const redirectUrl = "{{ redirect_url|escapejs }}";
+const countdownElement = document.getElementById('countdown');
+
+function updateCountdown() {
+    secondsLeft--;
+    countdownElement.textContent = secondsLeft;
+
+    if (secondsLeft <= 0) {
+        window.location.href = redirectUrl;
+    }
+}
+
+// Update every second
+const intervalId = setInterval(updateCountdown, 1000);
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    clearInterval(intervalId);
+});
+</script>
+{% endblock %}
