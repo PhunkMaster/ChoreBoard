@@ -13,9 +13,13 @@ app_name = 'board'
 urlpatterns = [
     path('', views.main_board, name='main'),
     path('pool/', views.pool_only, name='pool'),
+    path('pool/minimal/', views.pool_minimal, name='pool_minimal'),
     path('user/<str:username>/', views.user_board, name='user'),
     path('user/<str:username>/minimal/', views.user_board_minimal, name='user_minimal'),
+    path('assigned/minimal/', views.assigned_minimal, name='assigned_minimal'),
+    path('users/minimal/', views.users_minimal, name='users_minimal'),
     path('leaderboard/', views.leaderboard, name='leaderboard'),
+    path('leaderboard/minimal/', views.leaderboard_minimal, name='leaderboard_minimal'),
     # Health Check
     path('health/', views.health_check, name='health_check'),
     # Real-time Updates API
@@ -93,6 +97,8 @@ urlpatterns = [
     path('arcade/deny/<int:session_id>/', views_arcade.deny_submission, name='arcade_deny'),
     path('arcade/continue/<int:session_id>/', views_arcade.continue_after_denial, name='arcade_continue'),
     path('arcade/leaderboard/', views_arcade.arcade_leaderboard, name='arcade_leaderboard'),
+    path('arcade/leaderboard/minimal/', views_arcade.arcade_leaderboard_minimal, name='arcade_leaderboard_minimal'),
+    path('arcade/judge-approval/minimal/', views_arcade.judge_approval_minimal, name='arcade_judge_approval_minimal'),
     path('user-profile/<str:username>/', views_arcade.user_profile, name='user_profile'),
     path('api/arcade/high-score/<int:chore_id>/', views_arcade.get_high_score, name='arcade_high_score'),
 ]

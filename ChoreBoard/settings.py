@@ -50,16 +50,23 @@ INSTALLED_APPS = [
     "board",
 ]
 
-MIDDLEWARE = [
+# Build middleware list conditionally based on iframe embedding setting
+_MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",  # Add WhiteNoise for static files
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "core.middleware.SetupMiddleware",  # First-run setup wizard redirect
 ]
+
+# Only add XFrameOptionsMiddleware if iframe embedding is disabled
+if os.getenv('ALLOW_IFRAME_EMBEDDING', 'True') != 'True':
+    _MIDDLEWARE.append("django.middleware.clickjacking.XFrameOptionsMiddleware")
+
+_MIDDLEWARE.append("core.middleware.SetupMiddleware")  # First-run setup wizard redirect
+
+MIDDLEWARE = _MIDDLEWARE
 
 ROOT_URLCONF = "ChoreBoard.urls"
 
@@ -152,3 +159,10 @@ REST_FRAMEWORK = {
 # APScheduler Configuration
 APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
 APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Seconds
+
+# Iframe embedding is controlled by including/excluding XFrameOptionsMiddleware
+# See MIDDLEWARE configuration above
+# If ALLOW_IFRAME_EMBEDDING=True (default), middleware is excluded and iframes are allowed
+# If ALLOW_IFRAME_EMBEDDING=False, middleware is included with X_FRAME_OPTIONS='DENY'
+if os.getenv('ALLOW_IFRAME_EMBEDDING', 'True') != 'True':
+    X_FRAME_OPTIONS = 'DENY'

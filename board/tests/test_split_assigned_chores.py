@@ -22,19 +22,22 @@ class SplitAssignedChoresTest(TestCase):
             username='john',
             first_name='John',
             is_active=True,
-            can_be_assigned=True
+            can_be_assigned=True,
+            eligible_for_points=True
         )
         self.user2 = User.objects.create_user(
             username='jane',
             first_name='Jane',
             is_active=True,
-            can_be_assigned=True
+            can_be_assigned=True,
+            eligible_for_points=True
         )
         self.user3 = User.objects.create_user(
             username='bob',
             first_name='Bob',
             is_active=True,
-            can_be_assigned=True
+            can_be_assigned=True,
+            eligible_for_points=True
         )
 
         # Create test chore
@@ -245,7 +248,8 @@ class SplitChoresHTMLTest(TestCase):
             username='testuser',
             first_name='Test User',
             is_active=True,
-            can_be_assigned=True
+            can_be_assigned=True,
+            eligible_for_points=True
         )
 
         chore = Chore.objects.create(
@@ -255,12 +259,15 @@ class SplitChoresHTMLTest(TestCase):
         )
 
         now = timezone.now()
+        # Set due_at to 11 PM today to ensure it stays within today's date
+        due_time = now.replace(hour=23, minute=0, second=0, microsecond=0)
+
         ChoreInstance.objects.create(
             chore=chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user,
             distribution_at=now,
-            due_at=now + timedelta(hours=12),
+            due_at=due_time,
             points_value=10
         )
 

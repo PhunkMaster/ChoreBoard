@@ -48,6 +48,9 @@ class UserPagesTest(TestCase):
         )
 
         now = timezone.now()
+        # Set due_at to 11 PM today to ensure it stays within today's date
+        # regardless of what time the test runs
+        due_time = now.replace(hour=23, minute=0, second=0, microsecond=0)
 
         # Create chore for user1
         self.instance1 = ChoreInstance.objects.create(
@@ -55,7 +58,7 @@ class UserPagesTest(TestCase):
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user1,
             distribution_at=now,
-            due_at=now + timedelta(hours=12),
+            due_at=due_time,
             points_value=10
         )
 
@@ -65,7 +68,7 @@ class UserPagesTest(TestCase):
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user2,
             distribution_at=now,
-            due_at=now + timedelta(hours=12),
+            due_at=due_time,
             points_value=10
         )
 

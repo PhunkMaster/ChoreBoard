@@ -259,6 +259,22 @@ def judge_approval(request):
     return render(request, 'board/arcade/judge_approval.html', context)
 
 
+def judge_approval_minimal(request):
+    """Minimal judge approval interface - shows all pending arcade approvals. Supports kiosk mode."""
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
+    # Get all pending approvals
+    pending_sessions = ArcadeService.get_pending_approvals()
+
+    context = {
+        'pending_sessions': pending_sessions,
+        'users': User.objects.filter(is_active=True, eligible_for_points=True).order_by('first_name', 'username'),
+    }
+
+    return render(request, 'board/arcade/judge_approval_minimal.html', context)
+
+
 @require_POST
 def approve_submission(request, session_id):
     """Judge approves an arcade completion. Supports kiosk mode."""
@@ -436,6 +452,30 @@ def arcade_leaderboard(request):
     }
 
     return render(request, 'board/arcade/leaderboard.html', context)
+
+
+def arcade_leaderboard_minimal(request):
+    """Minimal arcade leaderboard page (kiosk mode compatible)."""
+    # Get all chores with high scores
+    chores_with_scores = Chore.objects.filter(
+        high_scores__isnull=False
+    ).distinct().order_by('name')
+
+    leaderboard_data = []
+
+    for chore in chores_with_scores:
+        top_scores = ArcadeService.get_top_scores(chore)
+        if top_scores.exists():
+            leaderboard_data.append({
+                'chore': chore,
+                'top_scores': top_scores
+            })
+
+    context = {
+        'leaderboard_data': leaderboard_data,
+    }
+
+    return render(request, 'board/arcade/leaderboard_minimal.html', context)
 
 
 def user_profile(request, username):

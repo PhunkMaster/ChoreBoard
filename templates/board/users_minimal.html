@@ -1,0 +1,174 @@
+{% extends "base_minimal.html" %}
+
+{% block title %}All Users{% endblock %}
+
+{% block content %}
+<div class="space-y-6 p-4">
+    <!-- Arcade Mode Banner (if any user has active session) -->
+    {% if active_arcade_session %}
+    <div id="arcade-banner" class="bg-gradient-to-r from-purple-900/80 to-pink-900/80 border-2 border-purple-500 rounded-lg p-6 animate-pulse">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+            <!-- Left: Chore Info -->
+            <div class="flex items-center space-x-4">
+                <div class="text-4xl">⏱️</div>
+                <div>
+                    <h3 class="text-xl font-bold text-white">Arcade Mode Active</h3>
+                    <p class="text-purple-300">{{ active_arcade_session.chore.name }} - {{ active_arcade_session.user.get_display_name }}</p>
+                </div>
+            </div>
+
+            <!-- Center: Timer Display -->
+            <div class="text-center">
+                <div id="arcade-timer" class="text-5xl font-bold text-yellow-400 tabular-nums">
+                    00:00
+                </div>
+                <p class="text-purple-300 text-sm mt-1">Elapsed Time</p>
+            </div>
+
+            <!-- Right: Actions -->
+            <div class="flex space-x-3">
+                <button onclick="stopArcade({{ active_arcade_session.id }})"
+                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                    🏁 Stop & Judge
+                </button>
+                <button onclick="cancelArcade({{ active_arcade_session.id }})"
+                        class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                    ❌ Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- User Cards Grid -->
+    {% if users_with_counts %}
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+        {% for item in users_with_counts %}
+        <a href="/user/{{ item.user.username }}/minimal/"
+           class="bg-dark-surface hover:bg-dark-hover border-2 border-dark-border hover:border-primary-500 rounded-lg p-6 text-center transition group transform hover:scale-105 flex flex-col">
+
+            <!-- User Name -->
+            <h3 class="text-xl font-bold text-white group-hover:text-primary-400 transition mb-3">
+                {{ item.user.get_display_name }}
+            </h3>
+
+            <!-- Chore Count Badge -->
+            {% if item.chore_count > 0 %}
+            <div class="mb-3">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-primary-500/20 text-primary-400 border border-primary-500/30">
+                    {{ item.chore_count }} chore{{ item.chore_count|pluralize }} today
+                </span>
+            </div>
+            {% else %}
+            <div class="mb-3">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                    No chores today
+                </span>
+            </div>
+            {% endif %}
+
+            <!-- Points Info -->
+            <div class="mt-auto space-y-2">
+                <!-- Weekly Points -->
+                <div class="bg-dark-card rounded-lg p-3 border border-dark-border">
+                    <div class="text-xs text-gray-400 uppercase tracking-wide mb-1">This Week</div>
+                    <div class="text-2xl font-bold text-primary-400">
+                        {{ item.user.weekly_points }} {{ POINTS_LABEL_SHORT }}
+                    </div>
+                </div>
+
+                <!-- All-Time Points -->
+                <div class="bg-dark-card rounded-lg p-3 border border-dark-border">
+                    <div class="text-xs text-gray-400 uppercase tracking-wide mb-1">All Time</div>
+                    <div class="text-lg font-semibold text-gray-300">
+                        {{ item.user.all_time_points }} {{ POINTS_LABEL_SHORT }}
+                    </div>
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-dark-surface rounded-lg p-12 border border-dark-border text-center">
+        <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+        <h3 class="text-xl font-semibold text-gray-300 mb-2">No Users</h3>
+        <p class="text-gray-500">No users available for points tracking.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- Arcade Timer Script -->
+{% if active_arcade_session %}
+<script>
+    const startTime = new Date("{{ active_arcade_session.started_at|date:'c' }}");
+
+    function updateArcadeTimer() {
+        const now = new Date();
+        const elapsed = Math.floor((now - startTime) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        document.getElementById('arcade-timer').textContent =
+            `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    updateArcadeTimer();
+    setInterval(updateArcadeTimer, 1000);
+
+    async function stopArcade(sessionId) {
+        try {
+            const response = await fetch(`/arcade/stop/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `session_id=${sessionId}`
+            });
+
+            const data = await response.json();
+            if (data.success && data.redirect) {
+                window.location.href = data.redirect;
+            } else {
+                showToast(data.error || 'Failed to stop arcade', 'error');
+            }
+        } catch (error) {
+            showToast('Network error', 'error');
+        }
+    }
+
+    async function cancelArcade(sessionId) {
+        if (!confirm('Are you sure you want to cancel arcade mode?')) return;
+
+        try {
+            const response = await fetch(`/arcade/cancel/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `session_id=${sessionId}`
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                showToast('Arcade mode cancelled', 'success');
+                window.location.reload();
+            } else {
+                showToast(data.error || 'Failed to cancel arcade', 'error');
+            }
+        } catch (error) {
+            showToast('Network error', 'error');
+        }
+    }
+</script>
+{% endif %}
+
+<!-- Auto-refresh every 60 seconds -->
+<script>
+    setInterval(function() {
+        window.location.reload();
+    }, 60000);
+</script>
+{% endblock %}

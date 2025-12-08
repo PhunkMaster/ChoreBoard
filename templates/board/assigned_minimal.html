@@ -1,0 +1,341 @@
+{% extends "base_minimal.html" %}
+
+{% block title %}Assigned Chores{% endblock %}
+
+{% block content %}
+<div class="space-y-6 p-4">
+    <!-- Arcade Mode Banner (if any user has active session) -->
+    {% if active_arcade_session %}
+    <div id="arcade-banner" class="bg-gradient-to-r from-purple-900/80 to-pink-900/80 border-2 border-purple-500 rounded-lg p-6 animate-pulse">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+            <!-- Left: Chore Info -->
+            <div class="flex items-center space-x-4">
+                <div class="text-4xl">⏱️</div>
+                <div>
+                    <h3 class="text-xl font-bold text-white">Arcade Mode Active</h3>
+                    <p class="text-purple-300">{{ active_arcade_session.chore.name }} - {{ active_arcade_session.user.get_display_name }}</p>
+                </div>
+            </div>
+
+            <!-- Center: Timer Display -->
+            <div class="text-center">
+                <div id="arcade-timer" class="text-5xl font-bold text-yellow-400 tabular-nums">
+                    00:00
+                </div>
+                <p class="text-purple-300 text-sm mt-1">Elapsed Time</p>
+            </div>
+
+            <!-- Right: Actions -->
+            <div class="flex space-x-3">
+                <button onclick="stopArcade({{ active_arcade_session.id }})"
+                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                    🏁 Stop & Judge
+                </button>
+                <button onclick="cancelArcade({{ active_arcade_session.id }})"
+                        class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                    ❌ Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Assigned Chores by User -->
+    {% if assigned_by_user %}
+    <div class="space-y-6">
+        {% for user_data in assigned_by_user %}
+        <!-- User Section -->
+        <div class="bg-dark-card rounded-lg p-6 border border-dark-border">
+            <!-- User Header -->
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-full bg-primary-500/20 flex items-center justify-center">
+                        <span class="text-xl font-bold text-primary-400">
+                            {{ user_data.user.first_name.0|default:user_data.user.username.0|upper }}
+                        </span>
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-bold text-white">{{ user_data.user.get_display_name }}</h2>
+                        <p class="text-gray-400 text-sm">{{ user_data.total }} chore{{ user_data.total|pluralize }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chore Cards Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {% for chore in user_data.overdue %}
+                <!-- Overdue Chore Card -->
+                <div class="bg-dark-surface rounded-lg p-4 border-2 border-red-500/50 hover:border-red-500 transition flex flex-col">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="flex-1">
+                            <h3 class="text-lg font-semibold text-white mb-1">{{ chore.chore.name }}</h3>
+                            {% if chore.chore.description %}
+                            <p class="text-gray-400 text-xs line-clamp-2">{{ chore.chore.description }}</p>
+                            {% endif %}
+                        </div>
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30 ml-2">
+                            Overdue
+                        </span>
+                    </div>
+
+                    <div class="flex justify-between items-center text-xs mb-3">
+                        <div class="flex items-center text-red-400">
+                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Due: {{ chore.due_at|date:"M j, g:i A" }}
+                        </div>
+                        <div class="text-primary-400 font-bold">
+                            {{ chore.points_value }} {{ POINTS_LABEL_SHORT }}
+                        </div>
+                    </div>
+
+                    <!-- Complete Button -->
+                    <button onclick="openCompleteDialog({{ chore.id }}, '{{ chore.chore.name }}', {{ chore.points_value }}, '{{ user_data.user.get_display_name }}', {{ user_data.user.id }})"
+                            class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition focus:outline-none focus:ring-2 focus:ring-green-500 mt-auto">
+                        Complete
+                    </button>
+                </div>
+                {% endfor %}
+
+                {% for chore in user_data.ontime %}
+                <!-- On-time Chore Card -->
+                <div class="bg-dark-surface rounded-lg p-4 border-2 border-primary-500/50 hover:border-primary-500 transition flex flex-col">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="flex-1">
+                            <h3 class="text-lg font-semibold text-white mb-1">{{ chore.chore.name }}</h3>
+                            {% if chore.chore.description %}
+                            <p class="text-gray-400 text-xs line-clamp-2">{{ chore.chore.description }}</p>
+                            {% endif %}
+                        </div>
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-500/20 text-primary-400 border border-primary-500/30 ml-2">
+                            On Time
+                        </span>
+                    </div>
+
+                    <div class="flex justify-between items-center text-xs mb-3">
+                        <div class="flex items-center text-gray-400">
+                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Due: {{ chore.due_at|date:"M j, g:i A" }}
+                        </div>
+                        <div class="text-primary-400 font-bold">
+                            {{ chore.points_value }} {{ POINTS_LABEL_SHORT }}
+                        </div>
+                    </div>
+
+                    <!-- Complete Button -->
+                    <button onclick="openCompleteDialog({{ chore.id }}, '{{ chore.chore.name }}', {{ chore.points_value }}, '{{ user_data.user.get_display_name }}', {{ user_data.user.id }})"
+                            class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition focus:outline-none focus:ring-2 focus:ring-green-500 mt-auto">
+                        Complete
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-dark-surface rounded-lg p-12 border border-dark-border text-center">
+        <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <h3 class="text-xl font-semibold text-gray-300 mb-2">No Assigned Chores</h3>
+        <p class="text-gray-500">All chores are in the pool or completed!</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Complete Chore Dialog -->
+<div id="complete-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeCompleteDialog(event)">
+    <div class="bg-dark-surface rounded-lg p-8 max-w-md w-full mx-4 border border-dark-border" onclick="event.stopPropagation()">
+        <h2 class="text-2xl font-bold text-white mb-4">Complete Chore</h2>
+        <p class="text-gray-300 mb-2">Chore: <span id="complete-chore-name" class="text-primary-400 font-semibold"></span></p>
+        <p class="text-gray-300 mb-2">Assigned to: <span id="complete-assigned-to" class="text-primary-400 font-semibold"></span></p>
+        <p class="text-gray-300 mb-6">Points: <span id="complete-points" class="text-primary-400 font-semibold"></span></p>
+
+        <div class="mb-6">
+            <label for="complete-user-select" class="block text-sm font-medium text-gray-300 mb-2">
+                Who completed this chore?
+            </label>
+            <select id="complete-user-select"
+                    class="w-full px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">Select user...</option>
+                {% for user in users %}
+                <option value="{{ user.id }}">{{ user.get_display_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="mb-6">
+            <label for="helper-select" class="block text-sm font-medium text-gray-300 mb-2">
+                Who helped? (Optional)
+            </label>
+            <select id="helper-select" multiple
+                    class="w-full px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    size="4">
+                {% for user in users %}
+                <option value="{{ user.id }}">{{ user.get_display_name }}</option>
+                {% endfor %}
+            </select>
+            <p class="text-gray-500 text-sm mt-1">Hold Ctrl/Cmd to select multiple</p>
+        </div>
+
+        <input type="hidden" id="complete-instance-id">
+
+        <div class="flex space-x-4">
+            <button onclick="executeComplete()"
+                    class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition">
+                Complete
+            </button>
+            <button onclick="closeCompleteDialog()"
+                    class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- Arcade Timer Script -->
+{% if active_arcade_session %}
+<script>
+    const startTime = new Date("{{ active_arcade_session.started_at|date:'c' }}");
+
+    function updateArcadeTimer() {
+        const now = new Date();
+        const elapsed = Math.floor((now - startTime) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        document.getElementById('arcade-timer').textContent =
+            `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    updateArcadeTimer();
+    setInterval(updateArcadeTimer, 1000);
+
+    async function stopArcade(sessionId) {
+        try {
+            const response = await fetch(`/arcade/stop/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `session_id=${sessionId}`
+            });
+
+            const data = await response.json();
+            if (data.success && data.redirect) {
+                window.location.href = data.redirect;
+            } else {
+                showToast(data.error || 'Failed to stop arcade', 'error');
+            }
+        } catch (error) {
+            showToast('Network error', 'error');
+        }
+    }
+
+    async function cancelArcade(sessionId) {
+        if (!confirm('Are you sure you want to cancel arcade mode?')) return;
+
+        try {
+            const response = await fetch(`/arcade/cancel/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `session_id=${sessionId}`
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                showToast('Arcade mode cancelled', 'success');
+                window.location.reload();
+            } else {
+                showToast(data.error || 'Failed to cancel arcade', 'error');
+            }
+        } catch (error) {
+            showToast('Network error', 'error');
+        }
+    }
+</script>
+{% endif %}
+
+<!-- Complete Dialog Script -->
+<script>
+    function openCompleteDialog(instanceId, choreName, points, assignedTo, preSelectUserId) {
+        document.getElementById('complete-dialog').classList.remove('hidden');
+        document.getElementById('complete-instance-id').value = instanceId;
+        document.getElementById('complete-chore-name').textContent = choreName;
+        document.getElementById('complete-points').textContent = points;
+        document.getElementById('complete-assigned-to').textContent = assignedTo;
+        document.getElementById('helper-select').value = '';
+
+        // Pre-select the assigned user
+        const userSelect = document.getElementById('complete-user-select');
+        if (preSelectUserId) {
+            userSelect.value = preSelectUserId;
+        } else {
+            userSelect.value = '';
+        }
+    }
+
+    function closeCompleteDialog(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('complete-dialog').classList.add('hidden');
+    }
+
+    async function executeComplete() {
+        const instanceId = document.getElementById('complete-instance-id').value;
+        const userId = document.getElementById('complete-user-select').value;
+
+        if (!userId) {
+            showToast('Please select who completed this chore', 'error');
+            return;
+        }
+
+        const helperSelect = document.getElementById('helper-select');
+        const helperIds = Array.from(helperSelect.selectedOptions).map(opt => opt.value);
+
+        try {
+            const formData = new FormData();
+            formData.append('instance_id', instanceId);
+            formData.append('user_id', userId);
+            helperIds.forEach(id => formData.append('helper_ids', id));
+
+            const response = await fetch('/action/complete/', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message || 'Chore completed successfully!', 'success');
+                closeCompleteDialog();
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showToast(data.error || 'Failed to complete chore', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    // Close dialog with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeCompleteDialog();
+        }
+    });
+</script>
+
+<!-- Auto-refresh every 60 seconds -->
+<script>
+    setInterval(function() {
+        window.location.reload();
+    }, 60000);
+</script>
+{% endblock %}

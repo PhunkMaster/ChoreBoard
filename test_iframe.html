@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChoreBoard Iframe Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .info {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196f3;
+        }
+        iframe {
+            width: 100%;
+            height: 800px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            display: block;
+            margin-top: 20px;
+        }
+        .test-section {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        .test-section h2 {
+            color: #666;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖼️ ChoreBoard Iframe Embedding Test</h1>
+
+        <div class="info">
+            <strong>Testing iframe embedding</strong><br>
+            If you can see the ChoreBoard application below, then iframe embedding is working correctly.
+            <br><br>
+            <strong>What to test:</strong>
+            <ul>
+                <li>Main board should load and display</li>
+                <li>Navigation should work within the iframe</li>
+                <li>Interactions (clicking, claiming) should function normally</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h2>Test 1: Main Board</h2>
+            <iframe src="http://localhost:8000/" title="ChoreBoard Main"></iframe>
+        </div>
+
+        <div class="test-section">
+            <h2>Test 2: Pool Minimal (Kiosk Mode)</h2>
+            <iframe src="http://localhost:8000/pool/minimal/" title="ChoreBoard Pool Minimal"></iframe>
+        </div>
+
+        <div class="test-section">
+            <h2>Test 3: Leaderboard</h2>
+            <iframe src="http://localhost:8000/leaderboard/" title="ChoreBoard Leaderboard"></iframe>
+        </div>
+    </div>
+</body>
+</html>
