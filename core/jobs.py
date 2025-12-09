@@ -79,9 +79,10 @@ def midnight_evaluation():
                     should_create = should_create_instance_today(chore, today)
 
                     if should_create:
-                        # Calculate due time (end of day)
+                        # Calculate due time (start of next day - clearer and DST-safe)
+                        tomorrow = today + timedelta(days=1)
                         due_at = timezone.make_aware(
-                            datetime.combine(today, datetime.max.time())
+                            datetime.combine(tomorrow, datetime.min.time())
                         )
 
                         # Distribution time
@@ -180,9 +181,11 @@ def should_create_instance_today(chore, today):
         bool: True if instance should be created
     """
     # Check if instance already exists for today
+    # Note: With our due_at logic, instances "for today" have due_at = start of tomorrow
+    tomorrow = today + timedelta(days=1)
     existing = ChoreInstance.objects.filter(
         chore=chore,
-        due_at__date=today
+        due_at__date=tomorrow
     ).exists()
 
     if existing:

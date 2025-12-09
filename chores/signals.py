@@ -2,7 +2,7 @@
 Signal handlers for chore creation.
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
@@ -45,18 +45,20 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
 
         if should_create_today:
             # Check if instance already exists for today (prevent duplicates)
+            # Note: With our due_at logic, instances "for today" have due_at = start of tomorrow
+            tomorrow = today + timedelta(days=1)
             existing = ChoreInstance.objects.filter(
                 chore=instance,
-                due_at__date=today
+                due_at__date=tomorrow
             ).exists()
 
             if existing:
                 logger.info(f"Instance already exists for chore {instance.name} today")
                 return
 
-            # Create the instance for today
+            # Create the instance for today (due at start of tomorrow - clearer and DST-safe)
             due_at = timezone.make_aware(
-                datetime.combine(today, datetime.max.time())
+                datetime.combine(tomorrow, datetime.min.time())
             )
             distribution_at = timezone.make_aware(
                 datetime.combine(today, instance.distribution_time)

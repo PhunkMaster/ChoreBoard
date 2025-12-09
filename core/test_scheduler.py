@@ -7,7 +7,7 @@ import unittest
 from decimal import Decimal
 from django.test import TestCase
 from django.utils import timezone
-from datetime import timedelta, date, time
+from datetime import timedelta, date, time, datetime
 
 from users.models import User
 from chores.models import Chore, ChoreInstance, Completion, CompletionShare
@@ -127,6 +127,61 @@ class MidnightEvaluationTests(TestCase):
         # Verify marked as overdue
         past_instance.refresh_from_db()
         self.assertTrue(past_instance.is_overdue)
+
+    def test_midnight_evaluation_marks_chores_overdue_at_midnight(self):
+        """Test that chores due 'yesterday' are marked overdue at midnight."""
+        # Create instance due at start of today (which means it was due "yesterday")
+        today = timezone.now().date()
+        due_at = timezone.make_aware(
+            datetime.combine(today, datetime.min.time())
+        )
+
+        past_instance = ChoreInstance.objects.create(
+            chore=self.daily_chore,
+            status=ChoreInstance.POOL,
+            points_value=self.daily_chore.points,
+            due_at=due_at,
+            distribution_at=due_at - timedelta(hours=6),
+            is_overdue=False
+        )
+
+        # Simulate midnight evaluation running now
+        run_midnight_evaluation()
+
+        # Verify marked as overdue
+        past_instance.refresh_from_db()
+        self.assertTrue(
+            past_instance.is_overdue,
+            f"Chore due at {past_instance.due_at} should be marked overdue"
+        )
+
+    def test_midnight_evaluation_does_not_mark_future_chores_overdue(self):
+        """Test that chores due tomorrow are NOT marked overdue."""
+        today = timezone.now().date()
+        day_after_tomorrow = today + timedelta(days=2)
+
+        # Create chore due tomorrow (start of day after tomorrow)
+        due_at = timezone.make_aware(
+            datetime.combine(day_after_tomorrow, datetime.min.time())
+        )
+
+        future_instance = ChoreInstance.objects.create(
+            chore=self.daily_chore,
+            status=ChoreInstance.POOL,
+            points_value=self.daily_chore.points,
+            due_at=due_at,
+            distribution_at=due_at - timedelta(hours=6),
+            is_overdue=False
+        )
+
+        run_midnight_evaluation()
+
+        # Verify NOT marked as overdue
+        future_instance.refresh_from_db()
+        self.assertFalse(
+            future_instance.is_overdue,
+            f"Chore due at {future_instance.due_at} should NOT be marked overdue"
+        )
 
     def test_midnight_evaluation_resets_claim_counters(self):
         """Test that midnight evaluation resets daily claim counters."""
