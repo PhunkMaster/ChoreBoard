@@ -6,7 +6,7 @@ from datetime import datetime
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
-from chores.models import Chore, ChoreInstance
+from chores.models import Chore, ChoreInstance, ChoreDependency
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,11 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
 
         if not created or not instance.is_active:
             logger.info(f"Skipping instance creation: created={created}, active={instance.is_active}")
+            return
+
+        # Skip child chores - they should only spawn from parent completion
+        if instance.is_child_chore():
+            logger.info(f"Skipping instance creation for child chore {instance.name} - will spawn from parent completion")
             return
 
         now = timezone.now()
@@ -95,3 +100,35 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
                 logger.info(f"Created pre-assigned instance {new_instance.id} for {instance.name}")
     except Exception as e:
         logger.error(f"Error in chore signal for {instance.name}: {e}", exc_info=True)
+
+
+@receiver(post_save, sender=ChoreDependency)
+def cleanup_child_chore_instances_on_dependency_creation(sender, instance, created, **kwargs):
+    """
+    When a dependency is created, delete any ChoreInstance objects that were
+    created for the child chore before the dependency existed.
+
+    This handles the case where a chore is created first (triggering an instance
+    creation), and then later a dependency is added making it a child chore.
+    """
+    if not created:
+        return
+
+    try:
+        child_chore = instance.chore
+        logger.info(f"Dependency created: {child_chore.name} now depends on {instance.depends_on.name}")
+
+        # Delete any instances that were created for this chore
+        # before it became a child chore
+        deleted_count = ChoreInstance.objects.filter(
+            chore=child_chore,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        ).exclude(
+            status=ChoreInstance.COMPLETED
+        ).delete()[0]
+
+        if deleted_count > 0:
+            logger.info(f"Deleted {deleted_count} pre-existing instances for child chore {child_chore.name}")
+
+    except Exception as e:
+        logger.error(f"Error cleaning up child chore instances: {e}", exc_info=True)

@@ -94,6 +94,11 @@
                         class="flex-1 px-4 py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition focus:outline-none focus:ring-2 focus:ring-primary-500">
                     Claim
                 </button>
+                <button onclick="openArcadeStartDialog({{ instance.id }}, '{{ instance.chore.name }}')"
+                        class="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-lg transition focus:outline-none focus:ring-2 focus:ring-purple-500 flex items-center justify-center space-x-1">
+                    <span>🎮</span>
+                    <span>Arcade</span>
+                </button>
                 <button onclick="openCompleteDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }})"
                         class="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition focus:outline-none focus:ring-2 focus:ring-green-500">
                     Complete
@@ -141,6 +146,41 @@
                 Claim
             </button>
             <button onclick="closeClaimDialog()"
+                    class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Arcade Start Dialog -->
+<div id="arcade-start-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeArcadeStartDialog(event)">
+    <div class="bg-dark-surface rounded-lg p-8 max-w-md w-full mx-4 border border-dark-border" onclick="event.stopPropagation()">
+        <h2 class="text-2xl font-bold text-white mb-4">🎮 Start Arcade Mode</h2>
+        <p class="text-gray-300 mb-2">Chore: <span id="arcade-chore-name" class="text-purple-400 font-semibold"></span></p>
+        <p class="text-gray-400 text-sm mb-6">Timer will start immediately. Complete as fast as you can!</p>
+
+        <div class="mb-6">
+            <label for="arcade-user-select" class="block text-sm font-medium text-gray-300 mb-2">
+                Who is doing this chore?
+            </label>
+            <select id="arcade-user-select"
+                    class="w-full px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
+                <option value="">Select user...</option>
+                {% for user in users %}
+                <option value="{{ user.id }}">{{ user.get_display_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <input type="hidden" id="arcade-instance-id">
+
+        <div class="flex space-x-4">
+            <button onclick="executeArcadeStart()"
+                    class="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition">
+                Start Arcade
+            </button>
+            <button onclick="closeArcadeStartDialog()"
                     class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition">
                 Cancel
             </button>
@@ -362,11 +402,57 @@
         }
     }
 
+    // Arcade Start Dialog Functions
+    function openArcadeStartDialog(instanceId, choreName) {
+        document.getElementById('arcade-start-dialog').classList.remove('hidden');
+        document.getElementById('arcade-instance-id').value = instanceId;
+        document.getElementById('arcade-chore-name').textContent = choreName;
+        document.getElementById('arcade-user-select').value = '';
+    }
+
+    function closeArcadeStartDialog(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('arcade-start-dialog').classList.add('hidden');
+    }
+
+    async function executeArcadeStart() {
+        const instanceId = document.getElementById('arcade-instance-id').value;
+        const userId = document.getElementById('arcade-user-select').value;
+
+        if (!userId) {
+            showToast('Please select a user', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch('/arcade/start/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `instance_id=${instanceId}&user_id=${userId}`
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                showToast('Arcade mode started!', 'success');
+                closeArcadeStartDialog();
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showToast(data.error || 'Failed to start arcade mode', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
     // Close dialogs with Escape key
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             closeClaimDialog();
             closeCompleteDialog();
+            closeArcadeStartDialog();
         }
     });
 </script>

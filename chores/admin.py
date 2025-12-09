@@ -114,6 +114,12 @@ class ChoreAdmin(admin.ModelAdmin):
                 html.append(f"<li>{dep.depends_on.name} (offset: {dep.offset_hours}h)</li>")
             html.append("</ul>")
 
+            # Warning if child chore has its own schedule
+            html.append('<div style="background-color: #fff3cd; border: 1px solid #ffc107; padding: 10px; margin-top: 10px; border-radius: 4px;">')
+            html.append('<strong>⚠️ Note:</strong> This is a child chore - it will ONLY spawn when its parent chore(s) are completed. ')
+            html.append('The schedule settings above are ignored for child chores.')
+            html.append('</div>')
+
         # Child dependencies
         children = obj.dependencies_as_parent.all()
         if children:

@@ -103,6 +103,17 @@ class Chore(models.Model):
         self.full_clean()
         super().save(*args, **kwargs)
 
+    def is_child_chore(self):
+        """
+        Check if this chore is a child chore (has dependencies on other chores).
+
+        Returns:
+            bool: True if this chore depends on other chores
+        """
+        if not self.pk:
+            return False
+        return self.dependencies_as_child.exists()
+
 
 class ChoreTemplate(models.Model):
     """Reusable chore template for quick chore creation."""
@@ -181,10 +192,20 @@ class ChoreEligibility(models.Model):
 
 
 class ChoreDependency(models.Model):
-    """Parent-child chore dependencies."""
+    """
+    Parent-child chore dependencies.
+
+    When a parent chore is completed, child chores are automatically spawned
+    and assigned to the person who completed the parent.
+
+    IMPORTANT: Child chores (chores with dependencies) will NOT be scheduled
+    independently through the normal scheduling system. They ONLY spawn when
+    their parent chore is completed. Any schedule settings on child chores
+    are ignored.
+    """
     chore = models.ForeignKey(Chore, on_delete=models.CASCADE, related_name="dependencies_as_child")
     depends_on = models.ForeignKey(Chore, on_delete=models.CASCADE, related_name="dependencies_as_parent")
-    offset_hours = models.IntegerField(default=0)
+    offset_hours = models.IntegerField(default=0, help_text="Hours after parent completion to spawn this child chore")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

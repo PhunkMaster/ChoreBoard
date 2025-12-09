@@ -56,9 +56,20 @@ def midnight_evaluation():
             for instance in overdue_list:
                 NotificationService.notify_chore_overdue(instance)
 
-            # Get active chores
-            active_chores = Chore.objects.filter(is_active=True)
-            logger.info(f"Found {active_chores.count()} active chores")
+            # Get active chores, excluding child chores (those with dependencies)
+            from django.db.models import Exists, OuterRef
+            from chores.models import ChoreDependency
+
+            # Subquery to check if chore is a child (has dependencies_as_child)
+            has_dependencies = ChoreDependency.objects.filter(chore=OuterRef('pk'))
+
+            active_chores = Chore.objects.filter(
+                is_active=True
+            ).exclude(
+                # Exclude chores that are children (have parent dependencies)
+                Exists(has_dependencies)
+            )
+            logger.info(f"Found {active_chores.count()} active chores (excluding child chores)")
 
             # Create instances for each chore based on schedule
             today = now.date()
