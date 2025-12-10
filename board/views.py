@@ -29,11 +29,15 @@ def main_board(request):
 
     # Get all active chore instances for today (excluding skipped)
     # Bug #6 Fix: Filter out instances of inactive chores
+    # Include: due today, overdue from past, OR no due date (sentinel date)
     pool_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.POOL,
-        due_at__date=today,
         chore__is_active=True
-    ).exclude(status=ChoreInstance.SKIPPED).select_related('chore').order_by('due_at')
+    ).filter(
+        Q(due_at__date=today) |  # Due today
+        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__year__gte=9999)  # No due date (sentinel date)
+    ).select_related('chore').order_by('due_at')
 
     # Get assigned chores: include chores due today OR overdue from previous days
     # Only include chores assigned to users who are eligible for points (to match what's displayed)
@@ -124,9 +128,12 @@ def pool_only(request):
 
     pool_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.POOL,
-        due_at__date=today,
         chore__is_active=True
-    ).exclude(status=ChoreInstance.SKIPPED).select_related('chore').order_by('due_at')
+    ).filter(
+        Q(due_at__date=today) |  # Due today
+        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__year__gte=9999)  # No due date (sentinel date)
+    ).select_related('chore').order_by('due_at')
 
     # Get all users for the user selector (only those eligible for points)
     users = User.objects.filter(
@@ -260,9 +267,12 @@ def pool_minimal(request):
     # Get all pool chores for today
     pool_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.POOL,
-        due_at__date=today,
         chore__is_active=True
-    ).exclude(status=ChoreInstance.SKIPPED).select_related('chore').order_by('due_at')
+    ).filter(
+        Q(due_at__date=today) |  # Due today
+        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__year__gte=9999)  # No due date (sentinel date)
+    ).select_related('chore').order_by('due_at')
 
     # Check for any active arcade session (kiosk-mode compatible)
     active_arcade_session = ArcadeSession.objects.filter(
