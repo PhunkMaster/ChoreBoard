@@ -119,7 +119,8 @@ class AssignmentService:
         # Start with users who can be assigned
         eligible = User.objects.filter(
             can_be_assigned=True,
-            is_active=True
+            is_active=True,
+            exclude_from_auto_assignment=False  # Exclude users who opt out of auto-assignment
         )
 
         # If chore is undesirable, filter by explicit eligibility
