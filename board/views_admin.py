@@ -416,6 +416,7 @@ def admin_chore_get(request, chore_id):
             'every_n_start_date': chore.every_n_start_date.isoformat() if chore.every_n_start_date else None,
             'cron_expr': chore.cron_expr or '',
             'rrule_json': chore.rrule_json or '',
+            'one_time_due_date': chore.one_time_due_date.isoformat() if chore.one_time_due_date else '',
             'depends_on': depends_on_id,
             'offset_hours': offset_hours,
             'is_active': chore.is_active,
@@ -461,6 +462,7 @@ def admin_chore_create(request):
         every_n_start_date = request.POST.get('every_n_start_date')
         cron_expr = request.POST.get('cron_expr', '').strip()
         rrule_json_str = request.POST.get('rrule_json', '').strip()
+        one_time_due_date = request.POST.get('one_time_due_date', '').strip()
 
         # Dependency fields
         depends_on_id = request.POST.get('depends_on')
@@ -504,6 +506,7 @@ def admin_chore_create(request):
                 every_n_start_date=every_n_start_date if every_n_start_date else None,
                 cron_expr=cron_expr,
                 rrule_json=rrule_json,
+                one_time_due_date=one_time_due_date if one_time_due_date else None,
                 is_active=True
             )
             logger.info(f"Created chore {chore.id}: {chore.name}, is_undesirable={chore.is_undesirable}")
@@ -610,6 +613,7 @@ def admin_chore_update(request, chore_id):
         every_n_start_date = request.POST.get('every_n_start_date')
         cron_expr = request.POST.get('cron_expr', '').strip()
         rrule_json_str = request.POST.get('rrule_json', '').strip()
+        one_time_due_date = request.POST.get('one_time_due_date', '').strip()
 
         # Dependency fields
         depends_on_id = request.POST.get('depends_on')
@@ -652,6 +656,7 @@ def admin_chore_update(request, chore_id):
             chore.every_n_start_date = every_n_start_date if every_n_start_date else None
             chore.cron_expr = cron_expr
             chore.rrule_json = rrule_json
+            chore.one_time_due_date = one_time_due_date if one_time_due_date else None
             chore.save()
 
             # Update dependencies

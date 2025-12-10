@@ -37,6 +37,7 @@ ChoreBoard is a web-based chore management system designed to:
 📋 **Smart Scheduling**
 
 - Daily, weekly, every-N-days, or custom (cron/RRULE) schedules
+- One-time tasks for non-recurring work
 - Automatic chore creation and assignment
 - Fair rotation for undesirable tasks
 

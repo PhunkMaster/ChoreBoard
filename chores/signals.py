@@ -2,7 +2,7 @@
 Signal handlers for chore creation.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
@@ -40,26 +40,51 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
         elif instance.schedule_type == Chore.EVERY_N_DAYS and instance.every_n_start_date:
             days_since_start = (today - instance.every_n_start_date).days
             should_create_today = (days_since_start % instance.n_days == 0)
+        elif instance.schedule_type == Chore.ONE_TIME:
+            # ONE_TIME tasks are ALWAYS created immediately
+            should_create_today = True
 
         logger.info(f"Schedule check: type={instance.schedule_type}, should_create_today={should_create_today}")
 
         if should_create_today:
-            # Check if instance already exists for today (prevent duplicates)
-            # Note: With our due_at logic, instances "for today" have due_at = start of tomorrow
+            # Calculate due_at based on schedule type
             tomorrow = today + timedelta(days=1)
-            existing = ChoreInstance.objects.filter(
-                chore=instance,
-                due_at__date=tomorrow
-            ).exists()
+
+            if instance.schedule_type == Chore.ONE_TIME:
+                # ONE_TIME: use one_time_due_date or sentinel far-future date
+                if instance.one_time_due_date:
+                    # Due at start of day after due_date (consistent with existing logic)
+                    due_day = instance.one_time_due_date + timedelta(days=1)
+                    due_at = timezone.make_aware(
+                        datetime.combine(due_day, datetime.min.time())
+                    )
+                else:
+                    # No due date = use sentinel far-future date (never overdue)
+                    far_future = date(9999, 12, 31)
+                    due_at = timezone.make_aware(
+                        datetime.combine(far_future, datetime.min.time())
+                    )
+            else:
+                # Regular recurring chores: due at start of tomorrow
+                due_at = timezone.make_aware(
+                    datetime.combine(tomorrow, datetime.min.time())
+                )
+
+            # Check if instance already exists (prevent duplicates)
+            # Note: For ONE_TIME, we check ANY due date since there should only ever be one instance
+            if instance.schedule_type == Chore.ONE_TIME:
+                existing = ChoreInstance.objects.filter(chore=instance).exists()
+            else:
+                # Regular chores: check for instance with due_at = tomorrow
+                existing = ChoreInstance.objects.filter(
+                    chore=instance,
+                    due_at__date=tomorrow
+                ).exists()
 
             if existing:
-                logger.info(f"Instance already exists for chore {instance.name} today")
+                logger.info(f"Instance already exists for chore {instance.name}")
                 return
 
-            # Create the instance for today (due at start of tomorrow - clearer and DST-safe)
-            due_at = timezone.make_aware(
-                datetime.combine(tomorrow, datetime.min.time())
-            )
             distribution_at = timezone.make_aware(
                 datetime.combine(today, instance.distribution_time)
             )

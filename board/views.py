@@ -8,7 +8,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q
 from decimal import Decimal
-from chores.models import ChoreInstance, Completion, CompletionShare, PointsLedger
+from chores.models import ChoreInstance, Completion, CompletionShare, PointsLedger, Chore
 from chores.services import AssignmentService, DependencyService
 from chores.arcade_service import ArcadeService
 from users.models import User
@@ -493,6 +493,112 @@ def leaderboard_minimal(request):
     }
 
     return render(request, 'board/leaderboard_minimal.html', context)
+
+
+def quick_add_task(request):
+    """
+    Quick-add interface for creating one-time tasks.
+    Available to any logged-in user.
+    """
+    if request.method == 'GET':
+        # Get all users for assignment dropdown
+        users = User.objects.filter(
+            is_active=True,
+            can_be_assigned=True,
+            eligible_for_points=True
+        ).order_by('first_name', 'username')
+
+        return render(request, 'board/quick_add_task.html', {'users': users})
+
+    elif request.method == 'POST':
+        # Create one-time task
+        try:
+            name = request.POST.get('name', '').strip()
+            description = request.POST.get('description', '').strip()
+            points = request.POST.get('points', '10')
+            difficulty = request.POST.get('difficulty', 'MEDIUM')
+
+            # Validate points
+            try:
+                points = Decimal(points)
+                if points < 0 or points > 999.99:
+                    return JsonResponse({'error': 'Points must be between 0 and 999.99'}, status=400)
+            except (ValueError, TypeError):
+                return JsonResponse({'error': 'Invalid points value'}, status=400)
+
+            # Assignment
+            assignment_type = request.POST.get('assignment_type', 'pool')
+            assigned_to_id = request.POST.get('assigned_to')
+
+            # Due date (optional)
+            from datetime import datetime
+            due_date_str = request.POST.get('due_date', '').strip()
+            one_time_due_date = None
+            if due_date_str:
+                try:
+                    one_time_due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
+                except ValueError:
+                    return JsonResponse({'error': 'Invalid due date format'}, status=400)
+
+            # Validate
+            if not name:
+                return JsonResponse({'error': 'Name is required'}, status=400)
+
+            # Create chore
+            with transaction.atomic():
+                chore = Chore.objects.create(
+                    name=name,
+                    description=description,
+                    schedule_type=Chore.ONE_TIME,
+                    one_time_due_date=one_time_due_date,
+                    points=points,
+                    difficulty=difficulty,
+                    is_active=True,
+                    is_pool=(assignment_type == 'pool')
+                )
+
+                # If directly assigned, assign the instance
+                if assignment_type == 'assigned' and assigned_to_id:
+                    try:
+                        assigned_user = User.objects.get(id=assigned_to_id, is_active=True, can_be_assigned=True)
+                        instance = ChoreInstance.objects.filter(chore=chore).first()
+                        if instance:
+                            instance.status = ChoreInstance.ASSIGNED
+                            instance.assigned_to = assigned_user
+                            instance.assigned_at = timezone.now()
+                            instance.assignment_reason = ChoreInstance.REASON_FIXED
+                            instance.save(update_fields=['status', 'assigned_to', 'assigned_at', 'assignment_reason'])
+
+                            ActionLog.objects.create(
+                                action_type=ActionLog.ACTION_ASSIGN,
+                                user=request.user if request.user.is_authenticated else assigned_user,
+                                description=f"Created and assigned one-time task: {chore.name} to {assigned_user.get_display_name()}",
+                                metadata={'chore_id': chore.id, 'instance_id': instance.id}
+                            )
+                    except User.DoesNotExist:
+                        return JsonResponse({'error': 'Invalid user selected for assignment'}, status=400)
+                else:
+                    # Log pool task creation
+                    ActionLog.objects.create(
+                        action_type=ActionLog.ACTION_CREATE,
+                        user=request.user if request.user.is_authenticated else None,
+                        description=f"Created one-time task: {chore.name}",
+                        metadata={'chore_id': chore.id}
+                    )
+
+                logger.info(f"Created one-time task: {chore.name} (ID: {chore.id})")
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Task created successfully',
+                'chore_id': chore.id
+            })
+
+        except Exception as e:
+            logger.exception("Error creating quick-add task")
+            return JsonResponse({'error': str(e)}, status=500)
+
+    return JsonResponse({'error': 'Invalid request method'}, status=400)
 
 
 @require_http_methods(["POST"])

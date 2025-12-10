@@ -20,6 +20,8 @@ urlpatterns = [
     path('users/minimal/', views.users_minimal, name='users_minimal'),
     path('leaderboard/', views.leaderboard, name='leaderboard'),
     path('leaderboard/minimal/', views.leaderboard_minimal, name='leaderboard_minimal'),
+    # Quick Add Task
+    path('quick-add-task/', views.quick_add_task, name='quick_add_task'),
     # Health Check
     path('health/', views.health_check, name='health_check'),
     # Real-time Updates API

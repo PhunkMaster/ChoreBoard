@@ -59,6 +59,14 @@ def midnight_evaluation():
             for instance in overdue_list:
                 NotificationService.notify_chore_overdue(instance)
 
+            # Cleanup completed one-time tasks (archive after undo window)
+            try:
+                cleanup_completed_one_time_tasks()
+            except Exception as e:
+                error_msg = f"Error cleaning up one-time tasks: {str(e)}"
+                logger.error(error_msg)
+                errors.append(error_msg)
+
             # Get active chores, excluding child chores (those with dependencies)
             from django.db.models import Exists, OuterRef
             from chores.models import ChoreDependency
@@ -386,6 +394,10 @@ def should_create_instance_today(chore, today):
             logger.debug(f"Chore '{chore.name}' is rescheduled to {chore.rescheduled_date}, skipping today")
             return False
 
+    # ONE_TIME chores are created immediately via signal, not by midnight evaluation
+    if chore.schedule_type == Chore.ONE_TIME:
+        return False
+
     # Daily chores
     if chore.schedule_type == Chore.DAILY:
         return True
@@ -430,6 +442,49 @@ def should_create_instance_today(chore, today):
             return False
 
     return False
+
+
+def cleanup_completed_one_time_tasks():
+    """
+    Archive (deactivate) completed ONE_TIME tasks after undo window expires.
+
+    Runs at midnight. Checks for ONE_TIME chore instances that:
+    - Status is COMPLETED
+    - Completed more than UNDO_WINDOW (2 hours) ago
+
+    Then deactivates the parent Chore (is_active=False).
+
+    Returns:
+        int: Number of chores archived
+    """
+    now = timezone.now()
+    undo_window = timedelta(hours=2)
+    cutoff_time = now - undo_window
+
+    logger.info(f"[CLEANUP] Starting cleanup of completed ONE_TIME tasks (cutoff: {cutoff_time})")
+
+    # Find completed ONE_TIME instances
+    completed_instances = ChoreInstance.objects.filter(
+        chore__schedule_type=Chore.ONE_TIME,
+        chore__is_active=True,  # Only active chores
+        status=ChoreInstance.COMPLETED
+    ).select_related('chore')
+
+    archived_count = 0
+
+    for instance in completed_instances:
+        # Check if instance was completed before cutoff
+        if instance.completed_at and instance.completed_at <= cutoff_time:
+            # Undo window has passed - archive the chore
+            chore = instance.chore
+            chore.is_active = False
+            chore.save(update_fields=['is_active'])
+
+            archived_count += 1
+            logger.info(f"[CLEANUP] Archived ONE_TIME task: {chore.name} (ID: {chore.id})")
+
+    logger.info(f"[CLEANUP] Archived {archived_count} completed ONE_TIME tasks")
+    return archived_count
 
 
 def distribution_check():

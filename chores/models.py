@@ -18,12 +18,14 @@ class Chore(models.Model):
     EVERY_N_DAYS = "every_n_days"
     CRON = "cron"
     RRULE = "rrule"
+    ONE_TIME = "one_time"
     SCHEDULE_CHOICES = [
         (DAILY, "Daily"),
         (WEEKLY, "Weekly"),
         (EVERY_N_DAYS, "Every N Days"),
         (CRON, "Cron"),
         (RRULE, "RRULE"),
+        (ONE_TIME, "One-Time Task"),
     ]
 
     # Weekdays
@@ -63,6 +65,11 @@ class Chore(models.Model):
     weekday = models.IntegerField(null=True, blank=True, choices=WEEKDAY_CHOICES)
     cron_expr = models.CharField(max_length=100, blank=True, default='')
     rrule_json = models.JSONField(null=True, blank=True)
+    one_time_due_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="For ONE_TIME tasks: optional due date. If not set, task never becomes overdue."
+    )
 
     # Reschedule (one-time override)
     rescheduled_date = models.DateField(null=True, blank=True, help_text="Next date this chore should appear (overrides normal schedule)")
@@ -94,6 +101,24 @@ class Chore(models.Model):
             raise ValidationError("Pool chores cannot have assigned_to user")
         if not self.is_pool and not self.assigned_to:
             raise ValidationError("Non-pool chores must have assigned_to user")
+
+        # One-time task validation
+        if self.schedule_type == self.ONE_TIME:
+            # ONE_TIME doesn't use cron_expr or rrule_json
+            if self.cron_expr:
+                raise ValidationError({
+                    'cron_expr': 'ONE_TIME tasks should not have cron_expr'
+                })
+            if self.rrule_json:
+                raise ValidationError({
+                    'rrule_json': 'ONE_TIME tasks should not have rrule_json'
+                })
+            # one_time_due_date is optional, no validation needed
+        elif self.one_time_due_date:
+            # one_time_due_date only for ONE_TIME tasks
+            raise ValidationError({
+                'one_time_due_date': 'Due date only applicable for ONE_TIME tasks'
+            })
 
     def save(self, *args, **kwargs):
         if self.name:
