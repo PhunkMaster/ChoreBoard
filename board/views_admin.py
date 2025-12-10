@@ -948,6 +948,7 @@ def admin_user_get(request, user_id):
             'username': user.username,
             'first_name': user.first_name,
             'can_be_assigned': user.can_be_assigned,
+            'exclude_from_auto_assignment': user.exclude_from_auto_assignment,
             'eligible_for_points': user.eligible_for_points,
             'is_staff': user.is_staff,
             'is_active': user.is_active,
@@ -972,6 +973,7 @@ def admin_user_create(request):
         first_name = request.POST.get('first_name', '').strip()
         password = request.POST.get('password', '').strip()
         can_be_assigned = request.POST.get('can_be_assigned') == 'true'
+        exclude_from_auto_assignment = request.POST.get('exclude_from_auto_assignment') == 'true'
         eligible_for_points = request.POST.get('eligible_for_points') == 'true'
         is_staff = request.POST.get('is_staff') == 'true'
 
@@ -1001,6 +1003,7 @@ def admin_user_create(request):
                 password=password,
                 first_name=first_name,
                 can_be_assigned=can_be_assigned,
+                exclude_from_auto_assignment=exclude_from_auto_assignment,
                 eligible_for_points=eligible_for_points,
                 is_staff=is_staff,
                 is_active=True
@@ -1040,6 +1043,7 @@ def admin_user_update(request, user_id):
         first_name = request.POST.get('first_name', '').strip()
         password = request.POST.get('password', '').strip()
         can_be_assigned = request.POST.get('can_be_assigned') == 'true'
+        exclude_from_auto_assignment = request.POST.get('exclude_from_auto_assignment') == 'true'
         eligible_for_points = request.POST.get('eligible_for_points') == 'true'
         is_staff = request.POST.get('is_staff') == 'true'
 
@@ -1047,6 +1051,7 @@ def admin_user_update(request, user_id):
             # Update user
             user.first_name = first_name
             user.can_be_assigned = can_be_assigned
+            user.exclude_from_auto_assignment = exclude_from_auto_assignment
             user.eligible_for_points = eligible_for_points
             user.is_staff = is_staff
 
