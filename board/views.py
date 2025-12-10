@@ -75,12 +75,12 @@ def main_board(request):
     # Sort by user name
     assigned_by_user.sort(key=lambda x: x['user'].first_name or x['user'].username)
 
-    # Stats - count only what's actually displayed
-    overdue_assigned = [chore for chore in assigned_chores if chore.is_overdue]
-    ontime_assigned = [chore for chore in assigned_chores if not chore.is_overdue]
+    # Stats - count only what's actually displayed (using queryset filters)
+    overdue_assigned = assigned_chores.filter(is_overdue=True)
+    ontime_assigned = assigned_chores.filter(is_overdue=False)
 
     # Calculate total assigned (for stat card)
-    total_assigned_count = len(assigned_chores) if isinstance(assigned_chores, list) else assigned_chores.count()
+    total_assigned_count = assigned_chores.count()
 
     # Get all users for the user selector (only those eligible for points)
     users = User.objects.filter(
