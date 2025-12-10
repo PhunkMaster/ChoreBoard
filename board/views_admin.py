@@ -1717,9 +1717,11 @@ def admin_skip_chores(request):
     undo_cutoff = now - timedelta(hours=undo_limit_hours)
 
     # Get active chores (pool + assigned) that can be skipped
+    # Include all instances due today OR overdue from previous days
     active_chores = ChoreInstance.objects.filter(
-        due_at__date=today,
-        status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        Q(due_at__date=today) | Q(due_at__lt=now),
+        status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED],
+        chore__is_active=True
     ).select_related('chore', 'assigned_to').order_by('due_at', 'status')
 
     # Get recently skipped chores (within undo window)

@@ -4,6 +4,7 @@ Views for ChoreBoard frontend.
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
+from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q
@@ -35,12 +36,15 @@ def main_board(request):
     ).exclude(status=ChoreInstance.SKIPPED).select_related('chore').order_by('due_at')
 
     # Get assigned chores: include chores due today OR overdue from previous days
+    # Only include chores assigned to users who are eligible for points (to match what's displayed)
     assigned_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.ASSIGNED,
-        chore__is_active=True
+        chore__is_active=True,
+        assigned_to__eligible_for_points=True,  # Only count chores for eligible users
+        assigned_to__isnull=False  # Exclude unassigned chores
     ).filter(
         Q(due_at__date=today) | Q(due_at__lt=now)  # Due today OR past due
-    ).exclude(status=ChoreInstance.SKIPPED).select_related('chore', 'assigned_to').order_by('due_at')
+    ).select_related('chore', 'assigned_to').order_by('due_at')
 
     # Feature #8: Group assigned chores by user
     from collections import defaultdict
@@ -54,7 +58,6 @@ def main_board(request):
             chores_by_user[user]['ontime'].append(chore)
 
     # Convert to list of dicts for template
-    # Filter out users not eligible for points (and None users from unassigned chores)
     assigned_by_user = [
         {
             'user': user,
@@ -63,18 +66,17 @@ def main_board(request):
             'total': len(chores['overdue']) + len(chores['ontime'])
         }
         for user, chores in chores_by_user.items()
-        if user is not None and user.eligible_for_points
     ]
 
     # Sort by user name
     assigned_by_user.sort(key=lambda x: x['user'].first_name or x['user'].username)
 
-    # Keep original lists for backward compatibility with stats
-    overdue_assigned = assigned_chores.filter(is_overdue=True)
-    ontime_assigned = assigned_chores.filter(is_overdue=False)
+    # Stats - count only what's actually displayed
+    overdue_assigned = [chore for chore in assigned_chores if chore.is_overdue]
+    ontime_assigned = [chore for chore in assigned_chores if not chore.is_overdue]
 
     # Calculate total assigned (for stat card)
-    total_assigned_count = assigned_chores.count()
+    total_assigned_count = len(assigned_chores) if isinstance(assigned_chores, list) else assigned_chores.count()
 
     # Get all users for the user selector (only those eligible for points)
     users = User.objects.filter(
@@ -495,6 +497,7 @@ def leaderboard_minimal(request):
     return render(request, 'board/leaderboard_minimal.html', context)
 
 
+@login_required
 def quick_add_task(request):
     """
     Quick-add interface for creating one-time tasks.
@@ -516,15 +519,19 @@ def quick_add_task(request):
             name = request.POST.get('name', '').strip()
             description = request.POST.get('description', '').strip()
             points = request.POST.get('points', '10')
-            difficulty = request.POST.get('difficulty', 'MEDIUM')
+            is_difficult = request.POST.get('is_difficult') == 'true'
 
-            # Validate points
-            try:
-                points = Decimal(points)
-                if points < 0 or points > 999.99:
-                    return JsonResponse({'error': 'Points must be between 0 and 999.99'}, status=400)
-            except (ValueError, TypeError):
-                return JsonResponse({'error': 'Invalid points value'}, status=400)
+            # Security: Non-admin users can only create 0-point tasks to prevent abuse
+            if not (request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)):
+                points = Decimal('0.00')
+            else:
+                # Validate points for admin users
+                try:
+                    points = Decimal(points)
+                    if points < 0 or points > 999.99:
+                        return JsonResponse({'error': 'Points must be between 0 and 999.99'}, status=400)
+                except (ValueError, TypeError):
+                    return JsonResponse({'error': 'Invalid points value'}, status=400)
 
             # Assignment
             assignment_type = request.POST.get('assignment_type', 'pool')
@@ -552,7 +559,7 @@ def quick_add_task(request):
                     schedule_type=Chore.ONE_TIME,
                     one_time_due_date=one_time_due_date,
                     points=points,
-                    difficulty=difficulty,
+                    is_difficult=is_difficult,
                     is_active=True,
                     is_pool=(assignment_type == 'pool')
                 )
@@ -570,7 +577,7 @@ def quick_add_task(request):
                             instance.save(update_fields=['status', 'assigned_to', 'assigned_at', 'assignment_reason'])
 
                             ActionLog.objects.create(
-                                action_type=ActionLog.ACTION_ASSIGN,
+                                action_type=ActionLog.ACTION_ADMIN,
                                 user=request.user if request.user.is_authenticated else assigned_user,
                                 description=f"Created and assigned one-time task: {chore.name} to {assigned_user.get_display_name()}",
                                 metadata={'chore_id': chore.id, 'instance_id': instance.id}
@@ -580,7 +587,7 @@ def quick_add_task(request):
                 else:
                     # Log pool task creation
                     ActionLog.objects.create(
-                        action_type=ActionLog.ACTION_CREATE,
+                        action_type=ActionLog.ACTION_ADMIN,
                         user=request.user if request.user.is_authenticated else None,
                         description=f"Created one-time task: {chore.name}",
                         metadata={'chore_id': chore.id}

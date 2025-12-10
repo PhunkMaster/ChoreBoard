@@ -32,29 +32,32 @@
                       class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"></textarea>
         </div>
 
-        <!-- Points and Difficulty Row -->
-        <div class="grid grid-cols-2 gap-4">
-            <!-- Points -->
-            <div>
-                <label for="task-points" class="block text-gray-300 mb-2 font-medium">
-                    {{ POINTS_LABEL|title }}
-                </label>
-                <input type="number" id="task-points" name="points" value="10" min="0" max="999.99" step="0.01"
-                       class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+        <!-- Points -->
+        <div>
+            <label for="task-points" class="block text-gray-300 mb-2 font-medium">
+                {{ POINTS_LABEL|title }}
+            </label>
+            {% if user.is_staff or user.is_superuser %}
+            <input type="number" id="task-points" name="points" value="10" min="0" max="999.99" step="0.01"
+                   class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+            {% else %}
+            <div class="w-full bg-dark-card/50 text-gray-400 border border-dark-border rounded-lg px-4 py-3">
+                0 (Admin required for points)
             </div>
+            <p class="text-yellow-500 text-xs mt-1">Only administrators can create tasks with points</p>
+            {% endif %}
+        </div>
 
-            <!-- Difficulty -->
-            <div>
-                <label for="task-difficulty" class="block text-gray-300 mb-2 font-medium">
-                    Difficulty
-                </label>
-                <select id="task-difficulty" name="difficulty"
-                        class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
-                    <option value="EASY">Easy</option>
-                    <option value="MEDIUM" selected>Medium</option>
-                    <option value="HARD">Hard</option>
-                </select>
-            </div>
+        <!-- Difficulty (Checkbox) -->
+        <div>
+            <label class="flex items-center p-3 bg-dark-card border border-dark-border rounded-lg cursor-pointer hover:border-primary-500/50 transition">
+                <input type="checkbox" id="task-is-difficult" name="is_difficult" value="true"
+                       class="w-4 h-4 text-primary-600 bg-dark-card border-gray-600 focus:ring-primary-500 rounded">
+                <div class="ml-3">
+                    <span class="text-gray-100 font-medium">Mark as difficult</span>
+                    <p class="text-gray-500 text-sm">Indicates this is a challenging task</p>
+                </div>
+            </label>
         </div>
 
         <!-- Due Date (Optional) -->
