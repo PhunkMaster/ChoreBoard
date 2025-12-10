@@ -34,10 +34,12 @@ def main_board(request):
         chore__is_active=True
     ).exclude(status=ChoreInstance.SKIPPED).select_related('chore').order_by('due_at')
 
+    # Get assigned chores: include chores due today OR overdue from previous days
     assigned_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.ASSIGNED,
-        due_at__date=today,
         chore__is_active=True
+    ).filter(
+        Q(due_at__date=today) | Q(due_at__lt=now)  # Due today OR past due
     ).exclude(status=ChoreInstance.SKIPPED).select_related('chore', 'assigned_to').order_by('due_at')
 
     # Feature #8: Group assigned chores by user
@@ -144,12 +146,13 @@ def user_board(request, username):
     now = timezone.now()
     today = now.date()
 
-    # Get chores assigned to this user for today
+    # Get chores assigned to this user: include chores due today OR overdue from previous days
     assigned_chores = ChoreInstance.objects.filter(
         assigned_to=user,
-        due_at__date=today,
         status__in=[ChoreInstance.ASSIGNED, ChoreInstance.POOL],
         chore__is_active=True
+    ).filter(
+        Q(due_at__date=today) | Q(due_at__lt=now)  # Due today OR past due
     ).select_related('chore').order_by('due_at')
 
     # Separate overdue from on-time
@@ -202,12 +205,13 @@ def user_board_minimal(request, username):
     now = timezone.now()
     today = now.date()
 
-    # Get chores assigned to this user for today
+    # Get chores assigned to this user: include chores due today OR overdue from previous days
     assigned_chores = ChoreInstance.objects.filter(
         assigned_to=user,
-        due_at__date=today,
         status__in=[ChoreInstance.ASSIGNED, ChoreInstance.POOL],
         chore__is_active=True
+    ).filter(
+        Q(due_at__date=today) | Q(due_at__lt=now)  # Due today OR past due
     ).select_related('chore').order_by('is_overdue', 'due_at')
 
     # Check for active arcade session for THIS user only (from URL username)
@@ -288,11 +292,12 @@ def assigned_minimal(request):
     now = timezone.now()
     today = now.date()
 
-    # Get all assigned chores for today
+    # Get all assigned chores: include chores due today OR overdue from previous days
     assigned_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.ASSIGNED,
-        due_at__date=today,
         chore__is_active=True
+    ).filter(
+        Q(due_at__date=today) | Q(due_at__lt=now)  # Due today OR past due
     ).exclude(status=ChoreInstance.SKIPPED).select_related('chore', 'assigned_to').order_by('due_at')
 
     # Group assigned chores by user
@@ -361,11 +366,12 @@ def users_minimal(request):
         eligible_for_points=True
     ).order_by('first_name', 'username')
 
-    # Get chore counts per user for today
+    # Get chore counts per user: include chores due today OR overdue from previous days
     assigned_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.ASSIGNED,
-        due_at__date=today,
         chore__is_active=True
+    ).filter(
+        Q(due_at__date=today) | Q(due_at__lt=now)  # Due today OR past due
     ).exclude(status=ChoreInstance.SKIPPED).select_related('assigned_to')
 
     # Count chores per user
@@ -892,11 +898,12 @@ def get_updates(request):
             'changes': []
         }
 
-        # Get updated chore instances
+        # Get updated chore instances: include chores due today OR overdue from previous days
         updated_instances = ChoreInstance.objects.filter(
             updated_at__gt=since,
-            due_at__date=today,
             chore__is_active=True
+        ).filter(
+            Q(due_at__date=today) | Q(due_at__lt=now)  # Due today OR past due
         ).exclude(
             status=ChoreInstance.SKIPPED
         ).select_related('chore', 'assigned_to')
