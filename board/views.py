@@ -73,6 +73,9 @@ def main_board(request):
     overdue_assigned = assigned_chores.filter(is_overdue=True)
     ontime_assigned = assigned_chores.filter(is_overdue=False)
 
+    # Calculate total assigned (for stat card)
+    total_assigned_count = assigned_chores.count()
+
     # Get all users for the user selector (only those eligible for points)
     users = User.objects.filter(
         is_active=True,
@@ -99,6 +102,7 @@ def main_board(request):
         'assigned_by_user': assigned_by_user,  # NEW: Grouped by user
         'overdue_assigned': overdue_assigned,  # For stats
         'ontime_assigned': ontime_assigned,    # For stats
+        'total_assigned_count': total_assigned_count,  # Total assigned (on-time + overdue)
         'users': users,
         'admin_users': admin_users,
         'today': today,
