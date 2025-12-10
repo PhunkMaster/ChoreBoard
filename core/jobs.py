@@ -6,6 +6,9 @@ from django.db import transaction
 from decimal import Decimal
 from datetime import datetime, timedelta
 import logging
+import json
+from dateutil import rrule
+from croniter import croniter
 
 from chores.models import Chore, ChoreInstance
 from users.models import User
@@ -169,6 +172,182 @@ def midnight_evaluation():
         raise
 
 
+def evaluate_rrule(rrule_json, check_date, chore_created_date):
+    """
+    Evaluate if a date matches an RRULE schedule.
+
+    Args:
+        rrule_json: Dictionary containing RRULE parameters
+        check_date: date object to check
+        chore_created_date: date when the chore was created (used as default dtstart)
+
+    Returns:
+        bool: True if check_date matches the RRULE
+
+    Supported RRULE parameters:
+        - freq: DAILY, WEEKLY, MONTHLY, YEARLY (required)
+        - interval: int (default: 1)
+        - dtstart: date string or date object (default: chore_created_date)
+        - until: date string or date object (optional)
+        - count: int (optional)
+        - byweekday: list of weekday indices 0-6 (0=Monday) (optional)
+        - bymonthday: list of month day numbers (optional)
+        - bymonth: list of month numbers (optional)
+    """
+    # Map string frequency to rrule constants
+    freq_map = {
+        'DAILY': rrule.DAILY,
+        'WEEKLY': rrule.WEEKLY,
+        'MONTHLY': rrule.MONTHLY,
+        'YEARLY': rrule.YEARLY,
+    }
+
+    # Get frequency
+    freq_str = rrule_json.get('freq', '').upper()
+    if freq_str not in freq_map:
+        raise ValueError(f"Invalid or missing frequency: {freq_str}")
+
+    freq = freq_map[freq_str]
+
+    # Get interval (default 1)
+    interval = rrule_json.get('interval', 1)
+
+    # Get dtstart (start date for the rule)
+    dtstart = rrule_json.get('dtstart')
+    if dtstart:
+        if isinstance(dtstart, str):
+            dtstart = datetime.strptime(dtstart, '%Y-%m-%d').date()
+    else:
+        # Default to when the chore was created
+        dtstart = chore_created_date
+
+    # Convert date to datetime for rrule (rrule requires datetime)
+    dtstart_dt = datetime.combine(dtstart, datetime.min.time())
+    check_dt = datetime.combine(check_date, datetime.min.time())
+
+    # Build rrule parameters
+    rule_params = {
+        'freq': freq,
+        'interval': interval,
+        'dtstart': dtstart_dt,
+    }
+
+    # Optional: until (end date)
+    if 'until' in rrule_json:
+        until = rrule_json['until']
+        if isinstance(until, str):
+            until = datetime.strptime(until, '%Y-%m-%d').date()
+        rule_params['until'] = datetime.combine(until, datetime.max.time())
+
+    # Optional: count (number of occurrences)
+    if 'count' in rrule_json:
+        rule_params['count'] = rrule_json['count']
+
+    # Optional: byweekday (specific weekdays)
+    if 'byweekday' in rrule_json:
+        # Map indices to rrule weekday constants
+        weekday_map = [
+            rrule.MO, rrule.TU, rrule.WE, rrule.TH,
+            rrule.FR, rrule.SA, rrule.SU
+        ]
+        byweekday = [weekday_map[i] for i in rrule_json['byweekday']]
+        rule_params['byweekday'] = byweekday
+
+    # Optional: bymonthday (specific days of month)
+    if 'bymonthday' in rrule_json:
+        rule_params['bymonthday'] = rrule_json['bymonthday']
+
+    # Optional: bymonth (specific months)
+    if 'bymonth' in rrule_json:
+        rule_params['bymonth'] = rrule_json['bymonth']
+
+    # Create the rrule
+    rule = rrule.rrule(**rule_params)
+
+    # Check if check_date is in the rule's occurrences
+    # We check from dtstart to check_date + 1 day to include check_date
+    occurrences = rule.between(
+        dtstart_dt,
+        check_dt + timedelta(days=1),
+        inc=True  # Include boundaries
+    )
+
+    # Check if any occurrence falls on check_date
+    for occurrence in occurrences:
+        if occurrence.date() == check_date:
+            return True
+
+    return False
+
+
+def evaluate_cron(cron_expr, check_date):
+    """
+    Evaluate if a date matches a CRON expression.
+
+    Args:
+        cron_expr: CRON expression string (e.g., "0 0 * * 1-5" for weekdays at midnight)
+        check_date: date object to check
+
+    Returns:
+        bool: True if check_date matches the CRON expression
+
+    CRON Format: minute hour day_of_month month day_of_week
+    - minute: 0-59
+    - hour: 0-23
+    - day_of_month: 1-31
+    - month: 1-12
+    - day_of_week: 0-7 (0 and 7 are Sunday)
+
+    Special characters:
+    - *: Any value
+    - ,: Value list separator
+    - -: Range of values
+    - /: Step values
+    - #: Nth occurrence (e.g., 6#1 = first Saturday)
+
+    Examples:
+    - "0 0 * * *": Daily at midnight
+    - "0 0 * * 1-5": Weekdays at midnight
+    - "0 0 1 * *": First day of each month at midnight
+    - "0 0 * * 6#1,6#3": First and third Saturday at midnight
+    """
+    if not cron_expr or not cron_expr.strip():
+        raise ValueError("CRON expression cannot be empty")
+
+    try:
+        # Create a datetime at the start of check_date
+        check_dt = datetime.combine(check_date, datetime.min.time())
+
+        # Create croniter instance with the cron expression
+        cron = croniter(cron_expr, check_dt)
+
+        # Get the previous occurrence before check_dt
+        prev_occurrence = cron.get_prev(datetime)
+
+        # Get the next occurrence after the previous one
+        cron_from_prev = croniter(cron_expr, prev_occurrence)
+        next_occurrence = cron_from_prev.get_next(datetime)
+
+        # Check if next_occurrence falls on check_date
+        if next_occurrence.date() == check_date:
+            return True
+
+        # Also check if check_dt itself matches the cron expression
+        # This handles the case where check_date is the start date
+        cron_check = croniter(cron_expr, check_dt)
+        next_from_check = cron_check.get_next(datetime)
+
+        # If the next occurrence from check_dt is still on the same day, it matches
+        if next_from_check.date() == check_date:
+            return True
+
+        return False
+
+    except Exception as e:
+        logger.error(f"Error evaluating CRON expression '{cron_expr}': {e}")
+        raise ValueError(f"Invalid CRON expression: {cron_expr}") from e
+
+
 def should_create_instance_today(chore, today):
     """
     Determine if a chore instance should be created today based on schedule.
@@ -224,15 +403,31 @@ def should_create_instance_today(chore, today):
             return days_since_start % chore.n_days == 0
         return False
 
-    # Cron and RRULE schedules
-    # TODO: Implement cron and rrule evaluation in Phase 3
-    if chore.schedule_type == Chore.CRON:
-        logger.warning(f"Cron schedule not yet implemented for chore: {chore.name}")
-        return False
-
+    # RRULE schedule
     if chore.schedule_type == Chore.RRULE:
-        logger.warning(f"RRULE schedule not yet implemented for chore: {chore.name}")
-        return False
+        if not chore.rrule_json:
+            logger.warning(f"Chore '{chore.name}' has RRULE schedule but no rrule_json data")
+            return False
+
+        try:
+            # Parse RRULE JSON and check if today matches
+            return evaluate_rrule(chore.rrule_json, today, chore.created_at.date())
+        except Exception as e:
+            logger.error(f"Error evaluating RRULE for chore '{chore.name}': {e}")
+            return False
+
+    # CRON schedule
+    if chore.schedule_type == Chore.CRON:
+        if not chore.cron_expr:
+            logger.warning(f"Chore '{chore.name}' has CRON schedule but no cron_expr data")
+            return False
+
+        try:
+            # Parse CRON expression and check if today matches
+            return evaluate_cron(chore.cron_expr, today)
+        except Exception as e:
+            logger.error(f"Error evaluating CRON for chore '{chore.name}': {e}")
+            return False
 
     return False
 
