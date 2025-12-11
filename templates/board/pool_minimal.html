@@ -266,6 +266,9 @@
             const response = await fetch(`/arcade/stop/`, {
                 method: 'POST',
                 headers: {
+                    'X-CSRFToken': getCSRFToken()
+                },
+                headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
                 body: `session_id=${sessionId}`
@@ -288,6 +291,9 @@
         try {
             const response = await fetch(`/arcade/cancel/`, {
                 method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                },
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
@@ -335,6 +341,9 @@
         try {
             const response = await fetch(`/api/chore/${instanceId}/claim/`, {
                 method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                },
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
@@ -390,6 +399,9 @@
 
             const response = await fetch('/action/complete/', {
                 method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                },
                 body: formData
             });
 
@@ -432,6 +444,9 @@
         try {
             const response = await fetch('/arcade/start/', {
                 method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                },
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },

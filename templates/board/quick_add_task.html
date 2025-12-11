@@ -150,6 +150,9 @@ document.getElementById('quick-add-form').addEventListener('submit', async funct
     try {
         const response = await fetch('{% url "board:quick_add_task" %}', {
             method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                },
             body: formData,
             headers: {
                 'X-CSRFToken': formData.get('csrfmiddlewaretoken')

@@ -246,6 +246,9 @@
 
             const response = await fetch('/action/complete/', {
                 method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                },
                 body: formData
             });
             const data = await response.json();

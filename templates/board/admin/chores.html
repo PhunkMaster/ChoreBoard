@@ -632,6 +632,9 @@ async function saveAsTemplate() {
     try {
         const response = await fetch('/admin-panel/template/save/', {
             method: 'POST',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            },
             body: formData
         });
 
@@ -1097,7 +1100,10 @@ async function toggleChoreActive(choreId) {
 
     try {
         const response = await fetch(`/admin-panel/chore/toggle/${choreId}/`, {
-            method: 'POST'
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            }
         });
         const data = await response.json();
 
@@ -1155,6 +1161,9 @@ document.getElementById('chore-form').addEventListener('submit', async function(
 
         const response = await fetch(url, {
             method: method,
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            },
             body: formData
         });
         const data = await response.json();
