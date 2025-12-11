@@ -341,7 +341,18 @@ ChoreBoard is feature-complete and production-ready!
 
 ## 📝 License
 
-[Add your license here]
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+
+**Key Points:**
+- ✅ Free to use, modify, and distribute
+- ✅ Must share source code of any modifications
+- ✅ Network use requires source sharing (if you run ChoreBoard as a web service with modifications, you must share your changes)
+- ✅ Patent protections included
+- ✅ All derivatives must use AGPL-3.0
+
+See the [LICENSE](LICENSE) file for full details.
+
+**Why AGPL?** ChoreBoard uses AGPL-3.0 to ensure that improvements to the project benefit the entire community, even when deployed as a web service.
 
 ---
 
