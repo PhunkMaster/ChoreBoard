@@ -273,7 +273,7 @@
   - Database deadlock prevention tests
   - Validates exactly-once semantics for claims and completions
 
-- ✅ **Phase 5 Feature Tests** (`test_phase5_features.py`) - 9 tests
+- ✅ **Phase 5 Feature Tests** (`debug/manual_phase5_verification.py`) - 9 tests
   - All 5 schedule types (Daily, Weekly, Every N Days, Cron, RRULE)
   - Parent-child dependency creation
   - Child chore auto-assignment (pool and assigned parents)
