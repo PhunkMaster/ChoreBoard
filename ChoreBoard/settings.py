@@ -162,11 +162,28 @@ REST_FRAMEWORK = {
 
 # CSRF Configuration
 CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF cookie
-CSRF_COOKIE_SAMESITE = 'Lax'  # Less strict for local development
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+# Build CSRF trusted origins from ALLOWED_HOSTS
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
 ]
+
+# Add production origins if not in DEBUG mode
+if not DEBUG:
+    # Add HTTPS origins for all allowed hosts
+    for host in ALLOWED_HOSTS:
+        if host not in ['*', 'localhost', '127.0.0.1']:
+            CSRF_TRUSTED_ORIGINS.append(f'https://{host}')
+            CSRF_TRUSTED_ORIGINS.append(f'http://{host}')
+
+    # Set secure cookies for production
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
+
+    # Trust X-Forwarded-Proto header from Traefik reverse proxy
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # APScheduler Configuration
 APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
