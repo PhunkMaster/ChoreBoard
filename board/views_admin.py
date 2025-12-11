@@ -33,21 +33,63 @@ def admin_dashboard(request):
     """
     Admin dashboard showing key metrics and recent activity.
     """
+    from datetime import datetime
+    from django.db.models import Q
+
     now = timezone.now()
     today = now.date()
+
+    # Use year > 3000 to avoid overflow errors with year >= 9999
+    far_future = timezone.make_aware(datetime(3000, 1, 1))
 
     # Key metrics
     active_chores = Chore.objects.filter(is_active=True).count()
     active_users = User.objects.filter(is_active=True, eligible_for_points=True).count()
 
-    # Today's chore instances (excluding skipped)
-    todays_instances = ChoreInstance.objects.filter(due_at__date=today).exclude(status=ChoreInstance.SKIPPED)
-    pool_count = todays_instances.filter(status=ChoreInstance.POOL).count()
-    assigned_count = todays_instances.filter(status=ChoreInstance.ASSIGNED).count()
-    completed_count = todays_instances.filter(status=ChoreInstance.COMPLETED).count()
-    overdue_count = todays_instances.filter(status=ChoreInstance.ASSIGNED, is_overdue=True).count()
+    # Chore instance counts (matching main page logic: today + overdue + no due date)
+    # Pool chores (any user)
+    pool_count = ChoreInstance.objects.filter(
+        status=ChoreInstance.POOL,
+        chore__is_active=True
+    ).filter(
+        Q(due_at__date=today) |  # Due today
+        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__gte=far_future)  # No due date (sentinel date)
+    ).count()
 
-    # Skipped chores count (for today)
+    # Assigned chores (eligible users only, matching main page)
+    assigned_count = ChoreInstance.objects.filter(
+        status=ChoreInstance.ASSIGNED,
+        chore__is_active=True,
+        assigned_to__eligible_for_points=True,  # Only count eligible users
+        assigned_to__isnull=False
+    ).filter(
+        Q(due_at__date=today) |  # Due today
+        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__gte=far_future)  # No due date (sentinel date)
+    ).count()
+
+    # Completed chores (today only is fine)
+    completed_count = ChoreInstance.objects.filter(
+        status=ChoreInstance.COMPLETED,
+        chore__is_active=True,
+        due_at__date=today
+    ).count()
+
+    # Overdue chores (eligible users only)
+    overdue_count = ChoreInstance.objects.filter(
+        status=ChoreInstance.ASSIGNED,
+        chore__is_active=True,
+        assigned_to__eligible_for_points=True,
+        assigned_to__isnull=False,
+        is_overdue=True
+    ).filter(
+        Q(due_at__date=today) |  # Due today but overdue
+        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__gte=far_future)  # No due date (can't be overdue but include for consistency)
+    ).count()
+
+    # Skipped chores count (today only is fine)
     skipped_count = ChoreInstance.objects.filter(due_at__date=today, status=ChoreInstance.SKIPPED).count()
 
     # Points this week
@@ -1266,7 +1308,7 @@ def admin_backup_upload(request):
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
             tables = {row[0] for row in cursor.fetchall()}
 
-            required_tables = {'users_user', 'chores_chore', 'chores_choreinstance', 'core_settings'}
+            required_tables = {'users', 'chores', 'chore_instances', 'settings'}
             missing_tables = required_tables - tables
 
             if missing_tables:

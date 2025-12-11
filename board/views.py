@@ -43,7 +43,7 @@ def main_board(request):
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
     ).select_related('chore').order_by('due_at')
 
-    # Get assigned chores: include chores due today OR overdue from previous days
+    # Get assigned chores: include chores due today, overdue, OR no due date
     # Only include chores assigned to users who are eligible for points (to match what's displayed)
     assigned_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.ASSIGNED,
@@ -51,7 +51,9 @@ def main_board(request):
         assigned_to__eligible_for_points=True,  # Only count chores for eligible users
         assigned_to__isnull=False  # Exclude unassigned chores
     ).filter(
-        Q(due_at__date=today) | Q(due_at__lt=now)  # Due today OR past due
+        Q(due_at__date=today) |  # Due today
+        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
     ).select_related('chore', 'assigned_to').order_by('due_at')
 
     # Feature #8: Group assigned chores by user
@@ -169,13 +171,19 @@ def user_board(request, username):
     now = timezone.now()
     today = now.date()
 
-    # Get chores assigned to this user: include chores due today OR overdue from previous days
+    # Use year > 3000 to avoid overflow errors with year >= 9999
+    from datetime import datetime
+    far_future = timezone.make_aware(datetime(3000, 1, 1))
+
+    # Get chores assigned to this user: include chores due today, overdue, OR no due date
     assigned_chores = ChoreInstance.objects.filter(
         assigned_to=user,
         status__in=[ChoreInstance.ASSIGNED, ChoreInstance.POOL],
         chore__is_active=True
     ).filter(
-        Q(due_at__date=today) | Q(due_at__lt=now)  # Due today OR past due
+        Q(due_at__date=today) |  # Due today
+        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
     ).select_related('chore').order_by('due_at')
 
     # Separate overdue from on-time
@@ -322,12 +330,18 @@ def assigned_minimal(request):
     now = timezone.now()
     today = now.date()
 
-    # Get all assigned chores: include chores due today OR overdue from previous days
+    # Use year > 3000 to avoid overflow errors with year >= 9999
+    from datetime import datetime
+    far_future = timezone.make_aware(datetime(3000, 1, 1))
+
+    # Get all assigned chores: include chores due today, overdue, OR no due date
     assigned_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.ASSIGNED,
         chore__is_active=True
     ).filter(
-        Q(due_at__date=today) | Q(due_at__lt=now)  # Due today OR past due
+        Q(due_at__date=today) |  # Due today
+        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
     ).exclude(status=ChoreInstance.SKIPPED).select_related('chore', 'assigned_to').order_by('due_at')
 
     # Group assigned chores by user
