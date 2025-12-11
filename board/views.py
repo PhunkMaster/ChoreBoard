@@ -30,13 +30,17 @@ def main_board(request):
     # Get all active chore instances for today (excluding skipped)
     # Bug #6 Fix: Filter out instances of inactive chores
     # Include: due today, overdue from past, OR no due date (sentinel date)
+    # Note: Use year > 3000 instead of >= 9999 to avoid overflow errors
+    from datetime import datetime
+    far_future = timezone.make_aware(datetime(3000, 1, 1))
+
     pool_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.POOL,
         chore__is_active=True
     ).filter(
         Q(due_at__date=today) |  # Due today
         Q(due_at__lt=now) |  # Overdue from previous days
-        Q(due_at__year__gte=9999)  # No due date (sentinel date)
+        Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
     ).select_related('chore').order_by('due_at')
 
     # Get assigned chores: include chores due today OR overdue from previous days
@@ -54,12 +58,18 @@ def main_board(request):
     from collections import defaultdict
     chores_by_user = defaultdict(lambda: {'overdue': [], 'ontime': []})
 
+    # Also collect stats during iteration
+    overdue_assigned = []
+    ontime_assigned = []
+
     for chore in assigned_chores:
         user = chore.assigned_to
         if chore.is_overdue:
             chores_by_user[user]['overdue'].append(chore)
+            overdue_assigned.append(chore)
         else:
             chores_by_user[user]['ontime'].append(chore)
+            ontime_assigned.append(chore)
 
     # Convert to list of dicts for template
     assigned_by_user = [
@@ -75,12 +85,8 @@ def main_board(request):
     # Sort by user name
     assigned_by_user.sort(key=lambda x: x['user'].first_name or x['user'].username)
 
-    # Stats - count only what's actually displayed (using queryset filters)
-    overdue_assigned = assigned_chores.filter(is_overdue=True)
-    ontime_assigned = assigned_chores.filter(is_overdue=False)
-
     # Calculate total assigned (for stat card)
-    total_assigned_count = assigned_chores.count()
+    total_assigned_count = len(overdue_assigned) + len(ontime_assigned)
 
     # Get all users for the user selector (only those eligible for points)
     users = User.objects.filter(
@@ -126,13 +132,17 @@ def pool_only(request):
     now = timezone.now()
     today = now.date()
 
+    # Use year > 3000 to avoid overflow errors with year >= 9999
+    from datetime import datetime
+    far_future = timezone.make_aware(datetime(3000, 1, 1))
+
     pool_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.POOL,
         chore__is_active=True
     ).filter(
         Q(due_at__date=today) |  # Due today
         Q(due_at__lt=now) |  # Overdue from previous days
-        Q(due_at__year__gte=9999)  # No due date (sentinel date)
+        Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
     ).select_related('chore').order_by('due_at')
 
     # Get all users for the user selector (only those eligible for points)
@@ -265,13 +275,17 @@ def pool_minimal(request):
     today = now.date()
 
     # Get all pool chores for today
+    # Use year > 3000 to avoid overflow errors with year >= 9999
+    from datetime import datetime
+    far_future = timezone.make_aware(datetime(3000, 1, 1))
+
     pool_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.POOL,
         chore__is_active=True
     ).filter(
         Q(due_at__date=today) |  # Due today
         Q(due_at__lt=now) |  # Overdue from previous days
-        Q(due_at__year__gte=9999)  # No due date (sentinel date)
+        Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
     ).select_related('chore').order_by('due_at')
 
     # Check for any active arcade session (kiosk-mode compatible)
