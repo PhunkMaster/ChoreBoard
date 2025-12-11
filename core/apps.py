@@ -18,6 +18,9 @@ class CoreConfig(AppConfig):
         # Configure SQLite for better concurrency
         self._configure_sqlite()
 
+        # Warn about SQLite concurrency limitations
+        self._warn_sqlite_limitations()
+
         # Don't start scheduler during migrations, tests, or specific management commands
         skip_commands = [
             'migrate', 'makemigrations', 'test', 'collectstatic',
@@ -81,3 +84,42 @@ class CoreConfig(AppConfig):
             logger.info(f"✓ Queued restore executed: {message}")
         elif message != "No restore queued":
             logger.error(f"✗ Restore failed: {message}")
+
+    def _warn_sqlite_limitations(self):
+        """Warn users about SQLite concurrency limitations in production."""
+        from django.conf import settings
+        import logging
+        import sys
+        logger = logging.getLogger(__name__)
+
+        # Only warn during runserver, not during management commands
+        if len(sys.argv) > 1 and sys.argv[1] not in ['runserver']:
+            return
+
+        db_engine = settings.DATABASES['default']['ENGINE']
+        if 'sqlite' in db_engine.lower():
+            # Check if DEBUG mode (likely development)
+            if settings.DEBUG:
+                logger.info("ℹ️  Using SQLite database (development mode)")
+            else:
+                # Production mode with SQLite - issue warning
+                logger.warning("")
+                logger.warning("=" * 80)
+                logger.warning("⚠️  WARNING: SQLite detected in production mode")
+                logger.warning("=" * 80)
+                logger.warning("")
+                logger.warning("SQLite has limited concurrency support and is NOT recommended for")
+                logger.warning("production deployments with 3+ concurrent users.")
+                logger.warning("")
+                logger.warning("Potential issues:")
+                logger.warning("  • Database lock errors under concurrent access")
+                logger.warning("  • Race conditions when claiming/completing chores")
+                logger.warning("  • Data integrity problems with simultaneous operations")
+                logger.warning("")
+                logger.warning("For production with multiple users, use PostgreSQL:")
+                logger.warning("  • See README.md 'Database Recommendations' section")
+                logger.warning("  • Update DATABASES in settings.py")
+                logger.warning("  • Run: python manage.py migrate")
+                logger.warning("")
+                logger.warning("=" * 80)
+                logger.warning("")

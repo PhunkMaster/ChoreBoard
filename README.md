@@ -321,12 +321,56 @@ ChoreBoard is feature-complete and production-ready!
 
 ---
 
+## ⚠️ Database Recommendations
+
+**For Development & Single User:**
+- ✅ SQLite (included, no setup required)
+- Perfect for testing, personal use, or households with 1-2 users
+
+**For Production & Multiple Users:**
+- ⚠️ **SQLite has concurrency limitations** - Not recommended for production with 3+ concurrent users
+- ✅ **Use PostgreSQL** for multi-user production deployments
+- PostgreSQL provides proper database locking and handles concurrent claims/completions safely
+
+**Why PostgreSQL for production?**
+
+ChoreBoard uses database-level row locking (`select_for_update()`) to prevent race conditions when multiple users:
+- Claim the same pool chore simultaneously
+- Complete chores at the same time
+- Access the weekly snapshot feature concurrently
+
+SQLite's limited concurrency support means these protections may not work correctly with multiple simultaneous users, potentially causing:
+- Database lock errors ("database table is locked")
+- Duplicate claims or completions
+- Data integrity issues
+
+**Production Setup:**
+
+For production deployments with multiple users, use PostgreSQL:
+1. Install PostgreSQL
+2. Update `DATABASES` in `ChoreBoard/settings.py`:
+   ```python
+   DATABASES = {
+       'default': {
+           'ENGINE': 'django.db.backends.postgresql',
+           'NAME': 'choreboard',
+           'USER': 'your_db_user',
+           'PASSWORD': 'your_db_password',
+           'HOST': 'localhost',
+           'PORT': '5432',
+       }
+   }
+   ```
+3. Run migrations: `python manage.py migrate`
+
+---
+
 ## 🛠️ Technical Details
 
 **Built with:**
 
 - Python 3.11+ & Django 4.2
-- SQLite database (portable, no setup required)
+- SQLite database (development/single-user) or PostgreSQL (production/multi-user)
 - Tailwind CSS for beautiful, responsive UI
 - REST API with HMAC authentication
 - APScheduler for automated jobs
@@ -336,6 +380,7 @@ ChoreBoard is feature-complete and production-ready!
 - Python 3.11 or higher
 - ~50 MB disk space
 - Works on Windows, Mac, and Linux
+- PostgreSQL recommended for production with 3+ concurrent users
 
 ---
 

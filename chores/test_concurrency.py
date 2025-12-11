@@ -3,8 +3,8 @@ Concurrency tests for race conditions with database locking.
 
 Tests Task 7.6: Concurrent operations with select_for_update()
 
-NOTE: These tests are skipped in CI because SQLite doesn't support true
-concurrent writes. They are designed for PostgreSQL or other databases
+NOTE: These tests are automatically skipped when using SQLite because it doesn't
+support true concurrent writes. They are designed for PostgreSQL or other databases
 that support real concurrency.
 """
 import os
@@ -12,6 +12,7 @@ import unittest
 import threading
 import time
 from decimal import Decimal
+from django.conf import settings
 from django.test import TestCase, TransactionTestCase
 from django.db import transaction
 from django.utils import timezone
@@ -24,9 +25,15 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 from api.auth import HMACAuthentication
 
 
+def is_sqlite():
+    """Check if the current database is SQLite."""
+    db_engine = settings.DATABASES['default']['ENGINE']
+    return 'sqlite' in db_engine.lower()
+
+
 @unittest.skipIf(
-    os.getenv('CI') == 'true',
-    'Skipped in CI: SQLite does not support true concurrent writes'
+    os.getenv('CI') == 'true' or is_sqlite(),
+    'Skipped: SQLite does not support true concurrent writes'
 )
 class ConcurrentClaimTests(TransactionTestCase):
     """
@@ -167,8 +174,8 @@ class ConcurrentClaimTests(TransactionTestCase):
 
 
 @unittest.skipIf(
-    os.getenv('CI') == 'true',
-    'Skipped in CI: SQLite does not support true concurrent writes'
+    os.getenv('CI') == 'true' or is_sqlite(),
+    'Skipped: SQLite does not support true concurrent writes'
 )
 class ConcurrentCompletionTests(TransactionTestCase):
     """Test concurrent completion operations."""
@@ -298,8 +305,8 @@ class ConcurrentCompletionTests(TransactionTestCase):
 
 
 @unittest.skipIf(
-    os.getenv('CI') == 'true',
-    'Skipped in CI: SQLite does not support true concurrent writes'
+    os.getenv('CI') == 'true' or is_sqlite(),
+    'Skipped: SQLite does not support true concurrent writes'
 )
 class ConcurrentClaimAndCompleteTests(TransactionTestCase):
     """Test concurrent claim and complete operations on the same chore."""
@@ -395,8 +402,8 @@ class ConcurrentClaimAndCompleteTests(TransactionTestCase):
 
 
 @unittest.skipIf(
-    os.getenv('CI') == 'true',
-    'Skipped in CI: SQLite does not support true concurrent writes'
+    os.getenv('CI') == 'true' or is_sqlite(),
+    'Skipped: SQLite does not support true concurrent writes'
 )
 class HighLoadConcurrencyTests(TransactionTestCase):
     """Test high-load concurrent access scenarios."""
@@ -490,8 +497,8 @@ class HighLoadConcurrencyTests(TransactionTestCase):
 
 
 @unittest.skipIf(
-    os.getenv('CI') == 'true',
-    'Skipped in CI: SQLite does not support true concurrent writes'
+    os.getenv('CI') == 'true' or is_sqlite(),
+    'Skipped: SQLite does not support true concurrent writes'
 )
 class DatabaseDeadlockTests(TransactionTestCase):
     """Test scenarios that could potentially cause database deadlocks."""
