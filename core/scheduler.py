@@ -28,16 +28,32 @@ def start_scheduler():
 
     # Add jobs
     from core.jobs import midnight_evaluation, distribution_check, weekly_snapshot_job
+    import os
 
-    # Midnight evaluation (00:00 daily in America/Chicago timezone)
-    scheduler.add_job(
-        midnight_evaluation,
-        trigger=CronTrigger(hour=0, minute=0, timezone="America/Chicago"),
-        id="midnight_evaluation",
-        max_instances=1,
-        replace_existing=True,
-        name="Midnight Evaluation - Create instances and mark overdue"
-    )
+    # Midnight evaluation
+    # TESTING: Set MIDNIGHT_TEST_MODE=true to run every minute instead of at midnight
+    test_mode = os.getenv('MIDNIGHT_TEST_MODE', 'false').lower() == 'true'
+
+    if test_mode:
+        logger.warning("⚠️  MIDNIGHT_TEST_MODE enabled - running every minute!")
+        scheduler.add_job(
+            midnight_evaluation,
+            trigger=CronTrigger(minute='*', timezone="America/Chicago"),
+            id="midnight_evaluation",
+            max_instances=1,
+            replace_existing=True,
+            name="Midnight Evaluation - Create instances and mark overdue (TEST MODE)"
+        )
+    else:
+        # Normal: Run at 00:00 daily in America/Chicago timezone
+        scheduler.add_job(
+            midnight_evaluation,
+            trigger=CronTrigger(hour=0, minute=0, timezone="America/Chicago"),
+            id="midnight_evaluation",
+            max_instances=1,
+            replace_existing=True,
+            name="Midnight Evaluation - Create instances and mark overdue"
+        )
 
     # Distribution check (every 5 minutes)
     scheduler.add_job(

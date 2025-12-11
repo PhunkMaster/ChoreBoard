@@ -253,13 +253,32 @@ def evaluate_rrule(rrule_json, check_date, chore_created_date):
 
     # Optional: byweekday (specific weekdays)
     if 'byweekday' in rrule_json:
-        # Map indices to rrule weekday constants
-        weekday_map = [
+        # Map indices or string codes to rrule weekday constants
+        weekday_map_by_index = [
             rrule.MO, rrule.TU, rrule.WE, rrule.TH,
             rrule.FR, rrule.SA, rrule.SU
         ]
-        byweekday = [weekday_map[i] for i in rrule_json['byweekday']]
-        rule_params['byweekday'] = byweekday
+        weekday_map_by_name = {
+            'MO': rrule.MO, 'TU': rrule.TU, 'WE': rrule.WE, 'TH': rrule.TH,
+            'FR': rrule.FR, 'SA': rrule.SA, 'SU': rrule.SU
+        }
+
+        byweekday = []
+        for item in rrule_json['byweekday']:
+            if isinstance(item, int):
+                # Integer index (0-6)
+                byweekday.append(weekday_map_by_index[item])
+            elif isinstance(item, str):
+                # String code ('MO', 'TU', etc.)
+                if item in weekday_map_by_name:
+                    byweekday.append(weekday_map_by_name[item])
+                else:
+                    logger.warning(f"Unknown weekday code: {item}")
+            else:
+                logger.warning(f"Invalid weekday format: {item} (type: {type(item)})")
+
+        if byweekday:
+            rule_params['byweekday'] = byweekday
 
     # Optional: bymonthday (specific days of month)
     if 'bymonthday' in rrule_json:
