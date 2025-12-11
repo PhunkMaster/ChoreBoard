@@ -642,3 +642,35 @@ class ArcadeHighScore(models.Model):
             return f"{hours}:{minutes:02d}:{secs:02d}"
         else:
             return f"{minutes}:{secs:02d}"
+
+
+class PianoScore(models.Model):
+    """Records piano game high scores (separate from arcade)."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='piano_scores'
+    )
+    score = models.IntegerField(
+        validators=[MinValueValidator(0), MaxValueValidator(999999)],
+        help_text="Number of tiles successfully hit"
+    )
+    hard_mode = models.BooleanField(
+        default=False,
+        help_text="Was this score achieved in hard mode?"
+    )
+    achieved_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'piano_scores'
+        ordering = ['-score', 'achieved_at']
+        indexes = [
+            models.Index(fields=['-score', 'achieved_at']),
+            models.Index(fields=['user', '-score']),
+            models.Index(fields=['hard_mode', '-score']),
+        ]
+
+    def __str__(self):
+        mode = " (Hard)" if self.hard_mode else ""
+        return f"{self.user.get_display_name()}: {self.score}{mode}"

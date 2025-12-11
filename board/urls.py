@@ -7,6 +7,7 @@ from board import views_weekly
 from board import views_admin
 from board import views_auth
 from board import views_arcade
+from board import views_piano
 
 app_name = 'board'
 
@@ -103,4 +104,8 @@ urlpatterns = [
     path('arcade/judge-approval/minimal/', views_arcade.judge_approval_minimal, name='arcade_judge_approval_minimal'),
     path('user-profile/<str:username>/', views_arcade.user_profile, name='user_profile'),
     path('api/arcade/high-score/<int:chore_id>/', views_arcade.get_high_score, name='arcade_high_score'),
+    # Piano Game Easter Egg
+    path('piano/play/', views_piano.piano_game, name='piano_game'),
+    path('piano/leaderboard/', views_piano.piano_leaderboard, name='piano_leaderboard'),
+    path('piano/submit/', views_piano.submit_piano_score, name='piano_submit_score'),
 ]

@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.utils.safestring import mark_safe
 from .models import (
     Chore, ChoreEligibility, ChoreDependency, ChoreInstance,
-    Completion, CompletionShare, PointsLedger
+    Completion, CompletionShare, PointsLedger, PianoScore
 )
 
 
@@ -615,3 +615,13 @@ class PointsLedgerAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         """Ledger entries are immutable and cannot be deleted."""
         return False
+
+
+@admin.register(PianoScore)
+class PianoScoreAdmin(admin.ModelAdmin):
+    """Admin interface for PianoScore model."""
+    list_display = ('user', 'score', 'hard_mode', 'achieved_at')
+    list_filter = ('hard_mode', 'achieved_at')
+    search_fields = ('user__username', 'user__first_name', 'user__last_name')
+    readonly_fields = ('achieved_at',)
+    date_hierarchy = 'achieved_at'
