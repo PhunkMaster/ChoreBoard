@@ -1,4 +1,21 @@
-"""Comprehensive test script for all models."""
+"""
+DEBUG SCRIPT: Manual Model Inspection
+
+Purpose: Manually inspects all Django models in the ChoreBoard application
+         to verify database connectivity and basic model functionality.
+
+Usage: python debug/manual_model_inspection.py
+
+This script connects to the production database and displays:
+- User counts and examples
+- Chore counts and examples
+- ChoreInstance statistics
+- Completion records
+- Settings values
+- Weekly snapshots, streaks, action logs, and evaluation logs
+
+Useful for: Quick database health checks and data verification
+"""
 import os
 import sys
 import django
