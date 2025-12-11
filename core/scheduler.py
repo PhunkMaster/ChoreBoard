@@ -19,8 +19,12 @@ scheduler.add_jobstore(DjangoJobStore(), "default")
 def start_scheduler():
     """Start the APScheduler."""
     if scheduler.running:
-        logger.info("Scheduler already running")
+        logger.info("✓ Scheduler already running")
         return
+
+    logger.info("=" * 60)
+    logger.info("STARTING APSCHEDULER")
+    logger.info("=" * 60)
 
     # Add jobs
     from core.jobs import midnight_evaluation, distribution_check, weekly_snapshot_job
@@ -57,10 +61,15 @@ def start_scheduler():
 
     # Start scheduler
     scheduler.start()
-    logger.info("Scheduler started successfully")
+    logger.info("✓ Scheduler started successfully")
+    logger.info("")
     logger.info("Registered jobs:")
     for job in scheduler.get_jobs():
-        logger.info(f"  - {job.name} (ID: {job.id})")
+        logger.info(f"  - {job.name}")
+        logger.info(f"    ID: {job.id}")
+        logger.info(f"    Next run: {job.next_run_time}")
+        logger.info("")
+    logger.info("=" * 60)
 
 
 def stop_scheduler():
