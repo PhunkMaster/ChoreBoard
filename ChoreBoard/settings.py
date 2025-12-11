@@ -56,6 +56,7 @@ _MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",  # Add WhiteNoise for static files
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",  # CSRF protection for forms
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
 ]
