@@ -94,18 +94,18 @@
             {% endif %}
 
             <!-- Action Buttons -->
-            <div class="flex gap-2 mt-auto">
+            <div class="flex flex-col sm:flex-row gap-2 mt-auto">
                 <button onclick="openClaimDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }})"
-                        class="flex-1 px-4 py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        class="flex-1 min-w-0 px-2 sm:px-4 py-2 sm:py-3 bg-primary-600 hover:bg-primary-700 text-white text-sm sm:text-base font-semibold rounded-lg transition focus:outline-none focus:ring-2 focus:ring-primary-500">
                     Claim
                 </button>
                 <button onclick="openArcadeStartDialog({{ instance.id }}, '{{ instance.chore.name }}')"
-                        class="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-lg transition focus:outline-none focus:ring-2 focus:ring-purple-500 flex items-center justify-center space-x-1">
+                        class="flex-1 min-w-0 px-2 sm:px-4 py-2 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-sm sm:text-base font-semibold rounded-lg transition focus:outline-none focus:ring-2 focus:ring-purple-500 flex items-center justify-center space-x-1">
                     <span>🎮</span>
-                    <span>Arcade</span>
+                    <span class="truncate">Arcade</span>
                 </button>
                 <button onclick="openCompleteDialog({{ instance.id }}, '{{ instance.chore.name }}', {{ instance.points_value }})"
-                        class="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition focus:outline-none focus:ring-2 focus:ring-green-500">
+                        class="flex-1 min-w-0 px-2 sm:px-4 py-2 sm:py-3 bg-green-600 hover:bg-green-700 text-white text-sm sm:text-base font-semibold rounded-lg transition focus:outline-none focus:ring-2 focus:ring-green-500">
                     Complete
                 </button>
             </div>
