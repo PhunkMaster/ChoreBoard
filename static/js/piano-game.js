@@ -1,44 +1,58 @@
 /**
- * Piano Tiles Game
- * Adapted from https://hyonktea.xyz/piano.html
+ * Piano Tiles Game - New Implementation
+ * Based on hyonktea.xyz/piano.html mechanics
  * Integrated into ChoreBoard arcade system
  */
 
 class PianoGame {
     constructor(canvasId) {
-        console.log('PianoGame constructor called with canvas ID:', canvasId);
+        console.log('PianoGame constructor called');
         this.canvas = document.getElementById(canvasId);
 
         if (!this.canvas) {
-            console.error('Canvas element not found with ID:', canvasId);
+            console.error('Canvas element not found');
             throw new Error('Canvas element not found');
         }
 
-        console.log('Canvas element found:', this.canvas);
+        // Set canvas to 80% of window height
+        this.canvas.height = Math.floor(window.innerHeight * 0.8);
+        console.log('Canvas height set to:', this.canvas.height);
+
         this.ctx = this.canvas.getContext('2d');
 
         if (!this.ctx) {
-            console.error('Could not get 2D context from canvas');
+            console.error('Could not get 2D context');
             throw new Error('Could not get 2D context');
         }
 
-        console.log('Canvas context obtained successfully');
+        // Game constants
+        this.lanes = 4; // Q, W, O, P
+        this.laneWidth = this.canvas.width / this.lanes;
+        this.tileHeight = Math.floor(this.canvas.height * 0.1); // 10% of canvas height
+
+        // Speed constants
+        this.BASE_TPS = 2.0;
+        this.MAX_TPS = 10.2;
+        this.EXTRA_TPS = this.MAX_TPS - this.BASE_TPS; // ~8.2
+        this.SPEED_TAU = 250;
 
         // Game state
         this.gameState = 'READY'; // READY, PLAYING, GAME_OVER
         this.score = 0;
+        this.hits = 0; // successful hits for speed calculation
         this.hardMode = false;
+        this.currentTPS = this.BASE_TPS;
 
-        // Tile configuration
-        this.lanes = 4; // Q, W, O, P
-        this.laneWidth = this.canvas.width / this.lanes;
+        // Tiles array
         this.tiles = [];
-        this.tileHeight = 100;
 
-        // Speed progression: 2.0 → 10.2 tiles/sec
-        this.baseSpeed = 2.0;
-        this.maxSpeed = 10.2;
-        this.currentSpeed = this.baseSpeed;
+        // Last lane for jack probability
+        this.lastLane = -1;
+
+        // Pattern state
+        this.currentPattern = null;
+        this.patternIndex = 0;
+        this.lastPatternGroup = null;
 
         // Input mapping
         this.keyMap = {
@@ -48,23 +62,71 @@ class PianoGame {
             'p': 3, 'P': 3
         };
 
-        // Hard mode patterns (choreographed sequences)
-        this.hardModePatterns = [
-            [0, 1, 2, 3], // All lanes
-            [0, 2, 0, 2], // Left-right alternating
-            [1, 3, 1, 3], // Inner lanes alternating
-            [0, 0, 1, 1, 2, 2, 3, 3], // Doubles
-            [0, 1, 2, 3, 3, 2, 1, 0], // Wave
-            [1, 2, 1, 2], // Center stairs
-            [0, 3, 0, 3], // Outer lanes
-            [1, 1, 2, 2, 3, 3], // Progressive doubles
-        ];
-        this.currentPattern = null;
-        this.patternIndex = 0;
+        // Hard mode pattern groups
+        this.PATTERN_GROUPS = {
+            stairs: [
+                [0,1,2,3], [3,2,1,0],
+                [0,1,2,3,2,1,0],
+                [1,2,3,2,1],
+            ],
+            trills: [
+                [0,1,0], [1,0,1],
+                [2,3,2], [3,2,3],
+            ],
+            runningMan: [
+                [0,1,0,2,0,3,0,2,0,1,0,2,0,3,0,2,0,1],
+                [3,2,3,1,3,0,3,1,3,2,3,1,3,0,3,1],
+            ],
+            rolls: [
+                [0,1,2,3],
+                [1,2,3,0],
+                [2,3,0,1],
+                [3,0,1,2],
+            ],
+            circles: [
+                [1,0,2,3,0,1,3,2],
+                [2,3,1,0,3,2,0,1],
+            ],
+            diamonds: [
+                [1,3,0,2],
+                [2,0,3,1],
+                [1,3,0,2,2,0,3,1],
+                [1,3,0,2,1,3,0,2],
+                [2,0,3,1,2,0,3,1],
+            ],
+            gallops: [
+                [2,3,1,2,0,1,3,0],
+                [1,2,0,1,3,0,2,3],
+                [0,1,3,0,2,3,1,2],
+                [3,0,2,3,1,2,0,1],
+                [0,3,1,0,2,1,3,2],
+                [1,0,2,1,3,2,0,3],
+                [2,1,3,2,0,3,1,0],
+                [3,2,0,3,1,0,2,1],
+            ],
+            twohandtrills: [
+                [0,2,0], [2,0,2],
+                [1,3,1], [3,1,3],
+                [0,3,0], [3,0,3],
+            ],
+            stackshifts: [
+                [0,1,2,0,1,3,0,2,3,1,2,3],
+                [3,2,1,3,2,0,3,1,0,2,1,0]
+            ],
+            rhombusman: [
+                [0,1,0,2,0,3,1,3,2,3],
+                [3,2,3,1,3,0,2,0,1,0]
+            ],
+            jack: [
+                [0,0], [0,0,0], [0,0,0,0],
+                [1,1], [1,1,1], [1,1,1,1],
+                [2,2], [2,2,2], [2,2,2,2],
+                [3,3], [3,3,3], [3,3,3,3]
+            ]
+        };
 
         // Animation
         this.lastFrameTime = 0;
-        this.lastSpawnTime = 0;
         this.animationId = null;
 
         this.init();
@@ -73,16 +135,12 @@ class PianoGame {
     init() {
         console.log('Initializing game...');
         this.setupInputHandlers();
-        console.log('Input handlers setup complete');
         this.drawWelcomeScreen();
-        console.log('Welcome screen drawn');
+        console.log('Game ready');
     }
 
     drawWelcomeScreen() {
-        console.log('Drawing welcome screen...');
-        console.log('Canvas size:', this.canvas.width, 'x', this.canvas.height);
-
-        // Draw lanes
+        // Clear canvas
         this.ctx.fillStyle = '#000';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -97,8 +155,8 @@ class PianoGame {
             this.ctx.stroke();
         }
 
-        // Draw "Press any key to start" text
-        this.ctx.fillStyle = '#38bdf8'; // primary-400
+        // Draw welcome text
+        this.ctx.fillStyle = '#38bdf8';
         this.ctx.font = 'bold 24px Arial';
         this.ctx.textAlign = 'center';
         this.ctx.fillText('Press any key or tap to start', this.canvas.width / 2, this.canvas.height / 2);
@@ -108,7 +166,7 @@ class PianoGame {
         const labels = ['Q', 'W', 'O', 'P'];
         labels.forEach((label, i) => {
             const x = (i + 0.5) * this.laneWidth;
-            this.ctx.fillText(label, x, this.canvas.height - 50);
+            this.ctx.fillText(label, x, this.canvas.height - 30);
         });
     }
 
@@ -151,26 +209,135 @@ class PianoGame {
 
         // Hard mode toggle
         const hardModeToggle = document.getElementById('hard-mode-toggle');
-        hardModeToggle.addEventListener('change', (e) => {
-            this.hardMode = e.target.checked;
-        });
+        if (hardModeToggle) {
+            hardModeToggle.addEventListener('change', (e) => {
+                this.hardMode = e.target.checked;
+            });
+        }
     }
 
     startGame() {
+        console.log('Starting game, hard mode:', this.hardMode);
         this.gameState = 'PLAYING';
         this.score = 0;
-        this.currentSpeed = this.baseSpeed;
+        this.hits = 0;
+        this.currentTPS = this.BASE_TPS;
         this.tiles = [];
+        this.lastLane = -1;
         this.currentPattern = null;
         this.patternIndex = 0;
+        this.lastPatternGroup = null;
 
-        // Hide hard mode toggle once game starts
-        document.getElementById('hard-mode-container').style.display = 'none';
+        // Hide hard mode toggle
+        const hardModeContainer = document.getElementById('hard-mode-container');
+        if (hardModeContainer) {
+            hardModeContainer.style.display = 'none';
+        }
+
+        // Spawn initial tiles to fill screen from top, going upward
+        // First tile at top of screen, rest spawn above it
+        let spawnY = 0;
+        while (spawnY > -this.canvas.height - this.tileHeight) {
+            const lane = this.getNextLane();
+            this.tiles.push({
+                lane: lane,
+                y: spawnY,
+                hit: false,
+                hitTime: 0
+            });
+            spawnY -= this.tileHeight; // Next tile spawns above
+        }
+
+        console.log('Initial tiles spawned:', this.tiles.length);
 
         // Start game loop
         this.lastFrameTime = performance.now();
-        this.lastSpawnTime = this.lastFrameTime;
         this.gameLoop(this.lastFrameTime);
+    }
+
+    calculateCurrentTPS() {
+        // Base exponential formula
+        let tps = this.BASE_TPS + this.EXTRA_TPS * (1 - Math.exp(-this.hits / this.SPEED_TAU));
+
+        // Hard mode modifiers
+        if (this.hardMode) {
+            // Double the rate (half TAU)
+            tps = this.BASE_TPS + this.EXTRA_TPS * (1 - Math.exp(-this.hits / (this.SPEED_TAU / 2)));
+
+            // After reaching max, add 0.5 per 50 tiles
+            if (tps >= this.MAX_TPS) {
+                const tilesAfterMax = this.hits - (this.SPEED_TAU / 2) * Math.log(this.EXTRA_TPS / (this.EXTRA_TPS + 0.01));
+                if (tilesAfterMax > 0) {
+                    const bonus = Math.floor(tilesAfterMax / 50) * 0.5;
+                    tps = this.MAX_TPS + bonus;
+                }
+            }
+        } else {
+            // Normal mode caps at MAX_TPS
+            tps = Math.min(tps, this.MAX_TPS);
+        }
+
+        return tps;
+    }
+
+    getNextLane() {
+        // Check if we're in a pattern
+        if (this.currentPattern && this.patternIndex < this.currentPattern.length) {
+            const lane = this.currentPattern[this.patternIndex];
+            this.patternIndex++;
+
+            // Pattern complete
+            if (this.patternIndex >= this.currentPattern.length) {
+                this.currentPattern = null;
+                this.patternIndex = 0;
+            }
+
+            this.lastLane = lane;
+            return lane;
+        }
+
+        // Hard mode: 50% chance to start a new pattern when not in one
+        if (this.hardMode && Math.random() < 0.5) {
+            this.selectNewPattern();
+            if (this.currentPattern) {
+                const lane = this.currentPattern[0];
+                this.patternIndex = 1;
+                this.lastLane = lane;
+                return lane;
+            }
+        }
+
+        // Random selection with 28% jack probability
+        let lane;
+        if (this.lastLane >= 0 && Math.random() < 0.28) {
+            // Jack: same lane
+            lane = this.lastLane;
+        } else {
+            // Random lane
+            lane = Math.floor(Math.random() * this.lanes);
+        }
+
+        this.lastLane = lane;
+        return lane;
+    }
+
+    selectNewPattern() {
+        const groupNames = Object.keys(this.PATTERN_GROUPS);
+        let selectedGroup;
+
+        // Slight bias to repeat last pattern group (60% if last group exists)
+        if (this.lastPatternGroup && Math.random() < 0.6) {
+            selectedGroup = this.lastPatternGroup;
+        } else {
+            selectedGroup = groupNames[Math.floor(Math.random() * groupNames.length)];
+        }
+
+        const patterns = this.PATTERN_GROUPS[selectedGroup];
+        this.currentPattern = patterns[Math.floor(Math.random() * patterns.length)];
+        this.patternIndex = 0;
+        this.lastPatternGroup = selectedGroup;
+
+        console.log('New pattern selected:', selectedGroup, this.currentPattern);
     }
 
     gameLoop(timestamp) {
@@ -179,86 +346,63 @@ class PianoGame {
         const deltaTime = (timestamp - this.lastFrameTime) / 1000; // seconds
         this.lastFrameTime = timestamp;
 
-        // Spawn tiles based on speed
-        const spawnInterval = 1000 / this.currentSpeed; // ms
-        if (timestamp - this.lastSpawnTime >= spawnInterval) {
-            this.spawnTile();
-            this.lastSpawnTime = timestamp;
-        }
+        // Calculate current TPS and scroll speed
+        this.currentTPS = this.calculateCurrentTPS();
+        const scrollSpeed = this.currentTPS * this.tileHeight; // pixels per second
 
-        this.update(deltaTime);
-        this.render();
+        this.update(deltaTime, scrollSpeed);
+        this.render(timestamp);
 
         this.animationId = requestAnimationFrame(this.gameLoop.bind(this));
     }
 
-    spawnTile() {
-        if (this.gameState !== 'PLAYING') return;
-
-        let lane;
-
-        if (this.hardMode && Math.random() < 0.3) {
-            // Use choreographed pattern 30% of the time
-            if (!this.currentPattern || this.patternIndex >= this.currentPattern.length) {
-                // Pick new pattern
-                this.currentPattern = this.hardModePatterns[
-                    Math.floor(Math.random() * this.hardModePatterns.length)
-                ];
-                this.patternIndex = 0;
-            }
-            lane = this.currentPattern[this.patternIndex];
-            this.patternIndex++;
-        } else {
-            // Random lane
-            lane = Math.floor(Math.random() * this.lanes);
-        }
-
-        this.tiles.push({
-            lane: lane,
-            y: -this.tileHeight,
-            hit: false
-        });
-    }
-
-    update(deltaTime) {
-        // Speed progression: exponential curve
-        // Formula: speed = base + (max - base) * (1 - e^(-score / 50))
-        const speedRange = this.maxSpeed - this.baseSpeed;
-        const decayFactor = 50;
-        this.currentSpeed = this.baseSpeed + speedRange * (1 - Math.exp(-this.score / decayFactor));
-
-        const pixelsPerSecond = 150; // Constant visual speed
-
-        // Update tile positions
+    update(deltaTime, scrollSpeed) {
+        // Move all tiles down
         for (let i = this.tiles.length - 1; i >= 0; i--) {
             const tile = this.tiles[i];
+            tile.y += scrollSpeed * deltaTime;
 
-            if (!tile.hit) {
-                tile.y += pixelsPerSecond * deltaTime;
-
-                // Check if tile missed (reached bottom)
-                if (tile.y > this.canvas.height) {
+            // Remove tiles that scrolled off bottom
+            if (tile.y > this.canvas.height + this.tileHeight) {
+                // Check if unhit tile reached bottom (game over)
+                if (!tile.hit) {
+                    console.log('Tile missed! Game over.');
                     this.gameOver();
                     return;
                 }
-            } else {
-                // Continue moving hit tiles
-                tile.y += pixelsPerSecond * deltaTime;
-
-                // Remove hit tiles that are off screen
-                if (tile.y > this.canvas.height + this.tileHeight) {
-                    this.tiles.splice(i, 1);
-                }
+                this.tiles.splice(i, 1);
             }
+        }
+
+        // Find the topmost tile (most negative Y or smallest Y if all positive)
+        let topmostY = Infinity;
+        for (const tile of this.tiles) {
+            if (tile.y < topmostY) {
+                topmostY = tile.y;
+            }
+        }
+
+        // Spawn new tiles above the topmost tile as needed
+        // Keep spawning tiles to maintain a buffer above the screen
+        while (topmostY > -this.canvas.height - this.tileHeight) {
+            const lane = this.getNextLane();
+            const newY = topmostY - this.tileHeight;
+            this.tiles.push({
+                lane: lane,
+                y: newY,
+                hit: false,
+                hitTime: 0
+            });
+            topmostY = newY;
         }
     }
 
-    render() {
+    render(timestamp) {
         // Clear canvas
         this.ctx.fillStyle = '#000';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Draw lanes (alternating colors)
+        // Draw lanes
         for (let i = 0; i < this.lanes; i++) {
             this.ctx.fillStyle = i % 2 === 0 ? '#111' : '#000';
             this.ctx.fillRect(i * this.laneWidth, 0, this.laneWidth, this.canvas.height);
@@ -275,89 +419,77 @@ class PianoGame {
             this.ctx.stroke();
         }
 
-        // Draw hit zone (bottom area)
-        const hitZoneY = this.canvas.height - 150;
-        this.ctx.fillStyle = 'rgba(56, 189, 248, 0.1)'; // primary-400 with transparency
-        this.ctx.fillRect(0, hitZoneY, this.canvas.width, 150);
-
         // Draw tiles
         for (const tile of this.tiles) {
             const x = tile.lane * this.laneWidth;
 
             if (tile.hit) {
-                this.ctx.fillStyle = 'rgba(34, 197, 94, 0.4)'; // green flash (fading)
+                // Flash blue briefly (0.1 seconds)
+                const timeSinceHit = (timestamp - tile.hitTime) / 1000;
+                if (timeSinceHit < 0.1) {
+                    this.ctx.fillStyle = '#3b82f6'; // blue-500
+                    this.ctx.fillRect(x + 2, tile.y, this.laneWidth - 4, this.tileHeight);
+                }
+                // After flash, tile is invisible (will be removed in update)
             } else {
-                // Gradient fill
+                // Draw unhit tile with gradient
                 const gradient = this.ctx.createLinearGradient(x, tile.y, x, tile.y + this.tileHeight);
                 gradient.addColorStop(0, '#8b5cf6'); // purple-500
                 gradient.addColorStop(1, '#6d28d9'); // purple-700
                 this.ctx.fillStyle = gradient;
+                this.ctx.fillRect(x + 2, tile.y, this.laneWidth - 4, this.tileHeight);
             }
-
-            // Draw tile with rounded corners
-            this.roundRect(
-                x + 4,
-                tile.y,
-                this.laneWidth - 8,
-                this.tileHeight,
-                8
-            );
         }
 
         // Update score display
-        document.getElementById('score-display').textContent = this.score;
-    }
-
-    roundRect(x, y, width, height, radius) {
-        this.ctx.beginPath();
-        this.ctx.moveTo(x + radius, y);
-        this.ctx.lineTo(x + width - radius, y);
-        this.ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-        this.ctx.lineTo(x + width, y + height - radius);
-        this.ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-        this.ctx.lineTo(x + radius, y + height);
-        this.ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-        this.ctx.lineTo(x, y + radius);
-        this.ctx.quadraticCurveTo(x, y, x + radius, y);
-        this.ctx.closePath();
-        this.ctx.fill();
+        const scoreDisplay = document.getElementById('score-display');
+        if (scoreDisplay) {
+            scoreDisplay.textContent = this.score;
+        }
     }
 
     hitLane(lane) {
-        // Find the first unhit tile in this lane within hit zone
-        const hitZoneTop = this.canvas.height - 200;
+        // Find the lowest (highest Y value) unhit tile
+        let lowestTile = null;
+        let lowestY = -Infinity;
 
-        for (let i = 0; i < this.tiles.length; i++) {
-            const tile = this.tiles[i];
-
-            if (tile.lane === lane && !tile.hit && tile.y >= hitZoneTop && tile.y <= this.canvas.height) {
-                // Hit!
-                tile.hit = true;
-                this.score++;
-
-                // Visual feedback
-                this.flashLane(lane);
-                return;
+        for (const tile of this.tiles) {
+            if (!tile.hit && tile.y > lowestY && tile.y < this.canvas.height) {
+                lowestTile = tile;
+                lowestY = tile.y;
             }
         }
 
-        // Wrong hit - could add penalty here if desired
-    }
-
-    flashLane(lane) {
-        // Brief visual feedback for successful hit
-        const x = lane * this.laneWidth;
-        this.ctx.fillStyle = 'rgba(34, 197, 94, 0.4)'; // green flash
-        this.ctx.fillRect(x, this.canvas.height - 150, this.laneWidth, 150);
+        // Check if hit the correct tile
+        if (lowestTile && lowestTile.lane === lane) {
+            // Correct hit!
+            lowestTile.hit = true;
+            lowestTile.hitTime = performance.now();
+            this.score++;
+            this.hits++;
+            console.log('Hit! Score:', this.score, 'TPS:', this.currentTPS.toFixed(2));
+        } else {
+            // Wrong lane or no tile - game over
+            console.log('Wrong hit! Expected lane:', lowestTile ? lowestTile.lane : 'none', 'Got:', lane);
+            this.gameOver();
+        }
     }
 
     gameOver() {
+        console.log('Game over! Final score:', this.score);
         this.gameState = 'GAME_OVER';
         cancelAnimationFrame(this.animationId);
 
         // Show game over screen
-        document.getElementById('final-score').textContent = this.score;
-        document.getElementById('game-over-screen').classList.remove('hidden');
+        const finalScoreEl = document.getElementById('final-score');
+        const gameOverScreen = document.getElementById('game-over-screen');
+
+        if (finalScoreEl) {
+            finalScoreEl.textContent = this.score;
+        }
+        if (gameOverScreen) {
+            gameOverScreen.classList.remove('hidden');
+        }
     }
 
     submitScore(userId) {
@@ -426,7 +558,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (playAgainBtn) {
         playAgainBtn.addEventListener('click', function() {
             document.getElementById('game-over-screen').classList.add('hidden');
-            document.getElementById('hard-mode-container').style.display = 'block';
+            const hardModeContainer = document.getElementById('hard-mode-container');
+            if (hardModeContainer) {
+                hardModeContainer.style.display = 'block';
+            }
             game.drawWelcomeScreen();
             game.gameState = 'READY';
         });
