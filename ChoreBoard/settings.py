@@ -160,6 +160,14 @@ REST_FRAMEWORK = {
     ],
 }
 
+# CSRF Configuration
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF cookie
+CSRF_COOKIE_SAMESITE = 'Lax'  # Less strict for local development
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
+
 # APScheduler Configuration
 APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
 APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Seconds
