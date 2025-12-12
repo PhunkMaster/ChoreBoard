@@ -75,11 +75,10 @@ class ChildChoreSchedulingTests(TestCase):
         # Run midnight evaluation
         midnight_evaluation()
 
-        # Check what instances were created (midnight eval creates instances with due_at = tomorrow)
-        tomorrow = today + timedelta(days=1)
-        parent_instances = ChoreInstance.objects.filter(chore=self.parent_chore, due_at__date=tomorrow)
-        child_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=tomorrow)
-        standalone_instances = ChoreInstance.objects.filter(chore=self.standalone_chore, due_at__date=tomorrow)
+        # Check what instances were created (midnight eval creates instances with due_at = today)
+        parent_instances = ChoreInstance.objects.filter(chore=self.parent_chore, due_at__date=today)
+        child_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=today)
+        standalone_instances = ChoreInstance.objects.filter(chore=self.standalone_chore, due_at__date=today)
 
         # Parent and standalone should have instances
         self.assertEqual(parent_instances.count(), 1, "Parent chore should have an instance")
@@ -99,8 +98,7 @@ class ChildChoreSchedulingTests(TestCase):
 
         # But when we run midnight_evaluation, it should be skipped
         midnight_evaluation()
-        tomorrow = today + timedelta(days=1)
-        child_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=tomorrow)
+        child_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=today)
         self.assertEqual(child_instances.count(), 0, "Scheduler skips child chores despite True return")
 
     def test_child_chore_only_spawns_from_parent_completion(self):
@@ -176,16 +174,15 @@ class ChildChoreSchedulingTests(TestCase):
         # Run midnight evaluation
         midnight_evaluation()
 
-        # Neither child should have instances (midnight eval creates instances with due_at = tomorrow)
-        tomorrow = today + timedelta(days=1)
-        child1_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=tomorrow)
-        child2_instances = ChoreInstance.objects.filter(chore=child_chore2, due_at__date=tomorrow)
+        # Neither child should have instances (midnight eval creates instances with due_at = today)
+        child1_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=today)
+        child2_instances = ChoreInstance.objects.filter(chore=child_chore2, due_at__date=today)
 
         self.assertEqual(child1_instances.count(), 0, "First child should not be scheduled")
         self.assertEqual(child2_instances.count(), 0, "Second child should not be scheduled")
 
         # Only parent and standalone should have instances
-        total_instances = ChoreInstance.objects.filter(due_at__date=tomorrow).count()
+        total_instances = ChoreInstance.objects.filter(due_at__date=today).count()
         self.assertEqual(total_instances, 2, "Only parent and standalone should be scheduled")
 
     def test_child_chore_with_weekly_schedule_not_created_on_weekday(self):
@@ -201,8 +198,7 @@ class ChildChoreSchedulingTests(TestCase):
 
         midnight_evaluation()
 
-        tomorrow = today + timedelta(days=1)
-        child_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=tomorrow)
+        child_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=today)
         self.assertEqual(child_instances.count(), 0, "Child with weekly schedule still not scheduled")
 
     def test_child_of_child_not_scheduled(self):
@@ -229,12 +225,11 @@ class ChildChoreSchedulingTests(TestCase):
         # Run midnight evaluation
         midnight_evaluation()
 
-        # Only parent and standalone should be created (midnight eval creates instances with due_at = tomorrow)
-        tomorrow = today + timedelta(days=1)
-        parent_count = ChoreInstance.objects.filter(chore=self.parent_chore, due_at__date=tomorrow).count()
-        child_count = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=tomorrow).count()
-        grandchild_count = ChoreInstance.objects.filter(chore=grandchild_chore, due_at__date=tomorrow).count()
-        standalone_count = ChoreInstance.objects.filter(chore=self.standalone_chore, due_at__date=tomorrow).count()
+        # Only parent and standalone should be created (midnight eval creates instances with due_at = today)
+        parent_count = ChoreInstance.objects.filter(chore=self.parent_chore, due_at__date=today).count()
+        child_count = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=today).count()
+        grandchild_count = ChoreInstance.objects.filter(chore=grandchild_chore, due_at__date=today).count()
+        standalone_count = ChoreInstance.objects.filter(chore=self.standalone_chore, due_at__date=today).count()
 
         self.assertEqual(parent_count, 1, "Parent should be scheduled")
         self.assertEqual(child_count, 0, "Child should not be scheduled")

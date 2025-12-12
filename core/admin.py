@@ -428,7 +428,7 @@ class BackupAdmin(admin.ModelAdmin):
     list_filter = ["is_manual", "created_at"]
     search_fields = ["filename", "notes"]
     readonly_fields = ["filename", "file_path", "file_size_bytes", "created_at", "created_by"]
-    actions = ['create_new_backup', 'delete_selected_backups']
+    actions = ['create_new_backup', 'create_selective_backup', 'delete_selected_backups']
 
     fieldsets = (
         ("Backup Info", {
@@ -523,4 +523,42 @@ class BackupAdmin(admin.ModelAdmin):
 
         if error_count > 0:
             messages.warning(request, f"Could not delete {error_count} backup(s): {', '.join(errors)}")
+
+    @admin.action(description="🧹 Create selective backup (clean database, exclude invalid instances)")
+    def create_selective_backup(self, request, queryset):
+        """Create a selective backup SQLite database that excludes invalid chore instances."""
+        from django.contrib import messages
+        from django.core.management import call_command
+        from io import StringIO
+        from datetime import datetime
+
+        output = StringIO()
+        try:
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f'selective_backup_{timestamp}.sqlite3'
+
+            # Create selective backup
+            call_command(
+                'selective_backup',
+                '--exclude-instances',
+                f'--output={filename}',
+                stdout=output
+            )
+
+            result = output.getvalue()
+            messages.success(
+                request,
+                f"Selective backup created successfully! File: {filename}\n\n"
+                f"This is a clean SQLite database with configuration data but no invalid instances.\n\n"
+                f"To restore:\n"
+                f"1. Stop the Django server\n"
+                f"2. Replace db.sqlite3 with {filename}\n"
+                f"3. Start the Django server\n\n"
+                f"Or upload it via Board Admin → Backups and use the regular restore process.\n\n"
+                f"{result}"
+            )
+
+        except Exception as e:
+            messages.error(request, f"Selective backup failed: {str(e)}")
 

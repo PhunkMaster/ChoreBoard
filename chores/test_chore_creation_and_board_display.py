@@ -122,9 +122,9 @@ class MidnightEvaluationCreatesInstancesTests(TestCase):
         self.assertEqual(instance.status, ChoreInstance.POOL)
         self.assertEqual(instance.points_value, chore.points)
         self.assertEqual(instance.chore, chore)
-        # Due at should be tomorrow (signal creates instances with due_at = tomorrow at 00:00)
-        tomorrow = timezone.now().date() + timezone.timedelta(days=1)
-        self.assertEqual(instance.due_at.date(), tomorrow, "Signal creates instances with due_at = tomorrow")
+        # Due at should be today (signal creates instances with due_at = today at 23:59:59)
+        today = timezone.now().date()
+        self.assertEqual(instance.due_at.date(), today, "Signal creates instances with due_at = today")
 
     def test_new_weekly_chore_creates_instance_on_correct_day(self):
         """Test that a newly created weekly chore generates instance on the correct weekday."""
@@ -372,11 +372,11 @@ class EndToEndChoreCreationTests(TestCase):
         )
 
         # Step 2: Verify instance was created immediately by signal (NOT by midnight eval)
-        # Note: Signal creates instances with due_at = tomorrow at 00:00
-        tomorrow = timezone.now().date() + timezone.timedelta(days=1)
+        # Note: Signal creates instances with due_at = today at 23:59:59
+        today = timezone.now().date()
         instances_immediate = ChoreInstance.objects.filter(
             chore=chore,
-            due_at__date=tomorrow
+            due_at__date=today
         ).count()
         self.assertEqual(instances_immediate, 1, "Instance should be created immediately by signal")
 
@@ -393,7 +393,7 @@ class EndToEndChoreCreationTests(TestCase):
         # Step 5: Verify still only 1 instance (no duplicate created)
         instances_after = ChoreInstance.objects.filter(
             chore=chore,
-            due_at__date=tomorrow
+            due_at__date=today
         )
         self.assertEqual(instances_after.count(), 1, "Midnight eval should not create duplicate")
 
@@ -447,12 +447,11 @@ class ImmediateChoreInstanceCreationTests(TestCase):
         self.assertEqual(chore.schedule_type, Chore.DAILY)
         self.assertTrue(chore.is_active)
 
-        # Check if an instance was created (signal creates with due_at = tomorrow)
+        # Check if an instance was created (signal creates with due_at = today)
         today = timezone.now().date()
-        tomorrow = today + timezone.timedelta(days=1)
         instances = ChoreInstance.objects.filter(
             chore=chore,
-            due_at__date=tomorrow
+            due_at__date=today
         )
 
         # CRITICAL ASSERTION: Instance should exist immediately
@@ -467,8 +466,8 @@ class ImmediateChoreInstanceCreationTests(TestCase):
         self.assertEqual(instance.status, ChoreInstance.POOL)
         self.assertEqual(instance.points_value, chore.points)
         self.assertIsNone(instance.assigned_to)
-        # Due date should be tomorrow (signal creates instances with due_at = tomorrow at 00:00)
-        self.assertEqual(instance.due_at.date(), tomorrow, "Signal creates instances with due_at = tomorrow")
+        # Due date should be today (signal creates instances with due_at = today at 23:59:59)
+        self.assertEqual(instance.due_at.date(), today, "Signal creates instances with due_at = today")
 
     def test_weekly_chore_creates_instance_on_matching_weekday(self):
         """
@@ -489,11 +488,10 @@ class ImmediateChoreInstanceCreationTests(TestCase):
             distribution_time=time(18, 0)
         )
 
-        # Check if instance was created (signal creates with due_at = tomorrow)
-        tomorrow = today + timezone.timedelta(days=1)
+        # Check if instance was created (signal creates with due_at = today)
         instances = ChoreInstance.objects.filter(
             chore=chore,
-            due_at__date=tomorrow
+            due_at__date=today
         )
 
         self.assertEqual(
@@ -613,10 +611,9 @@ class ImmediateChoreInstanceCreationTests(TestCase):
 
         # CRITICAL ASSERTION: Check if instance was created (signal creates with due_at = tomorrow)
         today = timezone.now().date()
-        tomorrow = today + timezone.timedelta(days=1)
         instances = ChoreInstance.objects.filter(
             chore=chore,
-            due_at__date=tomorrow
+            due_at__date=today
         )
 
         # THIS IS THE CRITICAL TEST - 0 instances = FAILURE
@@ -634,8 +631,8 @@ class ImmediateChoreInstanceCreationTests(TestCase):
         self.assertEqual(instance.points_value, chore.points)
         self.assertIsNone(instance.assigned_to)
 
-        # Verify the instance is due tomorrow (signal creates instances with due_at = tomorrow at 00:00)
+        # Verify the instance is due today (signal creates instances with due_at = today at 23:59:59)
         self.assertEqual(
-            instance.due_at.date(), tomorrow,
-            "Instance should be due tomorrow (signal creates with due_at = tomorrow)"
+            instance.due_at.date(), today,
+            "Instance should be due today (signal creates with due_at = today)"
         )

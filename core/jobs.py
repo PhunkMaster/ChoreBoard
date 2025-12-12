@@ -90,10 +90,9 @@ def midnight_evaluation():
                     should_create = should_create_instance_today(chore, today)
 
                     if should_create:
-                        # Calculate due time (start of next day - clearer and DST-safe)
-                        tomorrow = today + timedelta(days=1)
+                        # Calculate due time (end of today - chores due on same day they're created)
                         due_at = timezone.make_aware(
-                            datetime.combine(tomorrow, datetime.min.time())
+                            datetime.combine(today, datetime.max.time())
                         )
 
                         # Distribution time
@@ -386,12 +385,17 @@ def should_create_instance_today(chore, today):
     Returns:
         bool: True if instance should be created
     """
-    # Check if instance already exists for today
-    # Note: With our due_at logic, instances "for today" have due_at = start of tomorrow
-    tomorrow = today + timedelta(days=1)
+    # Check if instance already exists for today OR if there's any open instance
+    # This prevents creating duplicates when:
+    # 1. An instance for today already exists
+    # 2. There's an open (non-closed) instance from a previous day
+    from django.db.models import Q
+
     existing = ChoreInstance.objects.filter(
-        chore=chore,
-        due_at__date=tomorrow
+        chore=chore
+    ).filter(
+        Q(due_at__date=today) |  # Instance due today
+        ~Q(status__in=['completed', 'skipped'])  # OR any open instance
     ).exists()
 
     if existing:

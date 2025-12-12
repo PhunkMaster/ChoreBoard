@@ -50,6 +50,7 @@ urlpatterns = [
     path('admin-panel/logs/', views_admin.admin_logs, name='admin_logs'),
     path('admin-panel/backups/', views_admin.admin_backups, name='admin_backups'),
     path('admin-panel/backup/create/', views_admin.admin_backup_create, name='admin_backup_create'),
+    path('admin-panel/backup/create-selective/', views_admin.admin_backup_create_selective, name='admin_backup_create_selective'),
     path('admin-panel/backup/download/<int:backup_id>/', views_admin.admin_backup_download, name='admin_backup_download'),
     path('admin-panel/backup/upload/', views_admin.admin_backup_upload, name='admin_backup_upload'),
     path('admin-panel/backup/restore/', views_admin.admin_backup_restore, name='admin_backup_restore'),

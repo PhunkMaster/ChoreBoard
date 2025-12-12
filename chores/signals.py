@@ -48,15 +48,12 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
 
         if should_create_today:
             # Calculate due_at based on schedule type
-            tomorrow = today + timedelta(days=1)
-
             if instance.schedule_type == Chore.ONE_TIME:
                 # ONE_TIME: use one_time_due_date or sentinel far-future date
                 if instance.one_time_due_date:
-                    # Due at start of day after due_date (consistent with existing logic)
-                    due_day = instance.one_time_due_date + timedelta(days=1)
+                    # Due at end of the specified due_date
                     due_at = timezone.make_aware(
-                        datetime.combine(due_day, datetime.min.time())
+                        datetime.combine(instance.one_time_due_date, datetime.max.time())
                     )
                 else:
                     # No due date = use sentinel far-future date (never overdue)
@@ -65,20 +62,25 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
                         datetime.combine(far_future, datetime.min.time())
                     )
             else:
-                # Regular recurring chores: due at start of tomorrow
+                # Regular recurring chores: due at end of today
                 due_at = timezone.make_aware(
-                    datetime.combine(tomorrow, datetime.min.time())
+                    datetime.combine(today, datetime.max.time())
                 )
 
             # Check if instance already exists (prevent duplicates)
-            # Note: For ONE_TIME, we check ANY due date since there should only ever be one instance
+            # For ONE_TIME chores: check if ANY instance exists
+            # For recurring chores: check if instance due today exists OR any open instance exists
+            from django.db.models import Q
+
             if instance.schedule_type == Chore.ONE_TIME:
                 existing = ChoreInstance.objects.filter(chore=instance).exists()
             else:
-                # Regular chores: check for instance with due_at = tomorrow
+                # Regular chores: check for instance due today OR any open instance
                 existing = ChoreInstance.objects.filter(
-                    chore=instance,
-                    due_at__date=tomorrow
+                    chore=instance
+                ).filter(
+                    Q(due_at__date=today) |  # Instance due today
+                    ~Q(status__in=['completed', 'skipped'])  # OR any open instance
                 ).exists()
 
             if existing:

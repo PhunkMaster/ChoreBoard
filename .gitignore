@@ -47,4 +47,4 @@ debug_*.html
 verify_*.py
 check_*.py
 test_output.*
-test_iframe.*
+test_iframe.*!/debug/verify_exclude_auto_assignment.py

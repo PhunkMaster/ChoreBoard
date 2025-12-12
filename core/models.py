@@ -311,3 +311,8 @@ class Backup(models.Model):
                 return f"{size:.2f} {unit}"
             size /= 1024.0
         return f"{size:.2f} TB"
+
+    @property
+    def is_selective(self):
+        """Return True if this is a selective backup (no chore instances)."""
+        return 'selective' in self.filename.lower()

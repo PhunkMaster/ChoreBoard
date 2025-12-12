@@ -1223,6 +1223,40 @@ def admin_backup_create(request):
 
 @login_required
 @user_passes_test(is_staff_user)
+@require_http_methods(["POST"])
+def admin_backup_create_selective(request):
+    """
+    Create a new selective backup (clean database with no instances).
+    """
+    try:
+        from django.core.management import call_command
+        from io import StringIO
+        from datetime import datetime
+
+        # Capture command output
+        out = StringIO()
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'selective_backup_{timestamp}.sqlite3'
+
+        # Call the selective backup management command
+        call_command('selective_backup', '--exclude-instances', f'--output={filename}', stdout=out)
+
+        output = out.getvalue()
+        logger.info(f"Admin {request.user.username} created selective backup: {filename}")
+
+        return JsonResponse({
+            'message': f'Selective backup created successfully: {filename}',
+            'output': output,
+            'filename': filename
+        })
+
+    except Exception as e:
+        logger.error(f"Error creating selective backup: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
 @require_http_methods(["GET"])
 def admin_backup_download(request, backup_id):
     """
@@ -1272,7 +1306,7 @@ def admin_backup_download(request, backup_id):
 def admin_backup_upload(request):
     """
     Upload a backup file.
-    Validates that it's a SQLite database with required tables.
+    Supports SQLite (.sqlite3) database backups (both full and selective).
     """
     try:
         import sqlite3
@@ -1286,7 +1320,9 @@ def admin_backup_upload(request):
 
         # Validate file extension
         if not uploaded_file.name.endswith('.sqlite3'):
-            return JsonResponse({'error': 'File must be a .sqlite3 file'}, status=400)
+            return JsonResponse({
+                'error': 'File must be a .sqlite3 database file'
+            }, status=400)
 
         # Validate file size (max 500MB)
         max_size = 500 * 1024 * 1024  # 500MB in bytes
@@ -1308,7 +1344,7 @@ def admin_backup_upload(request):
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
             tables = {row[0] for row in cursor.fetchall()}
 
-            required_tables = {'users', 'chores', 'chore_instances', 'settings'}
+            required_tables = {'users', 'chores', 'settings'}
             missing_tables = required_tables - tables
 
             if missing_tables:
@@ -1317,6 +1353,9 @@ def admin_backup_upload(request):
                 return JsonResponse({
                     'error': f'Invalid ChoreBoard backup. Missing tables: {", ".join(missing_tables)}'
                 }, status=400)
+
+            # Check if it's a selective backup (no chore_instances)
+            is_selective = 'chore_instances' not in tables or cursor.execute("SELECT COUNT(*) FROM chore_instances").fetchone()[0] == 0
 
             conn.close()
 
@@ -1328,7 +1367,10 @@ def admin_backup_upload(request):
         # Generate proper filename
         from datetime import datetime
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'db_backup_uploaded_{timestamp}.sqlite3'
+        if is_selective:
+            filename = f'selective_backup_uploaded_{timestamp}.sqlite3'
+        else:
+            filename = f'db_backup_uploaded_{timestamp}.sqlite3'
         final_path = Path(settings.BASE_DIR) / 'data' / 'backups' / filename
 
         # Move to final location
@@ -1352,12 +1394,14 @@ def admin_backup_upload(request):
             metadata={'backup_id': backup.id, 'filename': filename, 'size': uploaded_file.size}
         )
 
-        logger.info(f"Admin {request.user.username} uploaded backup {filename}")
+        backup_type_label = 'Full backup' if not is_selective else 'Selective backup (clean database)'
+        logger.info(f"Admin {request.user.username} uploaded backup {filename} ({backup_type_label})")
 
         return JsonResponse({
             'success': True,
-            'message': f'Backup uploaded successfully: {filename}',
-            'backup_id': backup.id
+            'message': f'{backup_type_label} uploaded successfully: {filename}',
+            'backup_id': backup.id,
+            'backup_type': 'selective' if is_selective else 'full'
         })
 
     except Exception as e:
