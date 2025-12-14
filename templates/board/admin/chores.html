@@ -47,7 +47,12 @@
                     <tr class="hover:bg-dark-card/50 transition">
                         <td class="px-6 py-4">
                             <div>
-                                <p class="text-white font-medium">{{ chore.name }}</p>
+                                <p class="text-white font-medium">
+                                    {{ chore.name }}
+                                    {% if chore.complete_later %}
+                                    <span class="ml-2 text-yellow-400" title="Complete Later">🕐</span>
+                                    {% endif %}
+                                </p>
                                 {% if chore.description %}
                                 <p class="text-gray-400 text-sm mt-1">{{ chore.description|truncatewords:15 }}</p>
                                 {% endif %}
