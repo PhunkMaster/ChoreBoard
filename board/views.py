@@ -63,11 +63,9 @@ def main_board(request):
     ).select_related('chore').order_by('due_at')
 
     # Get assigned chores: include chores due today, overdue, OR no due date
-    # Only include chores assigned to users who are eligible for points (to match what's displayed)
     assigned_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.ASSIGNED,
         chore__is_active=True,
-        assigned_to__eligible_for_points=True,  # Only count chores for eligible users
         assigned_to__isnull=False  # Exclude unassigned chores
     ).filter(
         Q(due_at__date=today) |  # Due today

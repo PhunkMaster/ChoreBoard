@@ -316,3 +316,8 @@ class Backup(models.Model):
     def is_selective(self):
         """Return True if this is a selective backup (no chore instances)."""
         return 'selective' in self.filename.lower()
+
+    @property
+    def is_pre_restore(self):
+        """Return True if this is a pre-restore safety backup."""
+        return 'Auto-backup before restore' in (self.notes or '')

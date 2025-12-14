@@ -1257,6 +1257,47 @@ def admin_backup_create_selective(request):
 
 @login_required
 @user_passes_test(is_staff_user)
+@require_http_methods(["POST"])
+def admin_backup_delete(request, backup_id):
+    """
+    Delete a backup file.
+    """
+    try:
+        backup = get_object_or_404(Backup, id=backup_id)
+
+        # Delete physical file
+        if os.path.exists(backup.file_path):
+            os.remove(backup.file_path)
+            logger.info(f"Deleted backup file: {backup.file_path}")
+
+        # Delete database record
+        filename = backup.filename
+        backup.delete()
+
+        # Log action
+        ActionLog.objects.create(
+            action_type=ActionLog.ACTION_ADMIN,
+            user=request.user,
+            description=f"Deleted backup: {filename}",
+            metadata={
+                'backup_id': backup_id,
+                'filename': filename
+            }
+        )
+
+        logger.info(f"Admin {request.user.username} deleted backup {filename}")
+
+        return JsonResponse({
+            'message': f'Backup "{filename}" deleted successfully'
+        })
+
+    except Exception as e:
+        logger.error(f"Error deleting backup: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
 @require_http_methods(["GET"])
 def admin_backup_download(request, backup_id):
     """
