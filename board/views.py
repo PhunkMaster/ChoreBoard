@@ -20,6 +20,7 @@ Views for ChoreBoard frontend.
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.utils import timezone
@@ -676,6 +677,7 @@ def quick_add_task(request):
     return JsonResponse({'error': 'Invalid request method'}, status=400)
 
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def claim_chore_view(request):
     """Handle chore claim from frontend (kiosk mode with user selection)."""
@@ -735,6 +737,7 @@ def claim_chore_view(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def complete_chore_view(request):
     """Handle chore completion from frontend (kiosk mode with user selection)."""
@@ -863,6 +866,7 @@ def complete_chore_view(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@csrf_exempt
 def unclaim_chore_view(request):
     """Handle unclaiming a chore (returning it to the pool)."""
     try:
@@ -887,6 +891,7 @@ def unclaim_chore_view(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def skip_chore_view(request):
     """Handle skipping a chore from frontend (kiosk mode with user selection)."""
@@ -930,6 +935,7 @@ def skip_chore_view(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def reschedule_chore_view(request):
     """Handle rescheduling a chore instance from frontend (kiosk mode with user selection)."""

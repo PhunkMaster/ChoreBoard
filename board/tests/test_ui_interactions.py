@@ -608,6 +608,9 @@ class CSRFExemptionTests(HTMXTestCase):
 
     def test_claim_works_without_csrf(self):
         """Test claim action works without CSRF token (kiosk mode)."""
+        # Use a client that enforces CSRF checks to verify @csrf_exempt works
+        csrf_client = Client(enforce_csrf_checks=True)
+
         now = timezone.now()
         instance = ChoreInstance.objects.create(
             chore=self.chore,
@@ -617,9 +620,8 @@ class CSRFExemptionTests(HTMXTestCase):
             points_value=self.chore.points
         )
 
-        # Django test client doesn't enforce CSRF by default
-        # This test documents the @csrf_exempt decorator
-        response = self.client.post(
+        # This should succeed because @csrf_exempt decorator is applied
+        response = csrf_client.post(
             reverse('board:claim_action'),
             {
                 'instance_id': instance.id,
@@ -628,9 +630,16 @@ class CSRFExemptionTests(HTMXTestCase):
         )
 
         self.assertEqual(response.status_code, 200)
+        self.assertJSONEqual(
+            response.content,
+            {'message': 'Chore claimed successfully!'}
+        )
 
     def test_complete_works_without_csrf(self):
         """Test complete action works without CSRF token (kiosk mode)."""
+        # Use a client that enforces CSRF checks to verify @csrf_exempt works
+        csrf_client = Client(enforce_csrf_checks=True)
+
         now = timezone.now()
         instance = ChoreInstance.objects.create(
             chore=self.chore,
@@ -640,11 +649,101 @@ class CSRFExemptionTests(HTMXTestCase):
             points_value=self.chore.points
         )
 
-        response = self.client.post(
+        # This should succeed because @csrf_exempt decorator is applied
+        response = csrf_client.post(
             reverse('board:complete_action'),
             {
                 'instance_id': instance.id,
                 'user_id': self.user1.id
+            }
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertJSONEqual(
+            response.content,
+            {'message': 'Chore completed successfully!'}
+        )
+
+    def test_skip_works_without_csrf(self):
+        """Test skip action works without CSRF token (kiosk mode)."""
+        # Use a client that enforces CSRF checks to verify @csrf_exempt works
+        csrf_client = Client(enforce_csrf_checks=True)
+
+        now = timezone.now()
+        instance = ChoreInstance.objects.create(
+            chore=self.chore,
+            status=ChoreInstance.ASSIGNED,
+            assigned_to=self.admin_user,
+            distribution_at=now,
+            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            points_value=self.chore.points
+        )
+
+        # This should succeed because @csrf_exempt decorator is applied
+        # Note: Using admin_user because skip requires admin permissions
+        response = csrf_client.post(
+            reverse('board:skip_action'),
+            {
+                'instance_id': instance.id,
+                'user_id': self.admin_user.id,
+                'skip_reason': 'Test skip'
+            }
+        )
+
+        self.assertEqual(response.status_code, 200)
+        json_response = response.json()
+        self.assertIn('message', json_response)
+        self.assertIn('skipped', json_response['message'].lower())
+
+    def test_unclaim_works_without_csrf(self):
+        """Test unclaim action works without CSRF token (kiosk mode)."""
+        # Use a client that enforces CSRF checks to verify @csrf_exempt works
+        csrf_client = Client(enforce_csrf_checks=True)
+
+        now = timezone.now()
+        instance = ChoreInstance.objects.create(
+            chore=self.chore,
+            status=ChoreInstance.ASSIGNED,
+            assigned_to=self.user1,
+            distribution_at=now,
+            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            points_value=self.chore.points
+        )
+
+        # This should succeed because @csrf_exempt decorator is applied
+        response = csrf_client.post(
+            reverse('board:unclaim_action'),
+            {
+                'instance_id': instance.id
+            }
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_reschedule_works_without_csrf(self):
+        """Test reschedule action works without CSRF token (kiosk mode)."""
+        # Use a client that enforces CSRF checks to verify @csrf_exempt works
+        csrf_client = Client(enforce_csrf_checks=True)
+
+        now = timezone.now()
+        instance = ChoreInstance.objects.create(
+            chore=self.chore,
+            status=ChoreInstance.ASSIGNED,
+            assigned_to=self.admin_user,
+            distribution_at=now,
+            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            points_value=self.chore.points
+        )
+
+        # This should succeed because @csrf_exempt decorator is applied
+        new_due = (now + timedelta(days=1)).strftime('%Y-%m-%dT%H:%M')
+        response = csrf_client.post(
+            reverse('board:reschedule_action'),
+            {
+                'instance_id': instance.id,
+                'user_id': self.admin_user.id,
+                'new_due_datetime': new_due,
+                'reschedule_reason': 'Test reschedule'
             }
         )
 
