@@ -69,6 +69,11 @@ class Chore(models.Model):
     is_difficult = models.BooleanField(default=False)
     is_undesirable = models.BooleanField(default=False)
     is_late_chore = models.BooleanField(default=False)
+    complete_later = models.BooleanField(
+        default=False,
+        help_text="If checked, this chore can be completed later in the day (e.g., after dinner). "
+                  "Unchecked means it should be completed immediately."
+    )
 
     # Distribution
     distribution_time = models.TimeField(default="17:30")
@@ -175,6 +180,7 @@ class ChoreTemplate(models.Model):
     is_difficult = models.BooleanField(default=False)
     is_undesirable = models.BooleanField(default=False)
     is_late_chore = models.BooleanField(default=False)
+    complete_later = models.BooleanField(default=False)
     distribution_time = models.TimeField(default="17:30")
     schedule_type = models.CharField(max_length=20, choices=Chore.SCHEDULE_CHOICES, default=Chore.DAILY)
     n_days = models.IntegerField(null=True, blank=True)
@@ -208,6 +214,7 @@ class ChoreTemplate(models.Model):
             'is_difficult': self.is_difficult,
             'is_undesirable': self.is_undesirable,
             'is_late_chore': self.is_late_chore,
+            'complete_later': self.complete_later,
             'distribution_time': self.distribution_time,
             'schedule_type': self.schedule_type,
             'n_days': self.n_days,

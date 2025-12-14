@@ -48,7 +48,12 @@
         <div class="bg-dark-surface rounded-lg p-6 border {% if chore_instance.is_overdue %}border-red-500{% else %}border-dark-border{% endif %} hover:border-primary-500 transition">
             <div class="flex justify-between items-start mb-4">
                 <div class="flex-1">
-                    <h3 class="text-xl font-bold text-white mb-2">{{ chore_instance.chore.name }}</h3>
+                    <h3 class="text-xl font-bold text-white mb-2">
+                        {{ chore_instance.chore.name }}
+                        {% if chore_instance.chore.complete_later %}
+                        <span class="ml-2 text-yellow-400" title="Complete Later">🕐</span>
+                        {% endif %}
+                    </h3>
                     {% if chore_instance.chore.description %}
                     <p class="text-gray-400 mb-2">{{ chore_instance.chore.description }}</p>
                     {% endif %}

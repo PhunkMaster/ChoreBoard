@@ -757,3 +757,63 @@ class UnauthenticatedGETAPITests(TestCase):
         self.assertEqual(response.status_code, 200)
         # Should return empty list when not authenticated
         self.assertEqual(response.data, [])
+
+
+class CompleteLaterFieldTests(TestCase):
+    """Test that ChoreInstance serializer exposes complete_later field."""
+
+    def setUp(self):
+        """Set up test data."""
+        # Disable signal to avoid auto-creating instances
+        from django.db.models.signals import post_save
+        from chores.signals import create_chore_instance_on_creation
+        post_save.disconnect(create_chore_instance_on_creation, sender=Chore)
+
+        self.user = User.objects.create_user(
+            username='alice',
+            password='test123',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        self.chore = Chore.objects.create(
+            name='Clean Kitchen After Dinner',
+            points=Decimal('15.00'),
+            complete_later=True,
+            is_active=True
+        )
+
+        # Reconnect signal
+        post_save.connect(create_chore_instance_on_creation, sender=Chore)
+
+        now = timezone.now()
+        self.instance = ChoreInstance.objects.create(
+            chore=self.chore,
+            status=ChoreInstance.POOL,
+            points_value=self.chore.points,
+            due_at=now + timedelta(hours=6),
+            distribution_at=now
+        )
+
+        self.client = APIClient()
+
+    def test_chore_instance_exposes_complete_later(self):
+        """Test that ChoreInstance serializer exposes complete_later field."""
+        from api.serializers import ChoreInstanceSerializer
+
+        serializer = ChoreInstanceSerializer(self.instance)
+        self.assertIn('chore', serializer.data)
+        self.assertIn('complete_later', serializer.data['chore'])
+        self.assertTrue(serializer.data['chore']['complete_later'])
+
+    def test_late_chores_api_includes_complete_later(self):
+        """Test that late chores API endpoint includes complete_later."""
+        # Make instance overdue
+        self.instance.is_overdue = True
+        self.instance.save()
+
+        response = self.client.get('/api/late-chores/')
+        self.assertEqual(response.status_code, 200)
+        self.assertGreater(len(response.data), 0)
+        self.assertIn('complete_later', response.data[0]['chore'])
+        self.assertTrue(response.data[0]['chore']['complete_later'])

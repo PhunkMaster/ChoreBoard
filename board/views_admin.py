@@ -495,6 +495,8 @@ def admin_chore_create(request):
         assigned_to_id = request.POST.get('assigned_to')
         is_undesirable = request.POST.get('is_undesirable') == 'true'
         is_difficult = request.POST.get('is_difficult') == 'true'
+        is_late_chore = request.POST.get('is_late_chore') == 'true'
+        complete_later = request.POST.get('complete_later') == 'true'
         distribution_time = request.POST.get('distribution_time', '17:30')
         schedule_type = request.POST.get('schedule_type', Chore.DAILY)
 
@@ -541,6 +543,8 @@ def admin_chore_create(request):
                 assigned_to_id=assigned_to_id if not is_pool else None,
                 is_undesirable=is_undesirable,
                 is_difficult=is_difficult,
+                is_late_chore=is_late_chore,
+                complete_later=complete_later,
                 distribution_time=distribution_time,
                 schedule_type=schedule_type,
                 weekday=int(weekday) if weekday else None,
@@ -646,6 +650,8 @@ def admin_chore_update(request, chore_id):
         assigned_to_id = request.POST.get('assigned_to')
         is_undesirable = request.POST.get('is_undesirable') == 'true'
         is_difficult = request.POST.get('is_difficult') == 'true'
+        is_late_chore = request.POST.get('is_late_chore') == 'true'
+        complete_later = request.POST.get('complete_later') == 'true'
         distribution_time = request.POST.get('distribution_time', '17:30')
         schedule_type = request.POST.get('schedule_type', Chore.DAILY)
 
@@ -691,6 +697,8 @@ def admin_chore_update(request, chore_id):
             chore.assigned_to_id = assigned_to_id if not is_pool else None
             chore.is_undesirable = is_undesirable
             chore.is_difficult = is_difficult
+            chore.is_late_chore = is_late_chore
+            chore.complete_later = complete_later
             chore.distribution_time = distribution_time
             chore.schedule_type = schedule_type
             chore.weekday = int(weekday) if weekday else None
@@ -866,6 +874,7 @@ def admin_template_save(request):
         is_undesirable = request.POST.get('is_undesirable') == 'true'
         is_difficult = request.POST.get('is_difficult') == 'true'
         is_late_chore = request.POST.get('is_late_chore') == 'true'
+        complete_later = request.POST.get('complete_later') == 'true'
         distribution_time = request.POST.get('distribution_time', '17:30')
         schedule_type = request.POST.get('schedule_type', Chore.DAILY)
         weekday = request.POST.get('weekday')
@@ -899,6 +908,7 @@ def admin_template_save(request):
             existing_template.is_undesirable = is_undesirable
             existing_template.is_difficult = is_difficult
             existing_template.is_late_chore = is_late_chore
+            existing_template.complete_later = complete_later
             existing_template.distribution_time = distribution_time
             existing_template.schedule_type = schedule_type
             existing_template.weekday = int(weekday) if weekday else None
@@ -921,6 +931,7 @@ def admin_template_save(request):
                 is_undesirable=is_undesirable,
                 is_difficult=is_difficult,
                 is_late_chore=is_late_chore,
+                complete_later=complete_later,
                 distribution_time=distribution_time,
                 schedule_type=schedule_type,
                 weekday=int(weekday) if weekday else None,

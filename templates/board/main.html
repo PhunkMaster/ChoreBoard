@@ -147,7 +147,12 @@
                  data-instance-id="{{ instance.id }}">
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex-1">
-                        <h3 class="text-lg font-semibold text-white">{{ instance.chore.name }}</h3>
+                        <h3 class="text-lg font-semibold text-white">
+                            {{ instance.chore.name }}
+                            {% if instance.chore.complete_later %}
+                            <span class="ml-2 text-yellow-400" title="Complete Later">🕐</span>
+                            {% endif %}
+                        </h3>
                         {% if instance.chore.description %}
                         <p class="text-gray-400 text-sm mt-1">{{ instance.chore.description }}</p>
                         {% endif %}
@@ -277,7 +282,12 @@
                  data-instance-id="{{ instance.id }}">
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex-1">
-                        <h3 class="text-lg font-semibold text-white">{{ instance.chore.name }}</h3>
+                        <h3 class="text-lg font-semibold text-white">
+                            {{ instance.chore.name }}
+                            {% if instance.chore.complete_later %}
+                            <span class="ml-2 text-yellow-400" title="Complete Later">🕐</span>
+                            {% endif %}
+                        </h3>
                         {% if instance.chore.description %}
                         <p class="text-gray-400 text-sm mt-1">{{ instance.chore.description }}</p>
                         {% endif %}
@@ -389,7 +399,12 @@
                  data-instance-id="{{ instance.id }}">
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex-1">
-                        <h3 class="text-lg font-semibold text-white">{{ instance.chore.name }}</h3>
+                        <h3 class="text-lg font-semibold text-white">
+                            {{ instance.chore.name }}
+                            {% if instance.chore.complete_later %}
+                            <span class="ml-2 text-yellow-400" title="Complete Later">🕐</span>
+                            {% endif %}
+                        </h3>
                         {% if instance.chore.description %}
                         <p class="text-gray-400 text-sm mt-1">{{ instance.chore.description }}</p>
                         {% endif %}

@@ -23,13 +23,19 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class ChoreSerializer(serializers.ModelSerializer):
-    """Serializer for Chore model."""
+    """
+    Serializer for Chore model.
+
+    Fields:
+        - complete_later: Boolean indicating if chore can be completed later in the day
+          (true) or must be completed immediately (false). Used for restriction management.
+    """
 
     class Meta:
         model = Chore
         fields = [
             'id', 'name', 'description', 'points',
-            'is_pool', 'is_difficult', 'is_undesirable', 'is_late_chore',
+            'is_pool', 'is_difficult', 'is_undesirable', 'is_late_chore', 'complete_later',
             'schedule_type'
         ]
         read_only_fields = ['id']

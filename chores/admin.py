@@ -40,7 +40,7 @@ class ChoreDependencyAsParentInline(admin.TabularInline):
 class ChoreAdmin(admin.ModelAdmin):
     """Admin interface for Chore model."""
     list_display = ["name", "points", "colored_status", "assigned_to", "schedule_type", "has_dependencies", "is_difficult"]
-    list_filter = ["is_active", "is_pool", "is_difficult", "is_undesirable", "is_late_chore", "schedule_type"]
+    list_filter = ["is_active", "is_pool", "is_difficult", "is_undesirable", "is_late_chore", "complete_later", "schedule_type"]
     search_fields = ["name", "description"]
     readonly_fields = ["created_at", "updated_at", "dependency_info"]
     list_editable = ["points"]
@@ -57,7 +57,7 @@ class ChoreAdmin(admin.ModelAdmin):
             "fields": ("is_pool", "assigned_to")
         }),
         ("Tags", {
-            "fields": ("is_difficult", "is_undesirable", "is_late_chore")
+            "fields": ("is_difficult", "is_undesirable", "is_late_chore", "complete_later")
         }),
         ("Schedule", {
             "fields": ("schedule_type", "distribution_time", "n_days", "every_n_start_date",
