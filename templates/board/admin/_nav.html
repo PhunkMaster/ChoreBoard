@@ -29,6 +29,10 @@
            class="flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium {% if active_page == 'force_assign' %}bg-primary-500 text-white{% else %}text-gray-300 hover:bg-dark-card transition{% endif %}">
             Force Assign
         </a>
+        <a href="{% url 'board:admin_pending_spawns' %}"
+           class="flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium {% if active_page == 'pending_spawns' %}bg-primary-500 text-white{% else %}text-gray-300 hover:bg-dark-card transition{% endif %}">
+            Pending Spawns
+        </a>
         <a href="{% url 'board:admin_streaks' %}"
            class="flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium {% if active_page == 'streaks' %}bg-primary-500 text-white{% else %}text-gray-300 hover:bg-dark-card transition{% endif %}">
             Streaks

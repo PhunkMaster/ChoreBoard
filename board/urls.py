@@ -88,6 +88,9 @@ urlpatterns = [
     # Manual Points Adjustment
     path('admin-panel/adjust-points/', views_admin.admin_adjust_points, name='admin_adjust_points'),
     path('admin-panel/adjust-points/submit/', views_admin.admin_adjust_points_submit, name='admin_adjust_points_submit'),
+    # Pending Dependent Chores
+    path('admin-panel/pending-spawns/', views_admin.admin_pending_spawns, name='admin_pending_spawns'),
+    path('admin-panel/force-spawn/', views_admin.admin_force_spawn, name='admin_force_spawn'),
     # Arcade Mode
     path('action/arcade/start/', views_arcade.start_arcade, name='arcade_start'),
     path('action/arcade/stop/', views_arcade.stop_arcade, name='arcade_stop'),

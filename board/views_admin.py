@@ -2042,3 +2042,194 @@ def admin_adjust_points_submit(request):
     except Exception as e:
         logger.error(f"Error adjusting points: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+# ============================================================================
+# PENDING DEPENDENT CHORES
+# ============================================================================
+
+@login_required
+@user_passes_test(is_staff_user)
+def admin_pending_spawns(request):
+    """
+    Admin page for viewing dependent chores waiting to spawn.
+    If AJAX request, returns JSON. Otherwise renders the template.
+    """
+    # Check if this is an AJAX request
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+    if not is_ajax:
+        # Render the template for the page
+        return render(request, 'board/admin/pending_spawns.html')
+
+    # AJAX request - return JSON data
+    try:
+        from chores.models import ChoreDependency
+
+        now = timezone.now()
+        today = now.date()
+
+        # Get all completions from today
+        todays_completions = Completion.objects.filter(
+            completed_at__date=today,
+            is_undone=False
+        ).select_related('chore_instance__chore', 'completed_by')
+
+        pending_spawns = []
+
+        for completion in todays_completions:
+            parent_chore = completion.chore_instance.chore
+
+            # Find dependent child chores
+            dependencies = ChoreDependency.objects.filter(
+                depends_on=parent_chore
+            ).select_related('chore')
+
+            for dep in dependencies:
+                child_chore = dep.chore
+
+                # Calculate when the child should spawn
+                spawn_time = completion.completed_at + timedelta(hours=dep.offset_hours)
+
+                # Only include if spawn time is in the future
+                if spawn_time > now:
+                    # Check if instance already exists
+                    existing_instance = ChoreInstance.objects.filter(
+                        chore=child_chore,
+                        created_at__gte=completion.completed_at
+                    ).first()
+
+                    if not existing_instance:
+                        time_until_spawn = spawn_time - now
+                        hours_remaining = time_until_spawn.total_seconds() / 3600
+                        minutes_remaining = (time_until_spawn.total_seconds() % 3600) / 60
+
+                        # Format relative time
+                        if hours_remaining >= 1:
+                            relative_time = f"in {int(hours_remaining)}h {int(minutes_remaining)}m"
+                        else:
+                            relative_time = f"in {int(minutes_remaining)}m"
+
+                        pending_spawns.append({
+                            'child_chore_id': child_chore.id,
+                            'child_chore_name': child_chore.name,
+                            'parent_chore_name': parent_chore.name,
+                            'parent_completed_at': completion.completed_at.strftime('%I:%M %p'),
+                            'completed_by': completion.completed_by.get_display_name() if completion.completed_by else 'Unknown',
+                            'spawn_time_absolute': spawn_time.strftime('%I:%M %p'),
+                            'spawn_time_relative': relative_time,
+                            'offset_hours': dep.offset_hours,
+                            'completion_id': completion.id,
+                            'dependency_id': dep.id,
+                        })
+
+        return JsonResponse({'pending_spawns': pending_spawns})
+
+    except Exception as e:
+        logger.error(f"Error fetching pending spawns: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_http_methods(["POST"])
+def admin_force_spawn(request):
+    """
+    Force spawn a child chore instance immediately, overriding the time delta.
+    """
+    try:
+        from chores.models import ChoreDependency
+
+        child_chore_id = request.POST.get('child_chore_id')
+        completion_id = request.POST.get('completion_id')
+
+        if not child_chore_id or not completion_id:
+            return JsonResponse({'error': 'Missing required parameters'}, status=400)
+
+        # Get the child chore and parent completion
+        child_chore = get_object_or_404(Chore, id=child_chore_id)
+        completion = get_object_or_404(Completion, id=completion_id)
+
+        # Verify dependency exists
+        dependency = ChoreDependency.objects.filter(
+            chore=child_chore,
+            depends_on=completion.chore_instance.chore
+        ).first()
+
+        if not dependency:
+            return JsonResponse({'error': 'Dependency not found'}, status=404)
+
+        # Check if instance already exists
+        existing_instance = ChoreInstance.objects.filter(
+            chore=child_chore,
+            created_at__gte=completion.completed_at
+        ).first()
+
+        if existing_instance:
+            return JsonResponse({'error': 'Child instance already exists'}, status=400)
+
+        # Create the child instance
+        from datetime import datetime
+        now = timezone.now()
+        today = now.date()
+
+        due_at = timezone.make_aware(
+            datetime.combine(today, datetime.max.time())
+        )
+
+        distribution_at = now  # Spawn immediately
+
+        # Determine status and assignment based on chore type
+        if child_chore.is_undesirable:
+            new_instance = ChoreInstance.objects.create(
+                chore=child_chore,
+                status=ChoreInstance.POOL,
+                points_value=child_chore.points,
+                due_at=due_at,
+                distribution_at=distribution_at
+            )
+        elif child_chore.is_pool:
+            new_instance = ChoreInstance.objects.create(
+                chore=child_chore,
+                status=ChoreInstance.POOL,
+                points_value=child_chore.points,
+                due_at=due_at,
+                distribution_at=distribution_at
+            )
+        else:
+            new_instance = ChoreInstance.objects.create(
+                chore=child_chore,
+                status=ChoreInstance.ASSIGNED,
+                assigned_to=child_chore.assigned_to,
+                points_value=child_chore.points,
+                due_at=due_at,
+                distribution_at=distribution_at
+            )
+
+        # Log the action
+        ActionLog.objects.create(
+            action_type=ActionLog.ACTION_ADMIN,
+            user=request.user,
+            description=f"Force spawned child chore: {child_chore.name} (parent: {completion.chore_instance.chore.name})",
+            metadata={
+                'child_chore_id': child_chore.id,
+                'parent_chore_id': completion.chore_instance.chore.id,
+                'completion_id': completion.id,
+                'instance_id': new_instance.id,
+            }
+        )
+
+        logger.info(
+            f"Admin {request.user.username} force spawned child chore {child_chore.name} "
+            f"(instance {new_instance.id})"
+        )
+
+        return JsonResponse({
+            'message': f'Successfully spawned "{child_chore.name}"',
+            'instance_id': new_instance.id,
+            'chore_name': child_chore.name,
+        })
+
+    except Exception as e:
+        logger.error(f"Error force spawning chore: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
