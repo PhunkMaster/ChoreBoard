@@ -91,6 +91,9 @@ urlpatterns = [
     # Pending Dependent Chores
     path('admin-panel/pending-spawns/', views_admin.admin_pending_spawns, name='admin_pending_spawns'),
     path('admin-panel/force-spawn/', views_admin.admin_force_spawn, name='admin_force_spawn'),
+    # User Preferences
+    path('admin-panel/preferences/get/', views_admin.get_user_preferences, name='get_user_preferences'),
+    path('admin-panel/preferences/save/', views_admin.save_user_preferences, name='save_user_preferences'),
     # Arcade Mode
     path('action/arcade/start/', views_arcade.start_arcade, name='arcade_start'),
     path('action/arcade/stop/', views_arcade.stop_arcade, name='arcade_stop'),

@@ -110,6 +110,11 @@ def admin_dashboard(request):
     # Get settings
     settings = Settings.get_settings()
 
+    # Get or create user preferences
+    from users.models import UserPreferences
+    user_prefs, created = UserPreferences.objects.get_or_create(user=request.user)
+    quick_actions = user_prefs.get_quick_actions_or_default()
+
     context = {
         'active_chores': active_chores,
         'active_users': active_users,
@@ -123,6 +128,7 @@ def admin_dashboard(request):
         'weekly_cash_value': weekly_points * settings.points_to_dollar_rate,
         'recent_completions': recent_completions,
         'recent_actions': recent_actions,
+        'quick_actions': quick_actions,
     }
 
     return render(request, 'board/admin/dashboard.html', context)
@@ -2236,4 +2242,66 @@ def admin_force_spawn(request):
 
     except Exception as e:
         logger.error(f"Error force spawning chore: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# ============================================================================
+# USER PREFERENCES
+# ============================================================================
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_http_methods(["GET"])
+def get_user_preferences(request):
+    """
+    Get current user's preferences.
+    """
+    try:
+        from users.models import UserPreferences
+
+        prefs, created = UserPreferences.objects.get_or_create(user=request.user)
+
+        return JsonResponse({
+            'quick_actions': prefs.get_quick_actions_or_default(),
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching user preferences: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_http_methods(["POST"])
+def save_user_preferences(request):
+    """
+    Save current user's preferences.
+    """
+    try:
+        from users.models import UserPreferences
+        import json
+
+        data = json.loads(request.body)
+        quick_actions = data.get('quick_actions', [])
+
+        # Validate quick_actions is a list
+        if not isinstance(quick_actions, list):
+            return JsonResponse({'error': 'quick_actions must be a list'}, status=400)
+
+        # Get or create preferences
+        prefs, created = UserPreferences.objects.get_or_create(user=request.user)
+        prefs.quick_actions = quick_actions
+        prefs.save()
+
+        logger.info(f"User {request.user.username} updated quick actions: {quick_actions}")
+
+        return JsonResponse({
+            'message': 'Preferences saved successfully',
+            'quick_actions': prefs.quick_actions,
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error saving user preferences: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
