@@ -977,6 +977,11 @@ def reschedule_chore_view(request):
 
             old_due_at = instance.due_at
             instance.due_at = new_due_at
+
+            # Recalculate is_overdue based on new due_at
+            now = timezone.now()
+            instance.is_overdue = new_due_at < now
+
             instance.save()
 
             # Log the reschedule action
