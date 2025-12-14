@@ -140,8 +140,9 @@ class AssignmentService:
 
         Algorithm:
         1. Exclude users who completed this chore yesterday (purple state)
-        2. Select user with oldest last_completed_date (or never completed)
-        3. Update RotationState when assigned
+        2. Count total completions of this chore for each user
+        3. Select user with fewest total completions
+        4. Use last_completed_date as tiebreaker (oldest first)
 
         Args:
             chore: Chore instance
@@ -151,6 +152,8 @@ class AssignmentService:
         Returns:
             User or None
         """
+        from chores.models import Completion
+
         yesterday = timezone.now().date() - timedelta(days=1)
 
         # Get rotation state for all eligible users
@@ -165,25 +168,41 @@ class AssignmentService:
             for state in rotation_states
         }
 
+        # Count total completions of this specific chore for each user
+        completion_counts = {}
+        for user in eligible_users:
+            count = Completion.objects.filter(
+                completed_by=user,
+                chore_instance__chore=chore
+            ).count()
+            completion_counts[user.id] = count
+
         # Filter out users who completed yesterday
         available_users = []
         for user in eligible_users:
             last_date = state_map.get(user.id)
             if last_date is None or last_date != yesterday:
-                available_users.append((user, last_date))
+                completion_count = completion_counts.get(user.id, 0)
+                available_users.append((user, completion_count, last_date))
 
         if not available_users:
             # All users completed yesterday - purple state
             return None
 
-        # Sort by last_completed_date (None first, then oldest)
-        available_users.sort(key=lambda x: (x[1] is not None, x[1] or timezone.now().date()))
+        # Sort by: 1) fewest completions, 2) last_completed_date (None first, then oldest)
+        available_users.sort(key=lambda x: (
+            x[1],  # Completion count (fewest first)
+            x[2] is not None,  # Never completed first (None = False = first)
+            x[2] or timezone.now().date()  # Then oldest completion date
+        ))
 
         selected_user = available_users[0][0]
+        selected_count = available_users[0][1]
 
         logger.info(
             f"Rotation selected {selected_user.username} for {chore.name} "
-            f"(last completed: {state_map.get(selected_user.id, 'never')})"
+            f"(total completions: {selected_count}, "
+            f"last completed: {state_map.get(selected_user.id, 'never')})"
         )
 
         return selected_user

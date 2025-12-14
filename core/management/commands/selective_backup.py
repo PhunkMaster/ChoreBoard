@@ -151,8 +151,8 @@ class Command(BaseCommand):
             'chores.ChoreDependency',
             'chores.ChoreEligibility',
 
-            # High scores (arcade game data we want to keep)
-            'chores.ArcadeHighScore',
+            # Note: ArcadeHighScore excluded because it depends on ArcadeCompletion
+            # which is excluded (arcade completions are tied to chore instances)
 
             # Board settings
             'board.SiteSettings',
