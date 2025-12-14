@@ -16,83 +16,19 @@
 
     <!-- Quick Actions -->
     <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
-        <h2 class="text-xl font-semibold text-white mb-4">Quick Actions</h2>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <a href="{% url 'board:admin_chores' %}"
-               class="block bg-dark-card hover:bg-dark-border rounded-lg p-4 border border-dark-border transition">
-                <div class="flex items-center">
-                    <div class="bg-blue-500/20 rounded-lg p-3 mr-4">
-                        <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                    </div>
-                    <div>
-                        <p class="text-white font-medium">Manage Chores</p>
-                        <p class="text-gray-400 text-sm">Create, edit, or delete</p>
-                    </div>
-                </div>
-            </a>
-
-            <a href="{% url 'board:admin_settings' %}"
-               class="block bg-dark-card hover:bg-dark-border rounded-lg p-4 border border-dark-border transition">
-                <div class="flex items-center">
-                    <div class="bg-purple-500/20 rounded-lg p-3 mr-4">
-                        <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                    </div>
-                    <div>
-                        <p class="text-white font-medium">System Settings</p>
-                        <p class="text-gray-400 text-sm">Configure rates & limits</p>
-                    </div>
-                </div>
-            </a>
-
-            <a href="{% url 'board:admin_skip_chores' %}"
-               class="block bg-dark-card hover:bg-dark-border rounded-lg p-4 border border-dark-border transition">
-                <div class="flex items-center">
-                    <div class="bg-yellow-500/20 rounded-lg p-3 mr-4">
-                        <svg class="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                        </svg>
-                    </div>
-                    <div>
-                        <p class="text-white font-medium">Skip Chores</p>
-                        <p class="text-gray-400 text-sm">Skip/restore chores</p>
-                    </div>
-                </div>
-            </a>
-
-            <a href="{% url 'board:admin_reschedule_chores' %}"
-               class="block bg-dark-card hover:bg-dark-border rounded-lg p-4 border border-dark-border transition">
-                <div class="flex items-center">
-                    <div class="bg-indigo-500/20 rounded-lg p-3 mr-4">
-                        <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                    </div>
-                    <div>
-                        <p class="text-white font-medium">Reschedule Chores</p>
-                        <p class="text-gray-400 text-sm">Override normal schedules</p>
-                    </div>
-                </div>
-            </a>
-
-            <a href="{% url 'board:admin_undo_completions' %}"
-               class="block bg-dark-card hover:bg-dark-border rounded-lg p-4 border border-dark-border transition">
-                <div class="flex items-center">
-                    <div class="bg-red-500/20 rounded-lg p-3 mr-4">
-                        <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                        </svg>
-                    </div>
-                    <div>
-                        <p class="text-white font-medium">Undo Completions</p>
-                        <p class="text-gray-400 text-sm">Reverse recent completions</p>
-                    </div>
-                </div>
-            </a>
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold text-white">Quick Actions</h2>
+            <button onclick="openQuickActionsConfig()"
+                    class="flex items-center space-x-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition text-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>Customize</span>
+            </button>
+        </div>
+        <div id="quick-actions-grid" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- Quick actions will be rendered here by JavaScript -->
         </div>
     </div>
 
@@ -247,4 +183,300 @@
         </div>
     </div>
 </div>
+
+<!-- Quick Actions Configuration Modal -->
+<div id="quick-actions-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center" onclick="if(event.target === this) closeQuickActionsConfig()">
+    <div class="bg-dark-surface rounded-lg p-6 max-w-2xl w-full mx-4 border border-dark-border shadow-2xl" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-bold text-white">Customize Quick Actions</h3>
+            <button onclick="closeQuickActionsConfig()" class="text-gray-400 hover:text-white transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <p class="text-gray-400 mb-6">Select which actions you want to see on your dashboard (select 4-6 for best layout)</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+            <label class="flex items-center p-3 bg-dark-card hover:bg-dark-border rounded-lg border border-dark-border cursor-pointer transition">
+                <input type="checkbox" value="chores" class="quick-action-checkbox w-5 h-5 text-primary-600 bg-dark-surface border-gray-600 rounded focus:ring-primary-500">
+                <span class="ml-3 text-white">Manage Chores</span>
+            </label>
+            <label class="flex items-center p-3 bg-dark-card hover:bg-dark-border rounded-lg border border-dark-border cursor-pointer transition">
+                <input type="checkbox" value="users" class="quick-action-checkbox w-5 h-5 text-primary-600 bg-dark-surface border-gray-600 rounded focus:ring-primary-500">
+                <span class="ml-3 text-white">Manage Users</span>
+            </label>
+            <label class="flex items-center p-3 bg-dark-card hover:bg-dark-border rounded-lg border border-dark-border cursor-pointer transition">
+                <input type="checkbox" value="settings" class="quick-action-checkbox w-5 h-5 text-primary-600 bg-dark-surface border-gray-600 rounded focus:ring-primary-500">
+                <span class="ml-3 text-white">System Settings</span>
+            </label>
+            <label class="flex items-center p-3 bg-dark-card hover:bg-dark-border rounded-lg border border-dark-border cursor-pointer transition">
+                <input type="checkbox" value="skip_chores" class="quick-action-checkbox w-5 h-5 text-primary-600 bg-dark-surface border-gray-600 rounded focus:ring-primary-500">
+                <span class="ml-3 text-white">Skip Chores</span>
+            </label>
+            <label class="flex items-center p-3 bg-dark-card hover:bg-dark-border rounded-lg border border-dark-border cursor-pointer transition">
+                <input type="checkbox" value="reschedule" class="quick-action-checkbox w-5 h-5 text-primary-600 bg-dark-surface border-gray-600 rounded focus:ring-primary-500">
+                <span class="ml-3 text-white">Reschedule Chores</span>
+            </label>
+            <label class="flex items-center p-3 bg-dark-card hover:bg-dark-border rounded-lg border border-dark-border cursor-pointer transition">
+                <input type="checkbox" value="force_assign" class="quick-action-checkbox w-5 h-5 text-primary-600 bg-dark-surface border-gray-600 rounded focus:ring-primary-500">
+                <span class="ml-3 text-white">Force Assign</span>
+            </label>
+            <label class="flex items-center p-3 bg-dark-card hover:bg-dark-border rounded-lg border border-dark-border cursor-pointer transition">
+                <input type="checkbox" value="pending_spawns" class="quick-action-checkbox w-5 h-5 text-primary-600 bg-dark-surface border-gray-600 rounded focus:ring-primary-500">
+                <span class="ml-3 text-white">Pending Spawns</span>
+            </label>
+            <label class="flex items-center p-3 bg-dark-card hover:bg-dark-border rounded-lg border border-dark-border cursor-pointer transition">
+                <input type="checkbox" value="streaks" class="quick-action-checkbox w-5 h-5 text-primary-600 bg-dark-surface border-gray-600 rounded focus:ring-primary-500">
+                <span class="ml-3 text-white">Manage Streaks</span>
+            </label>
+            <label class="flex items-center p-3 bg-dark-card hover:bg-dark-border rounded-lg border border-dark-border cursor-pointer transition">
+                <input type="checkbox" value="adjust_points" class="quick-action-checkbox w-5 h-5 text-primary-600 bg-dark-surface border-gray-600 rounded focus:ring-primary-500">
+                <span class="ml-3 text-white">Adjust Points</span>
+            </label>
+            <label class="flex items-center p-3 bg-dark-card hover:bg-dark-border rounded-lg border border-dark-border cursor-pointer transition">
+                <input type="checkbox" value="undo_completions" class="quick-action-checkbox w-5 h-5 text-primary-600 bg-dark-surface border-gray-600 rounded focus:ring-primary-500">
+                <span class="ml-3 text-white">Undo Completions</span>
+            </label>
+            <label class="flex items-center p-3 bg-dark-card hover:bg-dark-border rounded-lg border border-dark-border cursor-pointer transition">
+                <input type="checkbox" value="backups" class="quick-action-checkbox w-5 h-5 text-primary-600 bg-dark-surface border-gray-600 rounded focus:ring-primary-500">
+                <span class="ml-3 text-white">Manage Backups</span>
+            </label>
+            <label class="flex items-center p-3 bg-dark-card hover:bg-dark-border rounded-lg border border-dark-border cursor-pointer transition">
+                <input type="checkbox" value="logs" class="quick-action-checkbox w-5 h-5 text-primary-600 bg-dark-surface border-gray-600 rounded focus:ring-primary-500">
+                <span class="ml-3 text-white">Action Logs</span>
+            </label>
+        </div>
+
+        <div class="flex space-x-3">
+            <button onclick="closeQuickActionsConfig()"
+                    class="flex-1 bg-dark-card hover:bg-dark-border text-gray-300 font-semibold px-4 py-2 rounded-lg transition border border-dark-border">
+                Cancel
+            </button>
+            <button onclick="saveQuickActions()"
+                    class="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold px-4 py-2 rounded-lg transition">
+                Save Preferences
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notifications -->
+<div id="success-toast" class="fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg hidden z-50">
+    <p id="toast-message"></p>
+</div>
+<div id="error-toast" class="fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg hidden z-50">
+    <p id="error-message"></p>
+</div>
+
+<script>
+// Quick Actions Configuration
+const QUICK_ACTION_DEFINITIONS = {
+    'chores': {
+        url: '{% url "board:admin_chores" %}',
+        title: 'Manage Chores',
+        description: 'Create, edit, or delete',
+        icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />',
+        color: 'blue'
+    },
+    'users': {
+        url: '{% url "board:admin_users" %}',
+        title: 'Manage Users',
+        description: 'Add or edit users',
+        icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />',
+        color: 'green'
+    },
+    'settings': {
+        url: '{% url "board:admin_settings" %}',
+        title: 'System Settings',
+        description: 'Configure rates & limits',
+        icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />',
+        color: 'purple'
+    },
+    'skip_chores': {
+        url: '{% url "board:admin_skip_chores" %}',
+        title: 'Skip Chores',
+        description: 'Skip/restore chores',
+        icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />',
+        color: 'yellow'
+    },
+    'reschedule': {
+        url: '{% url "board:admin_reschedule_chores" %}',
+        title: 'Reschedule Chores',
+        description: 'Override normal schedules',
+        icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />',
+        color: 'indigo'
+    },
+    'force_assign': {
+        url: '{% url "board:admin_force_assign" %}',
+        title: 'Force Assign',
+        description: 'Manually assign chores',
+        icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />',
+        color: 'pink'
+    },
+    'pending_spawns': {
+        url: '{% url "board:admin_pending_spawns" %}',
+        title: 'Pending Spawns',
+        description: 'View waiting chores',
+        icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />',
+        color: 'cyan'
+    },
+    'streaks': {
+        url: '{% url "board:admin_streaks" %}',
+        title: 'Manage Streaks',
+        description: 'Track user streaks',
+        icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />',
+        color: 'orange'
+    },
+    'adjust_points': {
+        url: '{% url "board:admin_adjust_points" %}',
+        title: 'Adjust Points',
+        description: 'Manual point changes',
+        icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />',
+        color: 'emerald'
+    },
+    'undo_completions': {
+        url: '{% url "board:admin_undo_completions" %}',
+        title: 'Undo Completions',
+        description: 'Reverse recent completions',
+        icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />',
+        color: 'red'
+    },
+    'backups': {
+        url: '{% url "board:admin_backups" %}',
+        title: 'Manage Backups',
+        description: 'Create & restore backups',
+        icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />',
+        color: 'gray'
+    },
+    'logs': {
+        url: '{% url "board:admin_logs" %}',
+        title: 'Action Logs',
+        description: 'View system activity',
+        icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />',
+        color: 'slate'
+    }
+};
+
+let currentQuickActions = {{ quick_actions|safe }};
+
+function renderQuickAction(actionKey) {
+    const action = QUICK_ACTION_DEFINITIONS[actionKey];
+    if (!action) return '';
+
+    return `
+        <a href="${action.url}"
+           class="block bg-dark-card hover:bg-dark-border rounded-lg p-4 border border-dark-border transition">
+            <div class="flex items-center">
+                <div class="bg-${action.color}-500/20 rounded-lg p-3 mr-4">
+                    <svg class="w-6 h-6 text-${action.color}-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        ${action.icon}
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-white font-medium">${action.title}</p>
+                    <p class="text-gray-400 text-sm">${action.description}</p>
+                </div>
+            </div>
+        </a>
+    `;
+}
+
+function renderQuickActions() {
+    const grid = document.getElementById('quick-actions-grid');
+    if (currentQuickActions.length === 0) {
+        grid.innerHTML = `
+            <div class="col-span-full text-center py-8">
+                <p class="text-gray-400 mb-4">No quick actions configured</p>
+                <button onclick="openQuickActionsConfig()"
+                        class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition">
+                    Configure Quick Actions
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = currentQuickActions.map(key => renderQuickAction(key)).join('');
+}
+
+function openQuickActionsConfig() {
+    const modal = document.getElementById('quick-actions-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    // Set current selections
+    document.querySelectorAll('.quick-action-checkbox').forEach(checkbox => {
+        checkbox.checked = currentQuickActions.includes(checkbox.value);
+    });
+}
+
+function closeQuickActionsConfig() {
+    const modal = document.getElementById('quick-actions-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function saveQuickActions() {
+    const selected = [];
+    document.querySelectorAll('.quick-action-checkbox:checked').forEach(checkbox => {
+        selected.push(checkbox.value);
+    });
+
+    if (selected.length === 0) {
+        showError('Please select at least one quick action');
+        return;
+    }
+
+    // Save to backend
+    fetch('{% url "board:save_user_preferences" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ quick_actions: selected })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showError(data.error);
+        } else {
+            currentQuickActions = data.quick_actions;
+            renderQuickActions();
+            closeQuickActionsConfig();
+            showSuccess('Quick actions updated successfully');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving quick actions:', error);
+        showError('Failed to save quick actions');
+    });
+}
+
+function showSuccess(message) {
+    const toast = document.getElementById('success-toast');
+    document.getElementById('toast-message').textContent = message;
+    toast.classList.remove('hidden');
+    setTimeout(() => toast.classList.add('hidden'), 3000);
+}
+
+function showError(message) {
+    const toast = document.getElementById('error-toast');
+    document.getElementById('error-message').textContent = message;
+    toast.classList.remove('hidden');
+    setTimeout(() => toast.classList.add('hidden'), 3000);
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', renderQuickActions);
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeQuickActionsConfig();
+    }
+});
+</script>
 {% endblock %}
