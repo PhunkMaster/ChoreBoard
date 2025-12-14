@@ -1151,6 +1151,7 @@ document.getElementById('chore-form').addEventListener('submit', async function(
     formData.set('is_pool', isPool ? 'true' : 'false');
     formData.set('is_undesirable', document.getElementById('chore-undesirable').checked ? 'true' : 'false');
     formData.set('is_difficult', document.getElementById('chore-is-difficult').checked ? 'true' : 'false');
+    formData.set('complete_later', document.getElementById('chore-complete-later').checked ? 'true' : 'false');
 
     // Add eligible users for undesirable chores
     if (document.getElementById('chore-undesirable').checked) {
