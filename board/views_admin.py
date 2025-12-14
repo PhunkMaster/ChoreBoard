@@ -2110,13 +2110,17 @@ def admin_pending_spawns(request):
                         else:
                             relative_time = f"in {int(minutes_remaining)}m"
 
+                        # Convert UTC times to local timezone for display
+                        local_completed_at = timezone.localtime(completion.completed_at)
+                        local_spawn_time = timezone.localtime(spawn_time)
+
                         pending_spawns.append({
                             'child_chore_id': child_chore.id,
                             'child_chore_name': child_chore.name,
                             'parent_chore_name': parent_chore.name,
-                            'parent_completed_at': completion.completed_at.strftime('%I:%M %p'),
+                            'parent_completed_at': local_completed_at.strftime('%I:%M %p'),
                             'completed_by': completion.completed_by.get_display_name() if completion.completed_by else 'Unknown',
-                            'spawn_time_absolute': spawn_time.strftime('%I:%M %p'),
+                            'spawn_time_absolute': local_spawn_time.strftime('%I:%M %p'),
                             'spawn_time_relative': relative_time,
                             'offset_hours': dep.offset_hours,
                             'completion_id': completion.id,
