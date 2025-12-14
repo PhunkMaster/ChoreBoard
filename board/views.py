@@ -109,11 +109,12 @@ def main_board(request):
     # Calculate total assigned (for stat card)
     total_assigned_count = len(overdue_assigned) + len(ontime_assigned)
 
-    # Get all users for the user selector (only those eligible for points)
+    # Get all users for the user selector (including those not eligible for points)
+    # Note: Users not eligible for points can still complete chores,
+    # but points will be redistributed to eligible users
     users = User.objects.filter(
         is_active=True,
-        can_be_assigned=True,
-        eligible_for_points=True
+        can_be_assigned=True
     ).order_by('first_name', 'username')
 
     # Get admin users only for reschedule function
@@ -168,11 +169,12 @@ def pool_only(request):
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
     ).select_related('chore').order_by('due_at')
 
-    # Get all users for the user selector (only those eligible for points)
+    # Get all users for the user selector (including those not eligible for points)
+    # Note: Users not eligible for points can still complete chores,
+    # but points will be redistributed to eligible users
     users = User.objects.filter(
         is_active=True,
-        can_be_assigned=True,
-        eligible_for_points=True
+        can_be_assigned=True
     ).order_by('first_name', 'username')
 
     context = {
@@ -278,11 +280,12 @@ def user_board_minimal(request, username):
         user=user  # Filter by user from URL, not request.user
     ).select_related('chore', 'user').first()
 
-    # Get all users for arcade mode selection (only those eligible for points)
+    # Get all users for arcade mode selection (including those not eligible for points)
+    # Note: Users not eligible for points can still complete chores,
+    # but points will be redistributed to eligible users
     users = User.objects.filter(
         is_active=True,
-        can_be_assigned=True,
-        eligible_for_points=True
+        can_be_assigned=True
     ).order_by('first_name', 'username')
 
     context = {
@@ -328,11 +331,12 @@ def pool_minimal(request):
         status=ArcadeSession.STATUS_ACTIVE
     ).select_related('chore', 'user').first()
 
-    # Get all users for arcade mode and claiming (only those eligible for points)
+    # Get all users for arcade mode and claiming (including those not eligible for points)
+    # Note: Users not eligible for points can still complete chores,
+    # but points will be redistributed to eligible users
     users = User.objects.filter(
         is_active=True,
-        can_be_assigned=True,
-        eligible_for_points=True
+        can_be_assigned=True
     ).order_by('first_name', 'username')
 
     context = {
@@ -404,11 +408,12 @@ def assigned_minimal(request):
         status=ArcadeSession.STATUS_ACTIVE
     ).select_related('chore', 'user').first()
 
-    # Get all users for completing chores (only those eligible for points)
+    # Get all users for completing chores (including those not eligible for points)
+    # Note: Users not eligible for points can still complete chores,
+    # but points will be redistributed to eligible users
     users = User.objects.filter(
         is_active=True,
-        can_be_assigned=True,
-        eligible_for_points=True
+        can_be_assigned=True
     ).order_by('first_name', 'username')
 
     context = {

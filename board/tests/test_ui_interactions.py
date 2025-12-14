@@ -363,6 +363,68 @@ class CompleteChoreTests(HTMXTestCase):
         json_response = response.json()
         self.assertIn('Already completed', json_response['error'])
 
+    def test_complete_chore_by_non_eligible_user_redistributes_points(self):
+        """Test that when a user not eligible for points completes a chore,
+        points are redistributed to all eligible users."""
+        # Create a user not eligible for points
+        non_eligible_user = User.objects.create_user(
+            username='noteligible',
+            password='testpass123',
+            can_be_assigned=True,
+            eligible_for_points=False  # Not eligible for points
+        )
+
+        # Reset points for eligible users
+        self.user1.weekly_points = Decimal('0.00')
+        self.user1.save()
+        self.user2.weekly_points = Decimal('0.00')
+        self.user2.save()
+
+        now = timezone.now()
+        instance = ChoreInstance.objects.create(
+            chore=self.chore,
+            status=ChoreInstance.ASSIGNED,
+            assigned_to=non_eligible_user,
+            distribution_at=now,
+            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            points_value=Decimal('10.00')
+        )
+
+        response = self.client.post(
+            reverse('board:complete_action'),
+            {
+                'instance_id': instance.id,
+                'user_id': non_eligible_user.id
+            }
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify instance was completed
+        instance.refresh_from_db()
+        self.assertEqual(instance.status, ChoreInstance.COMPLETED)
+
+        # Verify non-eligible user got NO points
+        non_eligible_user.refresh_from_db()
+        self.assertEqual(non_eligible_user.weekly_points, Decimal('0.00'))
+
+        # Verify points were redistributed equally to ALL eligible users
+        self.user1.refresh_from_db()
+        self.user2.refresh_from_db()
+
+        # 10 points split between 2 eligible users = 5 each
+        self.assertEqual(self.user1.weekly_points, Decimal('5.00'))
+        self.assertEqual(self.user2.weekly_points, Decimal('5.00'))
+
+        # Verify completion shares - should be 2 (one for each eligible user)
+        completion = Completion.objects.get(chore_instance=instance)
+        shares = CompletionShare.objects.filter(completion=completion)
+        self.assertEqual(shares.count(), 2)
+
+        # Verify shares are for eligible users only
+        share_users = set(shares.values_list('user_id', flat=True))
+        self.assertEqual(share_users, {self.user1.id, self.user2.id})
+
 
 class UserBoardViewTests(HTMXTestCase):
     """Test user-specific board view."""
