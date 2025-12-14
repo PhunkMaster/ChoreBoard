@@ -383,7 +383,7 @@ def assigned_minimal(request):
             chores_by_user[user]['ontime'].append(chore)
 
     # Convert to list of dicts for template
-    # Filter out users not eligible for points (and None users from unassigned chores)
+    # Filter out None users from unassigned chores
     assigned_by_user = [
         {
             'user': user,
@@ -392,7 +392,7 @@ def assigned_minimal(request):
             'total': len(chores['overdue']) + len(chores['ontime'])
         }
         for user, chores in chores_by_user.items()
-        if user is not None and user.eligible_for_points
+        if user is not None
     ]
 
     # Sort by user name
