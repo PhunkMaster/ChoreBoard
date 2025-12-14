@@ -3,10 +3,16 @@ URL routing for ChoreBoard API.
 """
 from django.urls import path
 from api import views
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
 app_name = 'api'
 
 urlpatterns = [
+    # API Documentation
+    path('schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('index.html', SpectacularSwaggerView.as_view(url_name='api:schema'), name='swagger-ui'),
+    path('redoc/', SpectacularRedocView.as_view(url_name='api:schema'), name='redoc'),
+
     # Chore operations
     path('claim/', views.claim_chore, name='claim_chore'),
     path('complete/', views.complete_chore, name='complete_chore'),

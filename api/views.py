@@ -4,13 +4,15 @@ API views for ChoreBoard.
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q, Sum
 from datetime import timedelta
 from decimal import Decimal
 import logging
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 
 from api.auth import HMACAuthentication
 from api.serializers import (
@@ -27,6 +29,17 @@ from core.notifications import NotificationService
 logger = logging.getLogger(__name__)
 
 
+@extend_schema(
+    summary="Claim a chore",
+    description="Claim a pool chore for the authenticated user. Requires HMAC authentication.",
+    request=ClaimChoreSerializer,
+    responses={
+        200: ChoreInstanceSerializer,
+        400: OpenApiTypes.OBJECT,
+        409: OpenApiTypes.OBJECT,
+    },
+    tags=['Actions']
+)
 @api_view(['POST'])
 @authentication_classes([HMACAuthentication])
 @permission_classes([IsAuthenticated])
@@ -114,6 +127,16 @@ def claim_chore(request):
         )
 
 
+@extend_schema(
+    summary="Complete a chore",
+    description="Complete a chore with optional helper selection. Requires HMAC authentication.",
+    request=CompleteChoreSerializer,
+    responses={
+        200: CompletionSerializer,
+        400: OpenApiTypes.OBJECT,
+    },
+    tags=['Actions']
+)
 @api_view(['POST'])
 @authentication_classes([HMACAuthentication])
 @permission_classes([IsAuthenticated])
@@ -287,6 +310,17 @@ def complete_chore(request):
         )
 
 
+@extend_schema(
+    summary="Undo a completion",
+    description="Undo a chore completion. Admin only. Must be within undo time window.",
+    request=UndoCompletionSerializer,
+    responses={
+        200: ChoreInstanceSerializer,
+        400: OpenApiTypes.OBJECT,
+        403: OpenApiTypes.OBJECT,
+    },
+    tags=['Actions']
+)
 @api_view(['POST'])
 @authentication_classes([HMACAuthentication])
 @permission_classes([IsAdminUser])
@@ -390,12 +424,20 @@ def undo_completion(request):
         )
 
 
+@extend_schema(
+    summary="Get late (overdue) chores",
+    description="Returns all chores that are overdue. Authentication is optional but supported.",
+    responses={200: ChoreInstanceSerializer(many=True)},
+    tags=['Chores']
+)
 @api_view(['GET'])
 @authentication_classes([HMACAuthentication])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def late_chores(request):
     """
     Get all late (overdue) chores.
+
+    Authentication is optional but supported.
 
     Returns:
         200: List of late chore instances
@@ -409,12 +451,20 @@ def late_chores(request):
     return Response(serializer.data)
 
 
+@extend_schema(
+    summary="Get outstanding chores",
+    description="Returns all chores that are not overdue and not completed. Authentication is optional but supported.",
+    responses={200: ChoreInstanceSerializer(many=True)},
+    tags=['Chores']
+)
 @api_view(['GET'])
 @authentication_classes([HMACAuthentication])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def outstanding_chores(request):
     """
     Get all outstanding (not overdue, not completed) chores.
+
+    Authentication is optional but supported.
 
     Returns:
         200: List of outstanding chore instances
@@ -432,12 +482,30 @@ def outstanding_chores(request):
     return Response(serializer.data)
 
 
+@extend_schema(
+    summary="Get leaderboard",
+    description="Returns leaderboard rankings for weekly or all-time points. Authentication is optional but supported.",
+    parameters=[
+        OpenApiParameter(
+            name='type',
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description='Leaderboard type: "weekly" or "alltime"',
+            required=False,
+            enum=['weekly', 'alltime']
+        ),
+    ],
+    responses={200: LeaderboardEntrySerializer(many=True)},
+    tags=['Leaderboard']
+)
 @api_view(['GET'])
 @authentication_classes([HMACAuthentication])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def leaderboard(request):
     """
     Get leaderboard rankings.
+
+    Authentication is optional but supported.
 
     Query params:
         type: 'weekly' or 'alltime' (default: weekly)
@@ -483,16 +551,29 @@ def leaderboard(request):
     return Response(serializer.data)
 
 
+@extend_schema(
+    summary="Get my chores",
+    description="Returns chores assigned to the authenticated user. Returns empty list if not authenticated.",
+    responses={200: ChoreInstanceSerializer(many=True)},
+    tags=['Chores']
+)
 @api_view(['GET'])
 @authentication_classes([HMACAuthentication])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def my_chores(request):
     """
     Get chores assigned to the authenticated user.
 
+    Authentication is optional but supported.
+    Returns empty list if not authenticated.
+
     Returns:
-        200: List of chore instances assigned to user
+        200: List of chore instances assigned to user (empty if not authenticated)
     """
+    # Return empty list if not authenticated
+    if not request.user.is_authenticated:
+        return Response([])
+
     user = request.user
 
     my_instances = ChoreInstance.objects.filter(

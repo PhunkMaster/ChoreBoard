@@ -680,3 +680,80 @@ class LateAndOutstandingChoresAPITests(TestCase):
         # Should only include the late_instance (assigned to user)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['id'], self.late_instance.id)
+
+
+class UnauthenticatedGETAPITests(TestCase):
+    """Test that GET API endpoints work without authentication."""
+
+    def setUp(self):
+        # Create a user
+        self.user = User.objects.create_user(
+            username='alice',
+            password='test123',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        # Create a chore
+        self.chore = Chore.objects.create(
+            name='Test Chore',
+            points=Decimal('10.00'),
+            is_active=True
+        )
+
+        # Create chore instances
+        now = timezone.now()
+        self.late_instance = ChoreInstance.objects.create(
+            chore=self.chore,
+            status=ChoreInstance.POOL,
+            points_value=self.chore.points,
+            due_at=now - timedelta(hours=6),  # Overdue
+            distribution_at=now - timedelta(days=1),
+            is_overdue=True  # Mark as overdue
+        )
+
+        self.outstanding_instance = ChoreInstance.objects.create(
+            chore=self.chore,
+            status=ChoreInstance.ASSIGNED,
+            assigned_to=self.user,
+            points_value=self.chore.points,
+            due_at=now + timedelta(hours=6),  # Future
+            distribution_at=now
+        )
+
+        # Client without authentication
+        self.client = APIClient()
+
+    def test_leaderboard_without_auth(self):
+        """Test that leaderboard works without authentication."""
+        response = self.client.get('/api/leaderboard/')
+        self.assertEqual(response.status_code, 200)
+        # Should return data even without auth
+        self.assertIsInstance(response.data, list)
+
+    def test_leaderboard_alltime_without_auth(self):
+        """Test that alltime leaderboard works without authentication."""
+        response = self.client.get('/api/leaderboard/?type=alltime')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, list)
+
+    def test_late_chores_without_auth(self):
+        """Test that late chores endpoint works without authentication."""
+        response = self.client.get('/api/late-chores/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, list)
+        # Should return the late instance
+        self.assertEqual(len(response.data), 1)
+
+    def test_outstanding_chores_without_auth(self):
+        """Test that outstanding chores endpoint works without authentication."""
+        response = self.client.get('/api/outstanding/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, list)
+
+    def test_my_chores_without_auth_returns_empty(self):
+        """Test that my chores without authentication returns empty list."""
+        response = self.client.get('/api/my-chores/')
+        self.assertEqual(response.status_code, 200)
+        # Should return empty list when not authenticated
+        self.assertEqual(response.data, [])
