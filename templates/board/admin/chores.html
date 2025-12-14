@@ -695,6 +695,7 @@ async function editChore(choreId) {
 
             document.getElementById('chore-undesirable').checked = data.is_undesirable;
             document.getElementById('chore-is-difficult').checked = data.is_difficult || false;
+            document.getElementById('chore-complete-later').checked = data.complete_later || false;
             document.getElementById('chore-distribution-time').value = data.distribution_time;
             document.getElementById('chore-schedule-type').value = data.schedule_type;
 
