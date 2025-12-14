@@ -536,9 +536,11 @@ def distribution_check():
 
     logger.info(f"Found {instances_to_distribute.count()} instances to distribute")
     for instance in instances_to_distribute:
+        local_distribution_at = timezone.localtime(instance.distribution_at)
+        local_now = timezone.localtime(now)
         logger.info(
-            f"  - {instance.chore.name}: distribution_at={instance.distribution_at}, "
-            f"now={now}, status={instance.status}"
+            f"  - {instance.chore.name}: distribution_at={local_distribution_at}, "
+            f"now={local_now}, status={instance.status}"
         )
 
     assigned_count = 0
