@@ -11,11 +11,10 @@ env/
 
 # Django
 *.log
-db.sqlite3
 db.sqlite3-journal
 /staticfiles/
 /media/
-data/backups/**
+data/**
 
 # IDE
 .idea/
