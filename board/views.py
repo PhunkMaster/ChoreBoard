@@ -976,6 +976,11 @@ def reschedule_chore_view(request):
                 return JsonResponse({'error': 'Cannot reschedule a completed chore'}, status=400)
 
             old_due_at = instance.due_at
+
+            # Ensure new_due_at is timezone-aware
+            if timezone.is_naive(new_due_at):
+                new_due_at = timezone.make_aware(new_due_at)
+
             instance.due_at = new_due_at
 
             # Recalculate is_overdue based on new due_at
