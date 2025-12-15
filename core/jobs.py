@@ -512,12 +512,13 @@ def cleanup_completed_one_time_tasks():
 
 def distribution_check():
     """
-    Distribution check job (runs at 17:30 daily).
+    Distribution check job (runs every 5 minutes).
 
     Tasks:
-    1. Find ChoreInstances with distribution_time that has passed
-    2. Auto-assign based on assignment algorithm
-    3. Send notifications for assigned chores
+    1. Check if midnight evaluation was missed and run it if needed
+    2. Find ChoreInstances with distribution_time that has passed
+    3. Auto-assign based on assignment algorithm
+    4. Send notifications for assigned chores
     """
     from chores.services import AssignmentService
 
@@ -526,6 +527,31 @@ def distribution_check():
     now = timezone.now()
     current_tz = timezone.get_current_timezone()
     logger.info(f"Distribution check running at {now} (timezone: {current_tz})")
+
+    # WATCHDOG: Check if midnight evaluation ran today
+    # If it's past 12:30 AM and no evaluation log exists for today, trigger it
+    local_now = timezone.localtime(now)
+    if local_now.hour >= 0 and local_now.minute >= 30:  # After 12:30 AM
+        today_start = timezone.make_aware(
+            datetime.combine(local_now.date(), datetime.min.time())
+        )
+        today_end = today_start + timedelta(hours=1, minutes=30)  # Check between midnight and 1:30 AM
+
+        eval_exists = EvaluationLog.objects.filter(
+            started_at__gte=today_start,
+            started_at__lt=today_end
+        ).exists()
+
+        if not eval_exists:
+            logger.warning(f"⚠️  WATCHDOG: Midnight evaluation has not run today ({local_now.date()})")
+            logger.warning("⚠️  WATCHDOG: Triggering missed midnight evaluation now...")
+            try:
+                midnight_evaluation()
+                logger.info("✓ WATCHDOG: Successfully ran missed midnight evaluation")
+            except Exception as e:
+                logger.error(f"✗ WATCHDOG: Failed to run missed midnight evaluation: {str(e)}")
+        else:
+            logger.debug(f"✓ WATCHDOG: Midnight evaluation already ran today")
 
     # Find pool chores that need distribution
     instances_to_distribute = ChoreInstance.objects.filter(
