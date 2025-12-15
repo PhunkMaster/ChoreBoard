@@ -2342,16 +2342,17 @@ def admin_midnight_evaluation(request):
             'error_details': log.error_details,
         })
 
-    # Check if evaluation ran today
+    # Check if evaluation ran today (any time, not just midnight window)
     today_start = timezone.make_aware(
         datetime.combine(today, datetime.min.time())
     )
-    today_end = today_start + timedelta(hours=1, minutes=30)
+    today_end = today_start + timedelta(days=1)  # End of today
 
+    # Get the most recent evaluation from today (any time, not just midnight window)
     today_eval = EvaluationLog.objects.filter(
         started_at__gte=today_start,
         started_at__lt=today_end
-    ).first()
+    ).order_by('-started_at').first()
 
     # Find chores that should be overdue but aren't
     pending_overdue = ChoreInstance.objects.filter(
