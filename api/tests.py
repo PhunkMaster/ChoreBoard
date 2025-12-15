@@ -1644,3 +1644,171 @@ class CompleteOnBehalfAPITests(TestCase):
         self.assertIsNotNone(log)
         self.assertIn('on behalf of bob', log.description.lower())
         self.assertEqual(log.metadata['completed_by_user_id'], self.bob.id)
+
+
+class ClaimForSomeoneElseAPITests(TestCase):
+    """Test claiming chores for another user."""
+
+    def setUp(self):
+        """Set up test data."""
+        # Create users
+        self.alice = User.objects.create_user(
+            username='alice',
+            password='test123',
+            first_name='Alice',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        self.bob = User.objects.create_user(
+            username='bob',
+            password='test123',
+            first_name='Bob',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        # Create chore and pool instance
+        self.chore = Chore.objects.create(
+            name='Test Chore',
+            points=Decimal('10.00'),
+            is_pool=True,
+            is_active=True
+        )
+
+        now = timezone.now()
+        self.instance = ChoreInstance.objects.create(
+            chore=self.chore,
+            status=ChoreInstance.POOL,
+            points_value=Decimal('10.00'),
+            due_at=now + timedelta(hours=1),
+            distribution_at=now
+        )
+
+        self.client = APIClient()
+
+    def test_claim_for_another_user(self):
+        """Test that user can claim a chore and assign it to another user."""
+        # Alice (authenticated) claims chore for Bob
+        token = HMACAuthentication.generate_token(self.alice.username)
+
+        response = self.client.post(
+            '/api/claim/',
+            {
+                'instance_id': self.instance.id,
+                'assign_to_user_id': self.bob.id
+            },
+            HTTP_AUTHORIZATION=f'Bearer {token}'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('message', response.data)
+
+        # Verify instance is assigned to Bob (not Alice)
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.status, ChoreInstance.ASSIGNED)
+        self.assertEqual(self.instance.assigned_to.id, self.bob.id)
+        self.assertEqual(self.instance.assignment_reason, ChoreInstance.REASON_CLAIMED)
+
+        # Verify Bob's claim counter incremented (not Alice's)
+        self.bob.refresh_from_db()
+        self.assertEqual(self.bob.claims_today, 1)
+
+        self.alice.refresh_from_db()
+        self.assertEqual(self.alice.claims_today, 0)
+
+    def test_claim_for_invalid_user(self):
+        """Test that claiming for non-existent user returns 404."""
+        token = HMACAuthentication.generate_token(self.alice.username)
+
+        response = self.client.post(
+            '/api/claim/',
+            {
+                'instance_id': self.instance.id,
+                'assign_to_user_id': 99999
+            },
+            HTTP_AUTHORIZATION=f'Bearer {token}'
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn('error', response.data)
+        self.assertIn('not found', response.data['error'].lower())
+
+        # Verify instance was not claimed
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.status, ChoreInstance.POOL)
+
+    def test_claim_without_assign_to_defaults_to_auth_user(self):
+        """Test backward compatibility: without assign_to_user_id, defaults to authenticated user."""
+        token = HMACAuthentication.generate_token(self.alice.username)
+
+        response = self.client.post(
+            '/api/claim/',
+            {
+                'instance_id': self.instance.id
+            },
+            HTTP_AUTHORIZATION=f'Bearer {token}'
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify instance is assigned to Alice
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.status, ChoreInstance.ASSIGNED)
+        self.assertEqual(self.instance.assigned_to.id, self.alice.id)
+
+        # Verify Alice's claim counter incremented
+        self.alice.refresh_from_db()
+        self.assertEqual(self.alice.claims_today, 1)
+
+    def test_claim_for_user_at_claim_limit(self):
+        """Test that claiming for user who has reached claim limit returns 409."""
+        # Set Bob's claim count to max
+        settings = Settings.get_settings()
+        self.bob.claims_today = settings.max_claims_per_day
+        self.bob.save()
+
+        token = HMACAuthentication.generate_token(self.alice.username)
+
+        response = self.client.post(
+            '/api/claim/',
+            {
+                'instance_id': self.instance.id,
+                'assign_to_user_id': self.bob.id
+            },
+            HTTP_AUTHORIZATION=f'Bearer {token}'
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn('error', response.data)
+        self.assertIn('already claimed', response.data['error'].lower())
+
+        # Verify instance was not claimed
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.status, ChoreInstance.POOL)
+
+    def test_claim_for_someone_else_action_log(self):
+        """Test that action log correctly records claim for another user."""
+        token = HMACAuthentication.generate_token(self.alice.username)
+
+        response = self.client.post(
+            '/api/claim/',
+            {
+                'instance_id': self.instance.id,
+                'assign_to_user_id': self.bob.id
+            },
+            HTTP_AUTHORIZATION=f'Bearer {token}'
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify action log shows Alice as the user who performed the action
+        from core.models import ActionLog
+        log = ActionLog.objects.filter(
+            action_type=ActionLog.ACTION_CLAIM,
+            user=self.alice
+        ).first()
+
+        self.assertIsNotNone(log)
+        self.assertIn('assigned to bob', log.description.lower())
+        self.assertEqual(log.metadata['assigned_to_user_id'], self.bob.id)

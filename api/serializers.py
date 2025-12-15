@@ -123,6 +123,11 @@ class ClaimChoreSerializer(serializers.Serializer):
     """Serializer for claiming a chore."""
 
     instance_id = serializers.IntegerField()
+    assign_to_user_id = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="Optional: User ID to assign the chore to. Defaults to authenticated user."
+    )
 
 
 class CompleteChoreSerializer(serializers.Serializer):

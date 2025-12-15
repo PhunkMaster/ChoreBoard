@@ -45,16 +45,18 @@ logger = logging.getLogger(__name__)
 @permission_classes([IsAuthenticated])
 def claim_chore(request):
     """
-    Claim a pool chore for the authenticated user.
+    Claim a pool chore for the authenticated user or another specified user.
 
     Request body:
         {
-            "instance_id": 123
+            "instance_id": 123,
+            "assign_to_user_id": 456  // Optional, defaults to authenticated user
         }
 
     Returns:
         200: Chore claimed successfully
         400: Validation error
+        404: User not found
         409: Already claimed max chores today
         423: Chore locked by another user
     """
@@ -63,7 +65,19 @@ def claim_chore(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     instance_id = serializer.validated_data['instance_id']
-    user = request.user
+    assign_to_user_id = serializer.validated_data.get('assign_to_user_id')
+
+    # Determine who to assign the chore to
+    if assign_to_user_id:
+        try:
+            assign_to_user = User.objects.get(id=assign_to_user_id)
+        except User.DoesNotExist:
+            return Response(
+                {'error': f'User with ID {assign_to_user_id} not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+    else:
+        assign_to_user = request.user
 
     try:
         # Use select_for_update for database locking
@@ -77,37 +91,40 @@ def claim_chore(request):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Check daily claim limit
+            # Check daily claim limit for the user being assigned to
             settings = Settings.get_settings()
-            if user.claims_today >= settings.max_claims_per_day:
+            if assign_to_user.claims_today >= settings.max_claims_per_day:
                 return Response(
-                    {'error': f'You have already claimed {settings.max_claims_per_day} chore(s) today'},
+                    {'error': f'{assign_to_user.username} has already claimed {settings.max_claims_per_day} chore(s) today'},
                     status=status.HTTP_409_CONFLICT
                 )
 
             # Claim the chore
             instance.status = ChoreInstance.ASSIGNED
-            instance.assigned_to = user
+            instance.assigned_to = assign_to_user
             instance.assigned_at = timezone.now()
             instance.assignment_reason = ChoreInstance.REASON_CLAIMED
             instance.save()
 
             # Increment user's claim counter
-            user.claims_today += 1
-            user.save()
+            assign_to_user.claims_today += 1
+            assign_to_user.save()
 
             # Log action
             ActionLog.objects.create(
                 action_type=ActionLog.ACTION_CLAIM,
-                user=user,
-                description=f"Claimed {instance.chore.name}",
-                metadata={'instance_id': instance.id}
+                user=request.user,
+                description=f"Claimed {instance.chore.name} (assigned to {assign_to_user.username})" if assign_to_user_id else f"Claimed {instance.chore.name}",
+                metadata={
+                    'instance_id': instance.id,
+                    'assigned_to_user_id': assign_to_user.id
+                }
             )
 
             # Send webhook notification
-            NotificationService.notify_chore_claimed(instance, user)
+            NotificationService.notify_chore_claimed(instance, assign_to_user)
 
-            logger.info(f"User {user.username} claimed chore {instance.chore.name}")
+            logger.info(f"User {request.user.username} claimed chore {instance.chore.name} (assigned to {assign_to_user.username})")
 
             return Response({
                 'message': 'Chore claimed successfully',
