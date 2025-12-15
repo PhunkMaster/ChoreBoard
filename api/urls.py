@@ -28,4 +28,7 @@ urlpatterns = [
 
     # Users
     path('users/', views.users_list, name='users_list'),
+
+    # Completions
+    path('completions/recent/', views.recent_completions, name='recent_completions'),
 ]

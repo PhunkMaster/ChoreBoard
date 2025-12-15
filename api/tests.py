@@ -977,6 +977,156 @@ class ChoreInstanceCompletionDataTests(TestCase):
         self.assertIsNone(completed_data['last_completion'])
 
 
+class RecentCompletionsAPITests(TestCase):
+    """Test the recent completions endpoint."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username='alice',
+            password='test123',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        self.helper = User.objects.create_user(
+            username='bob',
+            password='test123',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        self.chore = Chore.objects.create(
+            name='Test Chore',
+            points=Decimal('10.00'),
+            is_active=True
+        )
+
+        # Create multiple completions
+        now = timezone.now()
+        for i in range(5):
+            instance = ChoreInstance.objects.create(
+                chore=self.chore,
+                status=ChoreInstance.COMPLETED,
+                points_value=self.chore.points,
+                due_at=now - timedelta(hours=i),
+                distribution_at=now - timedelta(hours=i+1),
+                completed_at=now - timedelta(hours=i)
+            )
+
+            completion = Completion.objects.create(
+                chore_instance=instance,
+                completed_by=self.user,
+                was_late=False,
+                completed_at=now - timedelta(hours=i)
+            )
+
+            # Add shares
+            CompletionShare.objects.create(
+                completion=completion,
+                user=self.user,
+                points_awarded=Decimal('5.00')
+            )
+
+            CompletionShare.objects.create(
+                completion=completion,
+                user=self.helper,
+                points_awarded=Decimal('5.00')
+            )
+
+        # Create an undone completion (should not appear)
+        undone_instance = ChoreInstance.objects.create(
+            chore=self.chore,
+            status=ChoreInstance.COMPLETED,
+            points_value=self.chore.points,
+            due_at=now,
+            distribution_at=now,
+            completed_at=now
+        )
+
+        self.undone_completion = Completion.objects.create(
+            chore_instance=undone_instance,
+            completed_by=self.user,
+            was_late=False,
+            is_undone=True
+        )
+
+        self.client = APIClient()
+
+    def test_recent_completions(self):
+        """Test getting recent completions."""
+        response = self.client.get('/api/completions/recent/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, list)
+
+        # Should return 5 completions (undone excluded)
+        self.assertEqual(len(response.data), 5)
+
+        # Check completion data structure
+        if len(response.data) > 0:
+            completion_data = response.data[0]
+            self.assertIn('id', completion_data)
+            self.assertIn('completed_by', completion_data)
+            self.assertIn('completed_at', completion_data)
+            self.assertIn('was_late', completion_data)
+            self.assertIn('shares', completion_data)
+            self.assertIn('chore_instance', completion_data)
+
+            # Check shares include both users
+            self.assertEqual(len(completion_data['shares']), 2)
+
+    def test_recent_completions_with_limit(self):
+        """Test recent completions with custom limit."""
+        response = self.client.get('/api/completions/recent/?limit=3')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, list)
+
+        # Should return only 3 completions
+        self.assertEqual(len(response.data), 3)
+
+    def test_recent_completions_max_limit(self):
+        """Test that limit is capped at 50."""
+        response = self.client.get('/api/completions/recent/?limit=100')
+        self.assertEqual(response.status_code, 200)
+        # Should still work, but capped at available completions
+        self.assertLessEqual(len(response.data), 50)
+
+    def test_recent_completions_invalid_limit(self):
+        """Test recent completions with invalid limit defaults to 10."""
+        response = self.client.get('/api/completions/recent/?limit=invalid')
+        self.assertEqual(response.status_code, 200)
+        # Should default to showing available completions (5 in our case)
+        self.assertEqual(len(response.data), 5)
+
+    def test_recent_completions_excludes_undone(self):
+        """Test that undone completions are excluded."""
+        response = self.client.get('/api/completions/recent/')
+        self.assertEqual(response.status_code, 200)
+
+        # Check that undone completion is not in results
+        completion_ids = [c['id'] for c in response.data]
+        self.assertNotIn(self.undone_completion.id, completion_ids)
+
+    def test_recent_completions_ordered_by_time(self):
+        """Test that completions are ordered by completed_at descending."""
+        response = self.client.get('/api/completions/recent/')
+        self.assertEqual(response.status_code, 200)
+
+        # Check ordering (most recent first)
+        if len(response.data) >= 2:
+            first_time = response.data[0]['completed_at']
+            second_time = response.data[1]['completed_at']
+            # First should be more recent than second
+            self.assertGreaterEqual(first_time, second_time)
+
+    def test_recent_completions_without_auth(self):
+        """Test that recent completions works without authentication."""
+        response = self.client.get('/api/completions/recent/')
+        self.assertEqual(response.status_code, 200)
+        # Should return data even without auth
+        self.assertIsInstance(response.data, list)
+
+
 class CompleteLaterFieldTests(TestCase):
     """Test that ChoreInstance serializer exposes complete_later field."""
 

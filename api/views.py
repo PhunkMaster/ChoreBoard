@@ -612,3 +612,57 @@ def users_list(request):
 
     serializer = UserSerializer(users, many=True)
     return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get recent completions",
+    description="Returns recent chore completions with helper information. Authentication optional.",
+    parameters=[
+        OpenApiParameter(
+            name='limit',
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+            description='Number of completions to return (default: 10, max: 50)',
+            required=False
+        ),
+    ],
+    responses={200: CompletionSerializer(many=True)},
+    tags=['Completions']
+)
+@api_view(['GET'])
+@authentication_classes([HMACAuthentication])
+@permission_classes([AllowAny])
+def recent_completions(request):
+    """
+    Get recent chore completions.
+
+    Authentication is optional but supported.
+
+    Query params:
+        limit: Number of completions to return (default: 10, max: 50)
+
+    Returns:
+        200: List of recent completions with helper information
+    """
+    # Get limit parameter with validation
+    try:
+        limit = int(request.query_params.get('limit', 10))
+        limit = min(limit, 50)  # Cap at 50
+        limit = max(limit, 1)   # Minimum 1
+    except (ValueError, TypeError):
+        limit = 10
+
+    # Get recent completions (exclude undone)
+    completions = Completion.objects.filter(
+        is_undone=False
+    ).select_related(
+        'chore_instance',
+        'chore_instance__chore',
+        'completed_by'
+    ).prefetch_related(
+        'shares',
+        'shares__user'
+    ).order_by('-completed_at')[:limit]
+
+    serializer = CompletionSerializer(completions, many=True)
+    return Response(serializer.data)
