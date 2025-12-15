@@ -67,6 +67,9 @@ urlpatterns = [
     path('admin-panel/streak/<int:user_id>/reset/', views_admin.admin_streak_reset, name='admin_streak_reset'),
     path('admin-panel/undo-completions/', views_admin.admin_undo_completions, name='admin_undo_completions'),
     path('admin-panel/undo-completion/<int:completion_id>/', views_admin.admin_undo_completion, name='admin_undo_completion'),
+    # Backdate Completions
+    path('admin-panel/backdate-completion/', views_admin.admin_backdate_completion, name='admin_backdate_completion'),
+    path('admin-panel/backdate-completion-action/', views_admin.admin_backdate_completion_action, name='admin_backdate_completion_action'),
     # Chore CRUD
     path('admin-panel/chore/get/<int:chore_id>/', views_admin.admin_chore_get, name='admin_chore_get'),
     path('admin-panel/chore/create/', views_admin.admin_chore_create, name='admin_chore_create'),

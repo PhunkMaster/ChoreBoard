@@ -30,6 +30,7 @@
                     {% elif active_page == 'streaks' %}Streaks
                     {% elif active_page == 'adjust_points' %}Adjust Points
                     {% elif active_page == 'undo_completions' %}Undo Completions
+                    {% elif active_page == 'backdate_completion' %}Backdate Completion
                     {% elif active_page == 'backups' %}Backups
                     {% elif active_page == 'logs' %}Action Logs
                     {% elif active_page == 'midnight_evaluation' %}Midnight Evaluation
@@ -165,6 +166,13 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                 </svg>
                 Undo Completions
+            </a>
+            <a href="{% url 'board:admin_backdate_completion' %}"
+               class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition {% if active_page == 'backdate_completion' %}bg-primary-500 text-white{% else %}text-gray-300 hover:bg-dark-card{% endif %}">
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Backdate Completion
             </a>
         </div>
 

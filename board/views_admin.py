@@ -421,6 +421,314 @@ def admin_undo_completion(request, completion_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@login_required
+@user_passes_test(is_staff_user)
+def admin_backdate_completion(request):
+    """
+    Interface for staff to complete chores with a past date.
+    Shows all ChoreInstance objects that are not yet completed.
+    """
+    # Get all active chore instances (not completed or skipped)
+    active_instances = ChoreInstance.objects.filter(
+        Q(status=ChoreInstance.POOL) | Q(status=ChoreInstance.ASSIGNED)
+    ).select_related(
+        'chore',
+        'assigned_to'
+    ).order_by('due_at')
+
+    # Get all active users
+    users = User.objects.filter(
+        is_active=True
+    ).order_by('username')
+
+    context = {
+        'instances': active_instances,
+        'users': users,
+        'today': timezone.localtime(timezone.now()).date(),
+    }
+
+    return render(request, 'board/admin/backdate_completion.html', context)
+
+
+@require_http_methods(["POST"])
+@login_required
+@user_passes_test(is_staff_user)
+def admin_backdate_completion_action(request):
+    """
+    Complete a chore with a backdated completion date.
+
+    This makes the system act as if the user completed the chore on the specified past date.
+    Points are awarded to the week of the backdated date.
+    """
+    try:
+        instance_id = request.POST.get('instance_id')
+        user_id = request.POST.get('user_id')
+        completion_date_str = request.POST.get('completion_date')
+        helper_ids = request.POST.getlist('helper_ids[]')
+
+        if not instance_id or not user_id or not completion_date_str:
+            return JsonResponse({'error': 'Missing required fields'}, status=400)
+
+        # Parse completion date
+        try:
+            completion_date = datetime.strptime(completion_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return JsonResponse({'error': 'Invalid date format'}, status=400)
+
+        # Validate date is in the past
+        today = timezone.localtime(timezone.now()).date()
+        if completion_date > today:
+            return JsonResponse({'error': 'Completion date must be in the past or today'}, status=400)
+
+        with transaction.atomic():
+            # Get the instance and user
+            instance = ChoreInstance.objects.select_for_update().get(id=instance_id)
+            completing_user = User.objects.get(id=user_id)
+
+            # Allow completing any instance (pool, assigned, or even non-existent)
+            # Update instance status
+            instance.status = ChoreInstance.COMPLETED
+            instance.completed_at = timezone.make_aware(
+                datetime.combine(completion_date, datetime.min.time())
+            )
+            instance.is_late_completion = False  # Award full points, ignore overdue
+            instance.save()
+
+            # Create completion record with backdated date
+            completion = Completion.objects.create(
+                chore_instance=instance,
+                completed_by=completing_user,
+                was_late=False,  # Award full points
+                completed_at=instance.completed_at  # Use backdated date
+            )
+
+            # Determine who gets points
+            if helper_ids:
+                # Specified helpers split the points
+                helpers = User.objects.filter(id__in=helper_ids, eligible_for_points=True)
+                helpers_list = list(helpers)
+            else:
+                # If no helpers specified and chore is undesirable, distribute to all eligible
+                if instance.chore.is_undesirable:
+                    from chores.models import ChoreEligibility
+                    eligible_ids = ChoreEligibility.objects.filter(
+                        chore=instance.chore
+                    ).values_list('user_id', flat=True)
+                    helpers_list = list(User.objects.filter(
+                        id__in=eligible_ids,
+                        eligible_for_points=True
+                    ))
+                else:
+                    # Check if completing user is eligible for points
+                    if completing_user.eligible_for_points:
+                        helpers_list = [completing_user]
+                    else:
+                        # User is not eligible - redistribute to ALL eligible users
+                        helpers_list = list(User.objects.filter(
+                            eligible_for_points=True,
+                            can_be_assigned=True,
+                            is_active=True
+                        ))
+                        logger.info(
+                            f"User {completing_user.username} not eligible for points. "
+                            f"Redistributing {instance.points_value} pts to {len(helpers_list)} eligible users"
+                        )
+
+            # Calculate which week the backdated date falls into
+            # Week is Monday-Sunday, week_ending is the Sunday
+            days_until_sunday = 6 - completion_date.weekday()
+            week_ending = completion_date + timedelta(days=days_until_sunday)
+
+            # Determine if backdated date is in current week
+            current_week_monday = today - timedelta(days=today.weekday())
+            current_week_sunday = current_week_monday + timedelta(days=6)
+            is_current_week = current_week_monday <= completion_date <= current_week_sunday
+
+            # Split points among helpers
+            if helpers_list:
+                points_per_person = instance.points_value / len(helpers_list)
+                points_per_person = Decimal(str(round(float(points_per_person), 2)))
+
+                for helper in helpers_list:
+                    # Create share record
+                    CompletionShare.objects.create(
+                        completion=completion,
+                        user=helper,
+                        points_awarded=points_per_person
+                    )
+
+                    # Add points to correct week
+                    if is_current_week:
+                        # Backdated to current week: add to both weekly and all-time
+                        helper.add_points(points_per_person, weekly=True, all_time=True)
+                    else:
+                        # Backdated to past week: add to all-time only
+                        helper.add_points(points_per_person, weekly=False, all_time=True)
+
+                        # Update or create WeeklySnapshot for that past week
+                        snapshot, created = WeeklySnapshot.objects.get_or_create(
+                            user=helper,
+                            week_ending=week_ending,
+                            defaults={
+                                'points_earned': Decimal('0.00'),
+                                'cash_value': Decimal('0.00'),
+                                'perfect_week': False
+                            }
+                        )
+
+                        # Add points to the snapshot
+                        settings_obj = Settings.get_settings()
+                        snapshot.points_earned += points_per_person
+                        snapshot.cash_value = snapshot.points_earned * settings_obj.points_to_dollar_rate
+                        snapshot.save()
+
+                    # Create ledger entry with backdated date
+                    PointsLedger.objects.create(
+                        user=helper,
+                        transaction_type=PointsLedger.TYPE_COMPLETION,
+                        points_change=points_per_person,
+                        balance_after=helper.weekly_points if is_current_week else snapshot.points_earned,
+                        completion=completion,
+                        description=f"Backdated completion: {instance.chore.name}",
+                        created_by=request.user
+                    )
+
+            # Update rotation state if undesirable (use backdated date)
+            if instance.chore.is_undesirable and instance.assigned_to:
+                from core.models import RotationState
+                RotationState.objects.update_or_create(
+                    chore=instance.chore,
+                    user=completing_user,
+                    defaults={
+                        'last_completed_date': completion_date  # Use backdated date
+                    }
+                )
+
+            # Spawn child chores immediately with backdated dates
+            from chores.services import DependencyService
+            from chores.models import ChoreDependency
+
+            dependencies = ChoreDependency.objects.filter(
+                depends_on=instance.chore
+            ).select_related('chore')
+
+            spawned_children = []
+            for dep in dependencies:
+                child_chore = dep.chore
+
+                if not child_chore.is_active:
+                    continue
+
+                # Calculate due time with offset from backdated date
+                due_at = timezone.make_aware(
+                    datetime.combine(completion_date, datetime.min.time())
+                ) + timedelta(hours=dep.offset_hours)
+
+                # Calculate distribution time
+                due_date = due_at.date()
+                distribution_at = timezone.make_aware(
+                    datetime.combine(due_date, child_chore.distribution_time)
+                )
+
+                # Create child instance assigned to completing user
+                child_instance = ChoreInstance.objects.create(
+                    chore=child_chore,
+                    status=ChoreInstance.ASSIGNED,
+                    assigned_to=completing_user,
+                    points_value=child_chore.points,
+                    due_at=due_at,
+                    distribution_at=distribution_at,
+                    assignment_reason=ChoreInstance.REASON_PARENT_COMPLETION
+                )
+
+                spawned_children.append(child_instance)
+                logger.info(
+                    f"Spawned backdated child: {child_chore.name} "
+                    f"assigned to {completing_user.username} (due {due_at})"
+                )
+
+            # Check if we need to spawn a new instance for today (for daily chores)
+            # If the chore is daily and backdated to yesterday, spawn today's instance
+            if instance.chore.schedule_type == Chore.SCHEDULE_DAILY:
+                # Check if completion_date was yesterday
+                yesterday = today - timedelta(days=1)
+                if completion_date == yesterday:
+                    # Spawn a new instance for today
+                    today_due_at = timezone.make_aware(
+                        datetime.combine(today, instance.chore.due_time)
+                    )
+                    today_distribution_at = timezone.make_aware(
+                        datetime.combine(today, instance.chore.distribution_time)
+                    )
+
+                    # Create instance based on chore settings (pool or assigned)
+                    if instance.chore.is_pool:
+                        new_status = ChoreInstance.POOL
+                        new_assigned_to = None
+                    else:
+                        new_status = ChoreInstance.ASSIGNED
+                        new_assigned_to = instance.chore.assigned_to
+
+                    new_instance = ChoreInstance.objects.create(
+                        chore=instance.chore,
+                        status=new_status,
+                        assigned_to=new_assigned_to,
+                        points_value=instance.chore.points,
+                        due_at=today_due_at,
+                        distribution_at=today_distribution_at
+                    )
+
+                    logger.info(
+                        f"Spawned today's instance for daily chore: {instance.chore.name}"
+                    )
+
+            # TODO: Recalculate streaks and perfect weeks for affected weeks
+            # Note: Backdated completions are marked as was_late=False, so they won't
+            # negatively affect perfect week calculations. However, if a backdated completion
+            # makes a past week "perfect", we would need to recalculate streaks from that
+            # week forward. For now, admins can manually adjust streaks via the Streaks page.
+            # Future enhancement: Implement full historical streak recalculation.
+
+            # Log the backdated completion action
+            ActionLog.objects.create(
+                action_type=ActionLog.ACTION_COMPLETE,
+                user=request.user,  # Admin who performed the action
+                target_user=completing_user,
+                description=f"Backdated completion: {instance.chore.name} (completed by {completing_user.username} on {completion_date})",
+                metadata={
+                    'instance_id': instance.id,
+                    'backdated': True,
+                    'backdated_date': completion_date.isoformat(),
+                    'actual_completion_time': timezone.now().isoformat(),
+                    'completed_by': completing_user.id,
+                    'helpers': len(helpers_list),
+                    'spawned_children': len(spawned_children),
+                    'week_ending': week_ending.isoformat()
+                }
+            )
+
+            logger.info(
+                f"Admin {request.user.username} backdated completion of {instance.chore.name} "
+                f"to {completion_date} for user {completing_user.username}"
+            )
+
+            return JsonResponse({
+                'message': f'Chore completed successfully with backdated date {completion_date}',
+                'points_awarded': float(instance.points_value),
+                'helpers_count': len(helpers_list),
+                'spawned_children': len(spawned_children),
+                'week_ending': week_ending.isoformat()
+            })
+
+    except ChoreInstance.DoesNotExist:
+        return JsonResponse({'error': 'Chore instance not found'}, status=404)
+    except User.DoesNotExist:
+        return JsonResponse({'error': 'User not found'}, status=404)
+    except Exception as e:
+        logger.error(f"Error backdating completion: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
 # ============================================================================
 # CHORE CRUD ENDPOINTS
 # ============================================================================
