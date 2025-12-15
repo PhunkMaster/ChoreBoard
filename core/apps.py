@@ -41,6 +41,16 @@ class CoreConfig(AppConfig):
             should_start_scheduler = False
             logger.info("Scheduler disabled via SKIP_SCHEDULER environment variable")
 
+        # Don't start scheduler in Django autoreloader parent process
+        # Django's runserver uses autoreloader which spawns 2 processes:
+        # - Parent: watches for file changes (RUN_MAIN not set)
+        # - Child: runs the actual app (RUN_MAIN=true)
+        # We only want to start the scheduler in the child process
+        # Note: If --noreload is used, autoreloader is disabled, so we allow scheduler
+        if 'runserver' in sys.argv and '--noreload' not in sys.argv and not os.getenv('RUN_MAIN'):
+            should_start_scheduler = False
+            logger.debug("Skipping scheduler in autoreloader parent process")
+
         if should_start_scheduler:
             # Execute any queued database restore
             self._execute_queued_restore()

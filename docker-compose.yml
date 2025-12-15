@@ -25,7 +25,12 @@ services:
       # Timezone
       - TZ=America/Chicago
     restart: unless-stopped
+    # Development: runserver with autoreload (scheduler now properly handles autoreloader)
     command: python manage.py runserver 0.0.0.0:8000
+    # Production: use --noreload to disable autoreloader for better performance
+    # command: python manage.py runserver 0.0.0.0:8000 --noreload
+    # Better production option: use gunicorn (add to requirements.txt first)
+    # command: gunicorn ChoreBoard.wsgi:application --bind 0.0.0.0:8000 --workers 3
 
 volumes:
   # Named volumes for data persistence
