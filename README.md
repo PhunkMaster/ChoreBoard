@@ -54,11 +54,18 @@ ChoreBoard is a web-based chore management system designed to:
 - Fixed chores assigned to specific people
 - Admin panel for easy management
 
-🔔 **Notifications**
+🔔 **Notifications & Integrations**
 
 - Optional webhook notifications to Home Assistant
 - Track overdue chores and achievements
 - Weekly reset notifications
+
+🏠 **Home Assistant Integration**
+
+- Full Home Assistant integration available
+- Display chores in Home Assistant dashboards
+- Custom Lovelace card for beautiful chore displays
+- Real-time updates and notifications
 
 ---
 
@@ -146,6 +153,7 @@ Complete guides for using and managing ChoreBoard:
 
 - **[Docker Deployment](docs/DOCKER.md)** - Deploy with Docker for production use
 - **[Database Reset](docs/RESET_DATABASE.md)** - Reset database to start fresh
+- **[Home Assistant Integration](docs/INTEGRATIONS.md)** - Connect ChoreBoard to Home Assistant
 - **[All Documentation](docs/)** - Browse all documentation files
 
 ---
