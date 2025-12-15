@@ -53,24 +53,40 @@ def main_board(request):
     far_future = timezone.make_aware(datetime(3000, 1, 1))
 
     pool_chores = ChoreInstance.objects.filter(
-        status=ChoreInstance.POOL,
-        chore__is_active=True
+        status=ChoreInstance.POOL
+    ).filter(
+        Q(chore__is_active=True) |  # Active chores
+        Q(  # OR open instances of inactive chores
+            chore__is_active=False,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        )
     ).filter(
         Q(due_at__date=today) |  # Due today
         Q(due_at__lt=now) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
-    ).select_related('chore').order_by('due_at')
+    ).select_related('chore').prefetch_related(
+        'completion__completed_by',
+        'completion__shares__user'
+    ).order_by('due_at')
 
     # Get assigned chores: include chores due today, overdue, OR no due date
     assigned_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.ASSIGNED,
-        chore__is_active=True,
         assigned_to__isnull=False  # Exclude unassigned chores
+    ).filter(
+        Q(chore__is_active=True) |  # Active chores
+        Q(  # OR open instances of inactive chores
+            chore__is_active=False,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        )
     ).filter(
         Q(due_at__date=today) |  # Due today
         Q(due_at__lt=now) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
-    ).select_related('chore', 'assigned_to').order_by('due_at')
+    ).select_related('chore', 'assigned_to').prefetch_related(
+        'completion__completed_by',
+        'completion__shares__user'
+    ).order_by('due_at')
 
     # Feature #8: Group assigned chores by user
     from collections import defaultdict
@@ -156,13 +172,21 @@ def pool_only(request):
     far_future = timezone.make_aware(datetime(3000, 1, 1))
 
     pool_chores = ChoreInstance.objects.filter(
-        status=ChoreInstance.POOL,
-        chore__is_active=True
+        status=ChoreInstance.POOL
+    ).filter(
+        Q(chore__is_active=True) |  # Active chores
+        Q(  # OR open instances of inactive chores
+            chore__is_active=False,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        )
     ).filter(
         Q(due_at__date=today) |  # Due today
         Q(due_at__lt=now) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
-    ).select_related('chore').order_by('due_at')
+    ).select_related('chore').prefetch_related(
+        'completion__completed_by',
+        'completion__shares__user'
+    ).order_by('due_at')
 
     # Get all users for the user selector (including those not eligible for points)
     # Note: Users not eligible for points can still complete chores,
@@ -196,13 +220,21 @@ def user_board(request, username):
     # Get chores assigned to this user: include chores due today, overdue, OR no due date
     assigned_chores = ChoreInstance.objects.filter(
         assigned_to=user,
-        status__in=[ChoreInstance.ASSIGNED, ChoreInstance.POOL],
-        chore__is_active=True
+        status__in=[ChoreInstance.ASSIGNED, ChoreInstance.POOL]
+    ).filter(
+        Q(chore__is_active=True) |  # Active chores
+        Q(  # OR open instances of inactive chores
+            chore__is_active=False,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        )
     ).filter(
         Q(due_at__date=today) |  # Due today
         Q(due_at__lt=now) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
-    ).select_related('chore').order_by('due_at')
+    ).select_related('chore').prefetch_related(
+        'completion__completed_by',
+        'completion__shares__user'
+    ).order_by('due_at')
 
     # Separate overdue from on-time
     overdue_chores = assigned_chores.filter(is_overdue=True)
@@ -257,11 +289,19 @@ def user_board_minimal(request, username):
     # Get chores assigned to this user: include chores due today OR overdue from previous days
     assigned_chores = ChoreInstance.objects.filter(
         assigned_to=user,
-        status__in=[ChoreInstance.ASSIGNED, ChoreInstance.POOL],
-        chore__is_active=True
+        status__in=[ChoreInstance.ASSIGNED, ChoreInstance.POOL]
+    ).filter(
+        Q(chore__is_active=True) |  # Active chores
+        Q(  # OR open instances of inactive chores
+            chore__is_active=False,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        )
     ).filter(
         Q(due_at__date=today) | Q(due_at__lt=now)  # Due today OR past due
-    ).select_related('chore').order_by('is_overdue', 'due_at')
+    ).select_related('chore').prefetch_related(
+        'completion__completed_by',
+        'completion__shares__user'
+    ).order_by('is_overdue', 'due_at')
 
     # Check for active arcade session for THIS user only (from URL username)
     # This ensures Alice's arcade session only shows on /user/alice/minimal/
@@ -307,13 +347,21 @@ def pool_minimal(request):
     far_future = timezone.make_aware(datetime(3000, 1, 1))
 
     pool_chores = ChoreInstance.objects.filter(
-        status=ChoreInstance.POOL,
-        chore__is_active=True
+        status=ChoreInstance.POOL
+    ).filter(
+        Q(chore__is_active=True) |  # Active chores
+        Q(  # OR open instances of inactive chores
+            chore__is_active=False,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        )
     ).filter(
         Q(due_at__date=today) |  # Due today
         Q(due_at__lt=now) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
-    ).select_related('chore').order_by('due_at')
+    ).select_related('chore').prefetch_related(
+        'completion__completed_by',
+        'completion__shares__user'
+    ).order_by('due_at')
 
     # Check for any active arcade session (kiosk-mode compatible)
     active_arcade_session = ArcadeSession.objects.filter(
@@ -356,13 +404,21 @@ def assigned_minimal(request):
 
     # Get all assigned chores: include chores due today, overdue, OR no due date
     assigned_chores = ChoreInstance.objects.filter(
-        status=ChoreInstance.ASSIGNED,
-        chore__is_active=True
+        status=ChoreInstance.ASSIGNED
+    ).filter(
+        Q(chore__is_active=True) |  # Active chores
+        Q(  # OR open instances of inactive chores
+            chore__is_active=False,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        )
     ).filter(
         Q(due_at__date=today) |  # Due today
         Q(due_at__lt=now) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
-    ).exclude(status=ChoreInstance.SKIPPED).select_related('chore', 'assigned_to').order_by('due_at')
+    ).exclude(status=ChoreInstance.SKIPPED).select_related('chore', 'assigned_to').prefetch_related(
+        'completion__completed_by',
+        'completion__shares__user'
+    ).order_by('due_at')
 
     # Group assigned chores by user
     chores_by_user = defaultdict(lambda: {'overdue': [], 'ontime': []})

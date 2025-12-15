@@ -384,6 +384,7 @@ class ChoreInstance(models.Model):
         indexes = [
             models.Index(fields=["status", "due_at"]),
             models.Index(fields=["assigned_to", "status"]),
+            models.Index(fields=["chore", "status"], name="chore_inst_chore_status_idx"),
         ]
 
     def __str__(self):
@@ -405,6 +406,13 @@ class ChoreInstance(models.Model):
             self.points_value = self.chore.points
         self.full_clean()
         super().save(*args, **kwargs)
+
+    def get_last_completion(self):
+        """Get the most recent non-undone completion for this instance."""
+        try:
+            return self.completion if not self.completion.is_undone else None
+        except Completion.DoesNotExist:
+            return None
 
 
 class Completion(models.Model):

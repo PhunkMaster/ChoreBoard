@@ -158,6 +158,8 @@ class ActionLog(models.Model):
     ACTION_CLEAR_RESCHEDULE = "clear_reschedule"
     ACTION_UNCLAIM = "unclaim"
     ACTION_ADMIN = "admin"
+    ACTION_MIDNIGHT_EVAL = "midnight_eval"
+    ACTION_CHORE_CREATED = "chore_created"
     ACTION_TYPES = [
         (ACTION_CLAIM, "User claimed chore"),
         (ACTION_UNCLAIM, "User unclaimed chore"),
@@ -173,6 +175,8 @@ class ActionLog(models.Model):
         (ACTION_RESCHEDULE, "Admin rescheduled chore"),
         (ACTION_CLEAR_RESCHEDULE, "Admin cleared reschedule"),
         (ACTION_ADMIN, "Admin action"),
+        (ACTION_MIDNIGHT_EVAL, "Midnight evaluation run"),
+        (ACTION_CHORE_CREATED, "Chore instance created"),
     ]
 
     action_type = models.CharField(max_length=30, choices=ACTION_TYPES)

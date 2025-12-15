@@ -113,6 +113,21 @@ def midnight_evaluation():
                         chores_created += 1
                         logger.info(f"Created instance for chore: {chore.name}")
 
+                        # Log chore creation to ActionLog
+                        from core.models import ActionLog
+                        ActionLog.objects.create(
+                            action_type=ActionLog.ACTION_CHORE_CREATED,
+                            user=None,
+                            description=f"Created instance: {chore.name}",
+                            metadata={
+                                'chore_id': chore.id,
+                                'instance_id': instance.id,
+                                'points': float(instance.points_value),
+                                'status': instance.status,
+                                'created_by': 'midnight_evaluation'
+                            }
+                        )
+
                         # If chore is undesirable and in pool, assign immediately
                         if chore.is_undesirable and chore.is_pool:
                             from chores.services import AssignmentService
@@ -154,6 +169,22 @@ def midnight_evaluation():
             logger.info(f"Midnight evaluation completed in {execution_time:.2f}s")
             logger.info(f"Created {chores_created} instances, marked {chores_marked_overdue} overdue")
 
+            # Log to ActionLog
+            from core.models import ActionLog
+            ActionLog.objects.create(
+                action_type=ActionLog.ACTION_MIDNIGHT_EVAL,
+                user=None,  # System action
+                description=f"Midnight evaluation: {chores_created} created, {chores_marked_overdue} overdue",
+                metadata={
+                    'success': len(errors) == 0,
+                    'chores_created': chores_created,
+                    'chores_marked_overdue': chores_marked_overdue,
+                    'execution_time_seconds': float(execution_time),
+                    'errors_count': len(errors),
+                    'evaluation_log_id': eval_log.id
+                }
+            )
+
             return eval_log
 
     except Exception as e:
@@ -174,6 +205,21 @@ def midnight_evaluation():
             errors_count=len(errors),
             error_details="\n".join(errors),
             execution_time_seconds=Decimal(str(execution_time))
+        )
+
+        # Log failure to ActionLog
+        from core.models import ActionLog
+        ActionLog.objects.create(
+            action_type=ActionLog.ACTION_MIDNIGHT_EVAL,
+            user=None,
+            description=f"Midnight evaluation FAILED: {len(errors)} errors",
+            metadata={
+                'success': False,
+                'chores_created': chores_created,
+                'chores_marked_overdue': chores_marked_overdue,
+                'errors_count': len(errors),
+                'evaluation_log_id': eval_log.id
+            }
         )
 
         raise

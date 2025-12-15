@@ -105,6 +105,22 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
                 )
                 logger.info(f"Created undesirable instance {new_instance.id} for {instance.name} (will be assigned after ChoreEligibility records are created)")
 
+                # Log chore creation to ActionLog
+                from core.models import ActionLog
+                ActionLog.objects.create(
+                    action_type=ActionLog.ACTION_CHORE_CREATED,
+                    user=None,
+                    description=f"Created instance: {new_instance.chore.name}",
+                    metadata={
+                        'chore_id': new_instance.chore.id,
+                        'instance_id': new_instance.id,
+                        'points': float(new_instance.points_value),
+                        'status': new_instance.status,
+                        'created_by': 'signal',
+                        'schedule_type': new_instance.chore.schedule_type
+                    }
+                )
+
             elif instance.is_pool:
                 # Regular pool chore: create as POOL, users can claim it
                 new_instance = ChoreInstance.objects.create(
@@ -115,6 +131,22 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
                     distribution_at=distribution_at
                 )
                 logger.info(f"Created pool instance {new_instance.id} for chore {instance.name}")
+
+                # Log chore creation to ActionLog
+                from core.models import ActionLog
+                ActionLog.objects.create(
+                    action_type=ActionLog.ACTION_CHORE_CREATED,
+                    user=None,
+                    description=f"Created instance: {new_instance.chore.name}",
+                    metadata={
+                        'chore_id': new_instance.chore.id,
+                        'instance_id': new_instance.id,
+                        'points': float(new_instance.points_value),
+                        'status': new_instance.status,
+                        'created_by': 'signal',
+                        'schedule_type': new_instance.chore.schedule_type
+                    }
+                )
 
             else:
                 # Pre-assigned chore: create with assignment
@@ -127,6 +159,22 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
                     distribution_at=distribution_at
                 )
                 logger.info(f"Created pre-assigned instance {new_instance.id} for {instance.name}")
+
+                # Log chore creation to ActionLog
+                from core.models import ActionLog
+                ActionLog.objects.create(
+                    action_type=ActionLog.ACTION_CHORE_CREATED,
+                    user=None,
+                    description=f"Created instance: {new_instance.chore.name}",
+                    metadata={
+                        'chore_id': new_instance.chore.id,
+                        'instance_id': new_instance.id,
+                        'points': float(new_instance.points_value),
+                        'status': new_instance.status,
+                        'created_by': 'signal',
+                        'schedule_type': new_instance.chore.schedule_type
+                    }
+                )
     except Exception as e:
         logger.error(f"Error in chore signal for {instance.name}: {e}", exc_info=True)
 

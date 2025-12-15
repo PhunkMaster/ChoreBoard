@@ -74,6 +74,11 @@
                                 {% if chore.chore.complete_later %}
                                 <span class="ml-2 text-yellow-400" title="Complete Later">🕐</span>
                                 {% endif %}
+                                {% if not chore.chore.is_active %}
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30 ml-2">
+                                    Inactive
+                                </span>
+                                {% endif %}
                             </h3>
                             {% if chore.chore.description %}
                             <p class="text-gray-400 text-xs line-clamp-2">{{ chore.chore.description }}</p>
@@ -100,6 +105,36 @@
                         </div>
                     </div>
 
+                    <!-- Last Completion Info -->
+                    {% with last_completion=chore.get_last_completion %}
+                    {% if last_completion %}
+                    <div class="mb-3 p-2 bg-dark-card rounded-lg border border-dark-border">
+                        <p class="text-xs text-gray-500 mb-1">Last completed:</p>
+                        <div class="flex items-center text-xs mb-1">
+                            <svg class="w-3 h-3 text-green-400 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            <span class="text-white font-medium">{{ last_completion.completed_by.get_display_name }}</span>
+                        </div>
+                        {% if last_completion.shares.count > 1 %}
+                        <div class="mt-1">
+                            <p class="text-xs text-gray-500 mb-1">Helpers:</p>
+                            <div class="flex flex-wrap gap-1">
+                                {% for share in last_completion.shares.all %}
+                                {% if share.user != last_completion.completed_by %}
+                                <span class="inline-flex items-center px-1 py-0.5 rounded text-xs bg-dark-bg text-gray-300 border border-dark-border">
+                                    {{ share.user.get_display_name }}
+                                </span>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        <p class="text-xs text-gray-500 mt-1">{{ last_completion.completed_at|date:"M j, g:i A" }}</p>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+
                     <!-- Action Buttons -->
                     <div class="flex gap-2 mt-auto">
                         <button onclick="openArcadeStartDialog({{ chore.id }}, '{{ chore.chore.name }}', {{ user_data.user.id }})"
@@ -125,6 +160,11 @@
                                 {% if chore.chore.complete_later %}
                                 <span class="ml-2 text-yellow-400" title="Complete Later">🕐</span>
                                 {% endif %}
+                                {% if not chore.chore.is_active %}
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30 ml-2">
+                                    Inactive
+                                </span>
+                                {% endif %}
                             </h3>
                             {% if chore.chore.description %}
                             <p class="text-gray-400 text-xs line-clamp-2">{{ chore.chore.description }}</p>
@@ -141,7 +181,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                             {% if chore.due_at|is_sentinel_date %}
-                            Due: {{ chore.due_at|format_due_date }}
+                            Due: {{ chore.due_at|format_due_date %}
                             {% else %}
                             Due: {{ chore.due_at|date:"M j, g:i A" }}
                             {% endif %}
@@ -150,6 +190,36 @@
                             {{ chore.points_value }} {{ POINTS_LABEL_SHORT }}
                         </div>
                     </div>
+
+                    <!-- Last Completion Info -->
+                    {% with last_completion=chore.get_last_completion %}
+                    {% if last_completion %}
+                    <div class="mb-3 p-2 bg-dark-card rounded-lg border border-dark-border">
+                        <p class="text-xs text-gray-500 mb-1">Last completed:</p>
+                        <div class="flex items-center text-xs mb-1">
+                            <svg class="w-3 h-3 text-green-400 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            <span class="text-white font-medium">{{ last_completion.completed_by.get_display_name }}</span>
+                        </div>
+                        {% if last_completion.shares.count > 1 %}
+                        <div class="mt-1">
+                            <p class="text-xs text-gray-500 mb-1">Helpers:</p>
+                            <div class="flex flex-wrap gap-1">
+                                {% for share in last_completion.shares.all %}
+                                {% if share.user != last_completion.completed_by %}
+                                <span class="inline-flex items-center px-1 py-0.5 rounded text-xs bg-dark-bg text-gray-300 border border-dark-border">
+                                    {{ share.user.get_display_name }}
+                                </span>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        <p class="text-xs text-gray-500 mt-1">{{ last_completion.completed_at|date:"M j, g:i A" }}</p>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
 
                     <!-- Action Buttons -->
                     <div class="flex gap-2 mt-auto">

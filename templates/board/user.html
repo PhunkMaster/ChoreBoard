@@ -93,10 +93,45 @@
                             {% if instance.chore.complete_later %}
                             <span class="ml-2 text-yellow-400" title="Complete Later">🕐</span>
                             {% endif %}
+                            {% if not instance.chore.is_active %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30 ml-2">
+                                Inactive
+                            </span>
+                            {% endif %}
                         </h3>
                         {% if instance.chore.description %}
                         <p class="text-gray-400 text-sm mt-1">{{ instance.chore.description }}</p>
                         {% endif %}
+
+                        <!-- Last Completion Info -->
+                        {% with last_completion=instance.get_last_completion %}
+                        {% if last_completion %}
+                        <div class="mt-3 p-2 bg-dark-card rounded-lg border border-dark-border">
+                            <p class="text-xs text-gray-400 mb-1">Last completed:</p>
+                            <div class="flex items-center text-sm mb-1">
+                                <svg class="w-4 h-4 text-green-400 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                <span class="text-white font-medium text-xs">{{ last_completion.completed_by.get_display_name }}</span>
+                            </div>
+                            {% if last_completion.shares.count > 1 %}
+                            <div class="mt-1">
+                                <p class="text-xs text-gray-500 mb-1">Helpers:</p>
+                                <div class="flex flex-wrap gap-1">
+                                    {% for share in last_completion.shares.all %}
+                                    {% if share.user != last_completion.completed_by %}
+                                    <span class="inline-flex items-center px-1 py-0.5 rounded text-xs bg-dark-bg text-gray-300 border border-dark-border">
+                                        {{ share.user.get_display_name }}
+                                    </span>
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            <p class="text-xs text-gray-500 mt-1">{{ last_completion.completed_at|date:"M j, g:i A" }}</p>
+                        </div>
+                        {% endif %}
+                        {% endwith %}
                     </div>
                     <span class="badge-overdue ml-2">Late</span>
                 </div>
@@ -134,10 +169,45 @@
                             {% if instance.chore.complete_later %}
                             <span class="ml-2 text-yellow-400" title="Complete Later">🕐</span>
                             {% endif %}
+                            {% if not instance.chore.is_active %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30 ml-2">
+                                Inactive
+                            </span>
+                            {% endif %}
                         </h3>
                         {% if instance.chore.description %}
                         <p class="text-gray-400 text-sm mt-1">{{ instance.chore.description }}</p>
                         {% endif %}
+
+                        <!-- Last Completion Info -->
+                        {% with last_completion=instance.get_last_completion %}
+                        {% if last_completion %}
+                        <div class="mt-3 p-2 bg-dark-card rounded-lg border border-dark-border">
+                            <p class="text-xs text-gray-400 mb-1">Last completed:</p>
+                            <div class="flex items-center text-sm mb-1">
+                                <svg class="w-4 h-4 text-green-400 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                <span class="text-white font-medium text-xs">{{ last_completion.completed_by.get_display_name }}</span>
+                            </div>
+                            {% if last_completion.shares.count > 1 %}
+                            <div class="mt-1">
+                                <p class="text-xs text-gray-500 mb-1">Helpers:</p>
+                                <div class="flex flex-wrap gap-1">
+                                    {% for share in last_completion.shares.all %}
+                                    {% if share.user != last_completion.completed_by %}
+                                    <span class="inline-flex items-center px-1 py-0.5 rounded text-xs bg-dark-bg text-gray-300 border border-dark-border">
+                                        {{ share.user.get_display_name }}
+                                    </span>
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            <p class="text-xs text-gray-500 mt-1">{{ last_completion.completed_at|date:"M j, g:i A" }}</p>
+                        </div>
+                        {% endif %}
+                        {% endwith %}
                     </div>
                     <span class="badge-pool ml-2">Due</span>
                 </div>
