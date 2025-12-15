@@ -83,7 +83,8 @@ def midnight_evaluation():
             logger.info(f"Found {active_chores.count()} active chores (excluding child chores)")
 
             # Create instances for each chore based on schedule
-            today = now.date()
+            # IMPORTANT: Use local date, not UTC date!
+            today = timezone.localtime(now).date()
 
             for chore in active_chores:
                 try:
@@ -575,9 +576,9 @@ def distribution_check():
     logger.info(f"Distribution check running at {now} (timezone: {current_tz})")
 
     # WATCHDOG: Check if midnight evaluation ran today
-    # If it's past 12:30 AM and no evaluation log exists for today, trigger it
+    # If it's between 12:30 AM and 2:00 AM and no evaluation log exists for today, trigger it
     local_now = timezone.localtime(now)
-    if local_now.hour >= 0 and local_now.minute >= 30:  # After 12:30 AM
+    if (local_now.hour == 0 and local_now.minute >= 30) or local_now.hour == 1:  # Between 00:30 and 01:59
         today_start = timezone.make_aware(
             datetime.combine(local_now.date(), datetime.min.time())
         )
