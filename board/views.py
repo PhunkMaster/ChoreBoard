@@ -42,7 +42,7 @@ def main_board(request):
     Main board view showing all chores (pool + assigned) with color coding.
     """
     now = timezone.now()
-    today = now.date()
+    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
 
     # Get all active chore instances for today (excluding skipped)
     # Bug #6 Fix: Filter out instances of inactive chores
@@ -165,7 +165,7 @@ def pool_only(request):
     Pool-only view showing only unclaimed chores.
     """
     now = timezone.now()
-    today = now.date()
+    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
 
     # Use year > 3000 to avoid overflow errors with year >= 9999
     from datetime import datetime
@@ -211,7 +211,7 @@ def user_board(request, username):
     """
     user = get_object_or_404(User, username=username, is_active=True)
     now = timezone.now()
-    today = now.date()
+    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
 
     # Use year > 3000 to avoid overflow errors with year >= 9999
     from datetime import datetime
@@ -284,7 +284,7 @@ def user_board_minimal(request, username):
     # Get user from URL parameter (kiosk-mode compatible, no login required)
     user = get_object_or_404(User, username=username, is_active=True)
     now = timezone.now()
-    today = now.date()
+    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
 
     # Get chores assigned to this user: include chores due today OR overdue from previous days
     assigned_chores = ChoreInstance.objects.filter(
@@ -339,7 +339,7 @@ def pool_minimal(request):
     from chores.models import ArcadeSession
 
     now = timezone.now()
-    today = now.date()
+    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
 
     # Get all pool chores for today
     # Use year > 3000 to avoid overflow errors with year >= 9999
@@ -396,7 +396,7 @@ def assigned_minimal(request):
     from chores.models import ArcadeSession
 
     now = timezone.now()
-    today = now.date()
+    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
 
     # Use year > 3000 to avoid overflow errors with year >= 9999
     from datetime import datetime, timedelta
