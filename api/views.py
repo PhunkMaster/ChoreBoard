@@ -147,7 +147,8 @@ def complete_chore(request):
     Request body:
         {
             "instance_id": 123,
-            "helper_ids": [1, 2, 3]  // Optional, user IDs who helped
+            "helper_ids": [1, 2, 3],  // Optional, user IDs who helped
+            "completed_by_user_id": 456  // Optional, user ID who completed (defaults to authenticated user)
         }
 
     Returns:
@@ -160,7 +161,19 @@ def complete_chore(request):
 
     instance_id = serializer.validated_data['instance_id']
     helper_ids = serializer.validated_data.get('helper_ids', [])
-    user = request.user
+    completed_by_user_id = serializer.validated_data.get('completed_by_user_id')
+
+    # Determine who is completing the chore
+    if completed_by_user_id:
+        try:
+            completed_by_user = User.objects.get(id=completed_by_user_id)
+        except User.DoesNotExist:
+            return Response(
+                {'error': f'User with ID {completed_by_user_id} not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+    else:
+        completed_by_user = request.user
 
     try:
         with transaction.atomic():
@@ -186,7 +199,7 @@ def complete_chore(request):
             # Create completion record
             completion = Completion.objects.create(
                 chore_instance=instance,
-                completed_by=user,
+                completed_by=completed_by_user,
                 was_late=was_late
             )
 
@@ -208,8 +221,8 @@ def complete_chore(request):
                     ))
                 else:
                     # Check if completing user is eligible for points
-                    if user.eligible_for_points:
-                        helpers_list = [user]
+                    if completed_by_user.eligible_for_points:
+                        helpers_list = [completed_by_user]
                     else:
                         # User is not eligible - redistribute to ALL eligible users
                         helpers_list = list(User.objects.filter(
@@ -218,7 +231,7 @@ def complete_chore(request):
                             is_active=True
                         ))
                         logger.info(
-                            f"User {user.username} not eligible for points. "
+                            f"User {completed_by_user.username} not eligible for points. "
                             f"Redistributing {instance.points_value} pts to {len(helpers_list)} eligible users"
                         )
 
@@ -247,7 +260,7 @@ def complete_chore(request):
                         balance_after=helper.weekly_points,
                         completion=completion,
                         description=f"Completed {instance.chore.name}",
-                        created_by=user
+                        created_by=request.user
                     )
 
             # Update rotation state if undesirable
@@ -263,10 +276,11 @@ def complete_chore(request):
             # Log action
             ActionLog.objects.create(
                 action_type=ActionLog.ACTION_COMPLETE,
-                user=user,
-                description=f"Completed {instance.chore.name}",
+                user=request.user,
+                description=f"Completed {instance.chore.name} (on behalf of {completed_by_user.username})" if completed_by_user_id else f"Completed {instance.chore.name}",
                 metadata={
                     'instance_id': instance.id,
+                    'completed_by_user_id': completed_by_user.id,
                     'helpers': len(helpers_list),
                     'spawned_children': len(spawned)
                 }
@@ -276,19 +290,19 @@ def complete_chore(request):
             if helpers_list and len(helpers_list) > 1:
                 # If multiple helpers, send with helper list
                 NotificationService.notify_chore_completed(
-                    instance, user, points_per_person,
-                    [h for h in helpers_list if h != user]
+                    instance, completed_by_user, points_per_person,
+                    [h for h in helpers_list if h != completed_by_user]
                 )
             else:
                 # Single completer
                 NotificationService.notify_chore_completed(
-                    instance, user,
+                    instance, completed_by_user,
                     points_per_person if helpers_list else Decimal('0')
                 )
 
             logger.info(
-                f"User {user.username} completed chore {instance.chore.name} "
-                f"({len(helpers_list)} helpers, {len(spawned)} children spawned)"
+                f"User {request.user.username} completed chore {instance.chore.name} "
+                f"(on behalf of {completed_by_user.username}, {len(helpers_list)} helpers, {len(spawned)} children spawned)"
             )
 
             return Response({

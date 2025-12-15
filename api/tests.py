@@ -1469,3 +1469,178 @@ class CompleteLaterFieldTests(TestCase):
         self.assertGreater(len(response.data), 0)
         self.assertIn('complete_later', response.data[0]['chore'])
         self.assertTrue(response.data[0]['chore']['complete_later'])
+
+
+class CompleteOnBehalfAPITests(TestCase):
+    """Test completing chores on behalf of another user."""
+
+    def setUp(self):
+        """Set up test data."""
+        # Create users
+        self.alice = User.objects.create_user(
+            username='alice',
+            password='test123',
+            first_name='Alice',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        self.bob = User.objects.create_user(
+            username='bob',
+            password='test123',
+            first_name='Bob',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        self.charlie = User.objects.create_user(
+            username='charlie',
+            password='test123',
+            first_name='Charlie',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        # Create chore and instance
+        self.chore = Chore.objects.create(
+            name='Test Chore',
+            points=Decimal('10.00'),
+            is_active=True
+        )
+
+        now = timezone.now()
+        self.instance = ChoreInstance.objects.create(
+            chore=self.chore,
+            status=ChoreInstance.POOL,
+            points_value=Decimal('10.00'),
+            due_at=now + timedelta(hours=1),
+            distribution_at=now
+        )
+
+        self.client = APIClient()
+
+    def test_complete_on_behalf_of_another_user(self):
+        """Test that user can complete a chore on behalf of another user."""
+        # Alice (authenticated) completes chore on behalf of Bob
+        token = HMACAuthentication.generate_token(self.alice.username)
+
+        response = self.client.post(
+            '/api/complete/',
+            {
+                'instance_id': self.instance.id,
+                'completed_by_user_id': self.bob.id
+            },
+            HTTP_AUTHORIZATION=f'Bearer {token}'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('message', response.data)
+
+        # Verify completion record shows Bob as completed_by
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.status, ChoreInstance.COMPLETED)
+
+        completion = Completion.objects.get(chore_instance=self.instance)
+        self.assertEqual(completion.completed_by.id, self.bob.id)
+
+        # Verify Bob got the points (not Alice)
+        self.bob.refresh_from_db()
+        self.assertEqual(self.bob.weekly_points, Decimal('10.00'))
+
+        self.alice.refresh_from_db()
+        self.assertEqual(self.alice.weekly_points, Decimal('0.00'))
+
+    def test_complete_on_behalf_with_helpers(self):
+        """Test completing on behalf with helpers splits points correctly."""
+        token = HMACAuthentication.generate_token(self.alice.username)
+
+        response = self.client.post(
+            '/api/complete/',
+            {
+                'instance_id': self.instance.id,
+                'completed_by_user_id': self.bob.id,
+                'helper_ids': [self.bob.id, self.charlie.id]
+            },
+            HTTP_AUTHORIZATION=f'Bearer {token}'
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify completion shows Bob as completed_by
+        completion = Completion.objects.get(chore_instance=self.instance)
+        self.assertEqual(completion.completed_by.id, self.bob.id)
+
+        # Verify points split between Bob and Charlie (5 each)
+        self.bob.refresh_from_db()
+        self.charlie.refresh_from_db()
+        self.assertEqual(self.bob.weekly_points, Decimal('5.00'))
+        self.assertEqual(self.charlie.weekly_points, Decimal('5.00'))
+
+    def test_complete_on_behalf_invalid_user(self):
+        """Test that completing on behalf of non-existent user returns 404."""
+        token = HMACAuthentication.generate_token(self.alice.username)
+
+        response = self.client.post(
+            '/api/complete/',
+            {
+                'instance_id': self.instance.id,
+                'completed_by_user_id': 99999
+            },
+            HTTP_AUTHORIZATION=f'Bearer {token}'
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn('error', response.data)
+        self.assertIn('not found', response.data['error'].lower())
+
+        # Verify instance was not completed
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.status, ChoreInstance.POOL)
+
+    def test_complete_without_completed_by_defaults_to_auth_user(self):
+        """Test backward compatibility: without completed_by_user_id, defaults to authenticated user."""
+        token = HMACAuthentication.generate_token(self.alice.username)
+
+        response = self.client.post(
+            '/api/complete/',
+            {
+                'instance_id': self.instance.id
+            },
+            HTTP_AUTHORIZATION=f'Bearer {token}'
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify completion shows Alice as completed_by
+        completion = Completion.objects.get(chore_instance=self.instance)
+        self.assertEqual(completion.completed_by.id, self.alice.id)
+
+        # Verify Alice got the points
+        self.alice.refresh_from_db()
+        self.assertEqual(self.alice.weekly_points, Decimal('10.00'))
+
+    def test_complete_on_behalf_action_log(self):
+        """Test that action log correctly records completion on behalf."""
+        token = HMACAuthentication.generate_token(self.alice.username)
+
+        response = self.client.post(
+            '/api/complete/',
+            {
+                'instance_id': self.instance.id,
+                'completed_by_user_id': self.bob.id
+            },
+            HTTP_AUTHORIZATION=f'Bearer {token}'
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify action log shows Alice as the user who performed the action
+        from core.models import ActionLog
+        log = ActionLog.objects.filter(
+            action_type=ActionLog.ACTION_COMPLETE,
+            user=self.alice
+        ).first()
+
+        self.assertIsNotNone(log)
+        self.assertIn('on behalf of bob', log.description.lower())
+        self.assertEqual(log.metadata['completed_by_user_id'], self.bob.id)

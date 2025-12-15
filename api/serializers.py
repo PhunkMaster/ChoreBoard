@@ -134,6 +134,11 @@ class CompleteChoreSerializer(serializers.Serializer):
         required=False,
         allow_empty=True
     )
+    completed_by_user_id = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="Optional: User ID of who completed the chore. Defaults to authenticated user."
+    )
 
 
 class UndoCompletionSerializer(serializers.Serializer):
