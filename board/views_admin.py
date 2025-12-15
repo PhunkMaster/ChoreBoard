@@ -5,7 +5,8 @@ import os
 import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
+from django.contrib import messages
+from django.views.decorators.http import require_http_methods, require_POST
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import transaction
 from django.utils import timezone
@@ -2305,3 +2306,151 @@ def save_user_preferences(request):
     except Exception as e:
         logger.error(f"Error saving user preferences: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@user_passes_test(is_staff_user)
+def admin_midnight_evaluation(request):
+    """
+    Midnight evaluation monitoring and control page.
+    Shows evaluation logs, pending overdue chores, and provides manual triggers.
+    """
+    from core.models import EvaluationLog
+    from core.jobs import midnight_evaluation
+    from django.db.models import Q
+
+    now = timezone.now()
+    local_now = timezone.localtime(now)
+    today = local_now.date()
+
+    # Get recent evaluation logs
+    eval_logs = EvaluationLog.objects.all().order_by('-started_at')[:20]
+
+    # Format logs with local time
+    formatted_logs = []
+    for log in eval_logs:
+        local_time = timezone.localtime(log.started_at)
+        formatted_logs.append({
+            'id': log.id,
+            'started_at_utc': log.started_at,
+            'started_at_local': local_time,
+            'date_local': local_time.date(),
+            'success': log.success,
+            'chores_created': log.chores_created,
+            'chores_marked_overdue': log.chores_marked_overdue,
+            'execution_time': log.execution_time_seconds,
+            'errors_count': log.errors_count,
+            'error_details': log.error_details,
+        })
+
+    # Check if evaluation ran today
+    today_start = timezone.make_aware(
+        datetime.combine(today, datetime.min.time())
+    )
+    today_end = today_start + timedelta(hours=1, minutes=30)
+
+    today_eval = EvaluationLog.objects.filter(
+        started_at__gte=today_start,
+        started_at__lt=today_end
+    ).first()
+
+    # Find chores that should be overdue but aren't
+    pending_overdue = ChoreInstance.objects.filter(
+        status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED],
+        due_at__lt=now,
+        is_overdue=False
+    ).select_related('chore', 'assigned_to').order_by('due_at')[:50]
+
+    # Get ActionLogs related to midnight evaluation
+    midnight_action_logs = ActionLog.objects.filter(
+        Q(action_type='midnight_eval') | Q(action_type='chore_created')
+    ).order_by('-created_at')[:50]
+
+    # Check scheduler status
+    from core.scheduler import scheduler
+    scheduler_running = scheduler.running if scheduler else False
+
+    # Get next scheduled run time
+    next_run_time = None
+    if scheduler and scheduler.running:
+        try:
+            job = scheduler.get_job('midnight_evaluation')
+            if job:
+                next_run_time = job.next_run_time
+        except:
+            pass
+
+    context = {
+        'active_page': 'midnight_evaluation',
+        'eval_logs': formatted_logs,
+        'today_eval': today_eval,
+        'today': today,
+        'local_now': local_now,
+        'pending_overdue': pending_overdue,
+        'pending_overdue_count': pending_overdue.count(),
+        'midnight_action_logs': midnight_action_logs,
+        'scheduler_running': scheduler_running,
+        'next_run_time': next_run_time,
+    }
+
+    return render(request, 'board/admin/midnight_evaluation.html', context)
+
+
+@user_passes_test(is_staff_user)
+@require_POST
+def admin_midnight_evaluation_run(request):
+    """
+    Manually trigger midnight evaluation.
+    """
+    from core.jobs import midnight_evaluation
+
+    try:
+        logger.info(f"Manual midnight evaluation triggered by {request.user.username}")
+        midnight_evaluation()
+
+        messages.success(request, "Midnight evaluation completed successfully!")
+
+    except Exception as e:
+        logger.error(f"Manual midnight evaluation failed: {str(e)}")
+        messages.error(request, f"Midnight evaluation failed: {str(e)}")
+
+    return redirect('board:admin_midnight_evaluation')
+
+
+@user_passes_test(is_staff_user)
+@require_POST
+def admin_midnight_evaluation_check(request):
+    """
+    Run the watchdog check to see if evaluation is needed.
+    """
+    from core.models import EvaluationLog
+    from core.jobs import midnight_evaluation
+    from datetime import datetime, timedelta
+
+    try:
+        now = timezone.now()
+        local_now = timezone.localtime(now)
+
+        # Check if evaluation ran today (same logic as watchdog)
+        today_start = timezone.make_aware(
+            datetime.combine(local_now.date(), datetime.min.time())
+        )
+        today_end = today_start + timedelta(hours=1, minutes=30)
+
+        eval_exists = EvaluationLog.objects.filter(
+            started_at__gte=today_start,
+            started_at__lt=today_end
+        ).exists()
+
+        if not eval_exists:
+            logger.warning(f"Watchdog check by {request.user.username}: No evaluation today")
+            logger.info(f"Running missed midnight evaluation (triggered by {request.user.username})")
+            midnight_evaluation()
+            messages.success(request, "Watchdog check: Missed evaluation detected and executed!")
+        else:
+            messages.info(request, "Watchdog check: Midnight evaluation already ran today. No action needed.")
+
+    except Exception as e:
+        logger.error(f"Watchdog check failed: {str(e)}")
+        messages.error(request, f"Watchdog check failed: {str(e)}")
+
+    return redirect('board:admin_midnight_evaluation')
