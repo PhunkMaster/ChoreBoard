@@ -2,7 +2,7 @@
 Serializers for ChoreBoard API.
 """
 from rest_framework import serializers
-from chores.models import Chore, ChoreInstance, Completion, CompletionShare
+from chores.models import Chore, ChoreInstance, Completion, CompletionShare, ArcadeHighScore
 from users.models import User
 from core.models import WeeklySnapshot
 
@@ -160,5 +160,21 @@ class WeeklySnapshotSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'user', 'week_ending', 'points_earned', 'cash_value',
             'converted', 'converted_at', 'perfect_week'
+        ]
+        read_only_fields = ['id']
+
+
+class ArcadeHighScoreSerializer(serializers.ModelSerializer):
+    """Serializer for ArcadeHighScore model."""
+
+    user = UserSerializer(read_only=True)
+    chore_name = serializers.CharField(source='chore.name', read_only=True)
+    time_formatted = serializers.CharField(source='format_time', read_only=True)
+
+    class Meta:
+        model = ArcadeHighScore
+        fields = [
+            'id', 'chore_name', 'user', 'time_seconds', 'time_formatted',
+            'rank', 'achieved_at'
         ]
         read_only_fields = ['id']

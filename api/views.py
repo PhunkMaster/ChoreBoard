@@ -18,9 +18,9 @@ from api.auth import HMACAuthentication
 from api.serializers import (
     ChoreInstanceSerializer, CompletionSerializer, LeaderboardEntrySerializer,
     ClaimChoreSerializer, CompleteChoreSerializer, UndoCompletionSerializer,
-    UserSerializer
+    UserSerializer, ArcadeHighScoreSerializer
 )
-from chores.models import ChoreInstance, Completion, CompletionShare, PointsLedger
+from chores.models import ChoreInstance, Completion, CompletionShare, PointsLedger, Chore, ArcadeHighScore
 from chores.services import AssignmentService, DependencyService
 from users.models import User
 from core.models import Settings, ActionLog
@@ -666,3 +666,89 @@ def recent_completions(request):
 
     serializer = CompletionSerializer(completions, many=True)
     return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get high scores for a specific chore",
+    description="Returns top 3 completion times for a specific chore. Authentication optional.",
+    responses={200: ArcadeHighScoreSerializer(many=True)},
+    tags=['Leaderboard']
+)
+@api_view(['GET'])
+@authentication_classes([HMACAuthentication])
+@permission_classes([AllowAny])
+def chore_leaderboard(request, chore_id):
+    """
+    Get high scores (top 3 times) for a specific chore.
+
+    Authentication is optional but supported.
+
+    Args:
+        chore_id: ID of the chore
+
+    Returns:
+        200: List of top 3 high scores for the chore
+        404: Chore not found
+    """
+    try:
+        chore = Chore.objects.get(id=chore_id, is_active=True)
+    except Chore.DoesNotExist:
+        return Response(
+            {'error': 'Chore not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    high_scores = ArcadeHighScore.objects.filter(
+        chore=chore
+    ).select_related('user').order_by('rank')
+
+    serializer = ArcadeHighScoreSerializer(high_scores, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all chore leaderboards",
+    description="Returns all chores with their top 3 completion times. Authentication optional.",
+    responses={200: OpenApiTypes.OBJECT},
+    tags=['Leaderboard']
+)
+@api_view(['GET'])
+@authentication_classes([HMACAuthentication])
+@permission_classes([AllowAny])
+def all_chore_leaderboards(request):
+    """
+    Get high scores for all chores.
+
+    Authentication is optional but supported.
+
+    Returns:
+        200: Dictionary of chore_id -> list of high scores
+        Format:
+        {
+            "1": [
+                {"rank": 1, "user": {...}, "time_seconds": 45, ...},
+                {"rank": 2, "user": {...}, "time_seconds": 52, ...},
+                {"rank": 3, "user": {...}, "time_seconds": 58, ...}
+            ],
+            "2": [...]
+        }
+    """
+    # Get all chores that have high scores
+    chores_with_scores = Chore.objects.filter(
+        high_scores__isnull=False,
+        is_active=True
+    ).distinct()
+
+    leaderboards = {}
+
+    for chore in chores_with_scores:
+        high_scores = ArcadeHighScore.objects.filter(
+            chore=chore
+        ).select_related('user').order_by('rank')
+
+        if high_scores.exists():
+            leaderboards[str(chore.id)] = ArcadeHighScoreSerializer(
+                high_scores, many=True
+            ).data
+
+    return Response(leaderboards)

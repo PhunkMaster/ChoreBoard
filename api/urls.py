@@ -26,6 +26,10 @@ urlpatterns = [
     # Leaderboard
     path('leaderboard/', views.leaderboard, name='leaderboard'),
 
+    # Chore Leaderboards (Arcade)
+    path('chore-leaderboard/<int:chore_id>/', views.chore_leaderboard, name='chore_leaderboard'),
+    path('chore-leaderboards/', views.all_chore_leaderboards, name='all_chore_leaderboards'),
+
     # Users
     path('users/', views.users_list, name='users_list'),
 

@@ -11,7 +11,7 @@ from rest_framework.test import APIClient
 from datetime import timedelta
 
 from users.models import User
-from chores.models import Chore, ChoreInstance, Completion, CompletionShare, PointsLedger
+from chores.models import Chore, ChoreInstance, Completion, CompletionShare, PointsLedger, ArcadeHighScore, ArcadeCompletion, ArcadeSession
 from core.models import Settings
 from api.auth import HMACAuthentication
 
@@ -1125,6 +1125,290 @@ class RecentCompletionsAPITests(TestCase):
         self.assertEqual(response.status_code, 200)
         # Should return data even without auth
         self.assertIsInstance(response.data, list)
+
+
+class ChoreLeaderboardAPITests(TestCase):
+    """Test the chore leaderboard endpoints."""
+
+    def setUp(self):
+        """Set up test data."""
+        # Create users
+        self.user1 = User.objects.create_user(
+            username='alice',
+            password='test123',
+            first_name='Alice',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        self.user2 = User.objects.create_user(
+            username='bob',
+            password='test123',
+            first_name='Bob',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        self.user3 = User.objects.create_user(
+            username='charlie',
+            password='test123',
+            first_name='Charlie',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        # Create chores
+        self.chore1 = Chore.objects.create(
+            name='Arcade Chore 1',
+            points=Decimal('10.00'),
+            is_active=True
+        )
+
+        self.chore2 = Chore.objects.create(
+            name='Arcade Chore 2',
+            points=Decimal('15.00'),
+            is_active=True
+        )
+
+        # Create chore without high scores
+        self.chore_no_scores = Chore.objects.create(
+            name='No Scores Chore',
+            points=Decimal('5.00'),
+            is_active=True
+        )
+
+        # Create arcade completions for chore1
+        now = timezone.now()
+
+        # Create chore instances for arcade sessions
+        instance1 = ChoreInstance.objects.create(
+            chore=self.chore1,
+            status=ChoreInstance.COMPLETED,
+            points_value=Decimal('10.00'),
+            due_at=now,
+            distribution_at=now
+        )
+
+        instance2 = ChoreInstance.objects.create(
+            chore=self.chore1,
+            status=ChoreInstance.COMPLETED,
+            points_value=Decimal('10.00'),
+            due_at=now,
+            distribution_at=now
+        )
+
+        instance3 = ChoreInstance.objects.create(
+            chore=self.chore1,
+            status=ChoreInstance.COMPLETED,
+            points_value=Decimal('10.00'),
+            due_at=now,
+            distribution_at=now
+        )
+
+        # Create arcade sessions
+        session1 = ArcadeSession.objects.create(
+            user=self.user1,
+            chore=self.chore1,
+            chore_instance=instance1,
+            elapsed_seconds=45,
+            status=ArcadeSession.STATUS_APPROVED
+        )
+
+        session2 = ArcadeSession.objects.create(
+            user=self.user2,
+            chore=self.chore1,
+            chore_instance=instance2,
+            elapsed_seconds=52,
+            status=ArcadeSession.STATUS_APPROVED
+        )
+
+        session3 = ArcadeSession.objects.create(
+            user=self.user3,
+            chore=self.chore1,
+            chore_instance=instance3,
+            elapsed_seconds=58,
+            status=ArcadeSession.STATUS_APPROVED
+        )
+
+        # Create arcade completions
+        arcade_comp1 = ArcadeCompletion.objects.create(
+            chore=self.chore1,
+            user=self.user1,
+            arcade_session=session1,
+            chore_instance=instance1,
+            completion_time_seconds=45,
+            base_points=Decimal('10.00'),
+            total_points=Decimal('10.00'),
+            judge=self.user1
+        )
+
+        arcade_comp2 = ArcadeCompletion.objects.create(
+            chore=self.chore1,
+            user=self.user2,
+            arcade_session=session2,
+            chore_instance=instance2,
+            completion_time_seconds=52,
+            base_points=Decimal('10.00'),
+            total_points=Decimal('10.00'),
+            judge=self.user1
+        )
+
+        arcade_comp3 = ArcadeCompletion.objects.create(
+            chore=self.chore1,
+            user=self.user3,
+            arcade_session=session3,
+            chore_instance=instance3,
+            completion_time_seconds=58,
+            base_points=Decimal('10.00'),
+            total_points=Decimal('10.00'),
+            judge=self.user1
+        )
+
+        # Create high scores for chore1
+        ArcadeHighScore.objects.create(
+            chore=self.chore1,
+            user=self.user1,
+            arcade_completion=arcade_comp1,
+            time_seconds=45,
+            rank=1,
+            achieved_at=now
+        )
+
+        ArcadeHighScore.objects.create(
+            chore=self.chore1,
+            user=self.user2,
+            arcade_completion=arcade_comp2,
+            time_seconds=52,
+            rank=2,
+            achieved_at=now
+        )
+
+        ArcadeHighScore.objects.create(
+            chore=self.chore1,
+            user=self.user3,
+            arcade_completion=arcade_comp3,
+            time_seconds=58,
+            rank=3,
+            achieved_at=now
+        )
+
+        # Create high scores for chore2
+        instance4 = ChoreInstance.objects.create(
+            chore=self.chore2,
+            status=ChoreInstance.COMPLETED,
+            points_value=Decimal('15.00'),
+            due_at=now,
+            distribution_at=now
+        )
+
+        session4 = ArcadeSession.objects.create(
+            user=self.user1,
+            chore=self.chore2,
+            chore_instance=instance4,
+            elapsed_seconds=60,
+            status=ArcadeSession.STATUS_APPROVED
+        )
+
+        arcade_comp4 = ArcadeCompletion.objects.create(
+            chore=self.chore2,
+            user=self.user1,
+            arcade_session=session4,
+            chore_instance=instance4,
+            completion_time_seconds=60,
+            base_points=Decimal('15.00'),
+            total_points=Decimal('15.00'),
+            judge=self.user1
+        )
+
+        ArcadeHighScore.objects.create(
+            chore=self.chore2,
+            user=self.user1,
+            arcade_completion=arcade_comp4,
+            time_seconds=60,
+            rank=1,
+            achieved_at=now
+        )
+
+        self.client = APIClient()
+
+    def test_chore_leaderboard(self):
+        """Test getting high scores for a specific chore."""
+        response = self.client.get(f'/api/chore-leaderboard/{self.chore1.id}/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, list)
+
+        # Should return 3 high scores
+        self.assertEqual(len(response.data), 3)
+
+        # Check data structure
+        score_data = response.data[0]
+        self.assertIn('id', score_data)
+        self.assertIn('chore_name', score_data)
+        self.assertIn('user', score_data)
+        self.assertIn('time_seconds', score_data)
+        self.assertIn('time_formatted', score_data)
+        self.assertIn('rank', score_data)
+        self.assertIn('achieved_at', score_data)
+
+        # Check correct chore name
+        self.assertEqual(score_data['chore_name'], 'Arcade Chore 1')
+
+        # Check ordering by rank
+        self.assertEqual(response.data[0]['rank'], 1)
+        self.assertEqual(response.data[1]['rank'], 2)
+        self.assertEqual(response.data[2]['rank'], 3)
+
+        # Check times are in order (fastest first)
+        self.assertEqual(response.data[0]['time_seconds'], 45)
+        self.assertEqual(response.data[1]['time_seconds'], 52)
+        self.assertEqual(response.data[2]['time_seconds'], 58)
+
+    def test_chore_leaderboard_not_found(self):
+        """Test getting leaderboard for non-existent chore."""
+        response = self.client.get('/api/chore-leaderboard/99999/')
+        self.assertEqual(response.status_code, 404)
+        self.assertIn('error', response.data)
+
+    def test_chore_leaderboard_no_scores(self):
+        """Test getting leaderboard for chore with no high scores."""
+        response = self.client.get(f'/api/chore-leaderboard/{self.chore_no_scores.id}/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, list)
+        self.assertEqual(len(response.data), 0)
+
+    def test_all_chore_leaderboards(self):
+        """Test getting all chore leaderboards."""
+        response = self.client.get('/api/chore-leaderboards/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, dict)
+
+        # Should have 2 chores with scores
+        self.assertEqual(len(response.data), 2)
+
+        # Check chore1 has 3 scores
+        self.assertIn(str(self.chore1.id), response.data)
+        chore1_scores = response.data[str(self.chore1.id)]
+        self.assertEqual(len(chore1_scores), 3)
+
+        # Check chore2 has 1 score
+        self.assertIn(str(self.chore2.id), response.data)
+        chore2_scores = response.data[str(self.chore2.id)]
+        self.assertEqual(len(chore2_scores), 1)
+
+        # Chore without scores should not appear
+        self.assertNotIn(str(self.chore_no_scores.id), response.data)
+
+    def test_chore_leaderboard_without_auth(self):
+        """Test that chore leaderboard works without authentication."""
+        response = self.client.get(f'/api/chore-leaderboard/{self.chore1.id}/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, list)
+
+    def test_all_chore_leaderboards_without_auth(self):
+        """Test that all chore leaderboards works without authentication."""
+        response = self.client.get('/api/chore-leaderboards/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, dict)
 
 
 class CompleteLaterFieldTests(TestCase):
