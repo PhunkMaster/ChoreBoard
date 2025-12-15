@@ -16,8 +16,8 @@
     <!-- Manually Assigned Chores List -->
     <div class="bg-dark-surface rounded-lg border border-dark-border">
         <div class="p-6 border-b border-dark-border">
-            <h2 class="text-xl font-semibold text-white">Manually Assigned Chores</h2>
-            <p class="text-gray-400 text-sm mt-1">Chores that were force-assigned by staff and can be returned to the pool</p>
+            <h2 class="text-xl font-semibold text-white">Force-Assigned Chores</h2>
+            <p class="text-gray-400 text-sm mt-1">Chores that were force-assigned (by staff or system) and can be returned to the pool</p>
         </div>
 
         {% if manually_assigned %}
@@ -26,7 +26,18 @@
             <div class="p-6">
                 <div class="flex justify-between items-start">
                     <div class="flex-1">
-                        <h3 class="text-white font-semibold text-lg">{{ instance.chore.name }}</h3>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-white font-semibold text-lg">{{ instance.chore.name }}</h3>
+                            {% if instance.assignment_reason == 'manual_assign' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                Manually Assigned
+                            </span>
+                            {% elif instance.assignment_reason == 'force_assigned' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                                System Force-Assigned
+                            </span>
+                            {% endif %}
+                        </div>
                         <div class="mt-2 space-y-1">
                             <p class="text-gray-400 text-sm">
                                 <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -75,7 +86,7 @@
             <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <h3 class="text-xl font-semibold text-gray-300 mb-2">No Manually Assigned Chores</h3>
+            <h3 class="text-xl font-semibold text-gray-300 mb-2">No Force-Assigned Chores</h3>
             <p class="text-gray-500">There are no force-assigned chores that can be returned to the pool.</p>
         </div>
         {% endif %}

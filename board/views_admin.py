@@ -1601,12 +1601,14 @@ def admin_force_assign_action(request, instance_id):
 def admin_unassign(request):
     """
     Interface to return force-assigned chores back to the pool.
-    Shows all manually assigned chores that staff can unassign.
+    Shows all force-assigned and manually assigned chores that staff can unassign.
     """
-    # Get all manually assigned chores (not completed)
+    from django.db.models import Q
+
+    # Get all force-assigned and manually assigned chores (not completed)
     manually_assigned = ChoreInstance.objects.filter(
         status=ChoreInstance.ASSIGNED,
-        assignment_reason=ChoreInstance.REASON_MANUAL
+        assignment_reason__in=[ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED]
     ).select_related('chore', 'assigned_to').order_by('due_at')
 
     context = {
@@ -1630,8 +1632,8 @@ def admin_unassign_action(request, instance_id):
         if instance.status != ChoreInstance.ASSIGNED:
             return JsonResponse({'error': 'Chore is not assigned'}, status=400)
 
-        if instance.assignment_reason != ChoreInstance.REASON_MANUAL:
-            return JsonResponse({'error': 'Can only unassign manually assigned chores'}, status=400)
+        if instance.assignment_reason not in [ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED]:
+            return JsonResponse({'error': 'Can only unassign force-assigned or manually assigned chores'}, status=400)
 
         with transaction.atomic():
             # Store for logging
