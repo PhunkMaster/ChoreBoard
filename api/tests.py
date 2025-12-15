@@ -850,6 +850,133 @@ class UsersListAPITests(TestCase):
         self.assertNotIn('unassignable', usernames)
 
 
+class ChoreInstanceCompletionDataTests(TestCase):
+    """Test that ChoreInstance serializer includes completion data."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username='alice',
+            password='test123',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        self.helper = User.objects.create_user(
+            username='bob',
+            password='test123',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        self.chore = Chore.objects.create(
+            name='Test Chore',
+            points=Decimal('10.00'),
+            is_active=True
+        )
+
+        now = timezone.now()
+        self.completed_instance = ChoreInstance.objects.create(
+            chore=self.chore,
+            status=ChoreInstance.COMPLETED,
+            points_value=self.chore.points,
+            due_at=now + timedelta(hours=6),
+            distribution_at=now,
+            completed_at=now
+        )
+
+        self.completion = Completion.objects.create(
+            chore_instance=self.completed_instance,
+            completed_by=self.user,
+            was_late=False
+        )
+
+        # Add completion shares (user and helper)
+        CompletionShare.objects.create(
+            completion=self.completion,
+            user=self.user,
+            points_awarded=Decimal('5.00')
+        )
+
+        CompletionShare.objects.create(
+            completion=self.completion,
+            user=self.helper,
+            points_awarded=Decimal('5.00')
+        )
+
+        # Create an uncompleted instance
+        self.uncompleted_instance = ChoreInstance.objects.create(
+            chore=self.chore,
+            status=ChoreInstance.POOL,
+            points_value=self.chore.points,
+            due_at=now + timedelta(hours=12),
+            distribution_at=now
+        )
+
+        self.client = APIClient()
+
+    def test_completed_instance_includes_last_completion(self):
+        """Test that completed instance includes last_completion data."""
+        from api.serializers import ChoreInstanceSerializer
+
+        # Serialize the completed instance directly
+        serializer = ChoreInstanceSerializer(self.completed_instance)
+        completed_data = serializer.data
+
+        self.assertIn('last_completion', completed_data)
+
+        # Check completion data structure
+        completion_data = completed_data['last_completion']
+        self.assertIsNotNone(completion_data)
+        self.assertIn('completed_by', completion_data)
+        self.assertIn('completed_at', completion_data)
+        self.assertIn('helpers', completion_data)
+        self.assertIn('was_late', completion_data)
+
+        # Verify completed_by is correct user
+        self.assertEqual(completion_data['completed_by']['username'], 'alice')
+
+        # Verify helpers list includes both user and helper
+        self.assertEqual(len(completion_data['helpers']), 2)
+        helper_usernames = [h['username'] for h in completion_data['helpers']]
+        self.assertIn('alice', helper_usernames)
+        self.assertIn('bob', helper_usernames)
+
+        # Verify was_late is correct
+        self.assertEqual(completion_data['was_late'], False)
+
+    def test_uncompleted_instance_has_null_last_completion(self):
+        """Test that uncompleted instance has null last_completion."""
+        response = self.client.get('/api/outstanding/')
+        self.assertEqual(response.status_code, 200)
+
+        # Find the uncompleted instance
+        uncompleted_data = next(
+            (item for item in response.data if item['id'] == self.uncompleted_instance.id),
+            None
+        )
+
+        self.assertIsNotNone(uncompleted_data)
+        self.assertIn('last_completion', uncompleted_data)
+        self.assertIsNone(uncompleted_data['last_completion'])
+
+    def test_undone_completion_not_included(self):
+        """Test that undone completions are not included in last_completion."""
+        from api.serializers import ChoreInstanceSerializer
+
+        # Mark completion as undone
+        self.completion.is_undone = True
+        self.completion.save()
+
+        # Serialize the completed instance directly
+        serializer = ChoreInstanceSerializer(self.completed_instance)
+        completed_data = serializer.data
+
+        self.assertIn('last_completion', completed_data)
+        # Should be None since completion is undone
+        self.assertIsNone(completed_data['last_completion'])
+
+
 class CompleteLaterFieldTests(TestCase):
     """Test that ChoreInstance serializer exposes complete_later field."""
 

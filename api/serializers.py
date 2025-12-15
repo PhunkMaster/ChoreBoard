@@ -47,15 +47,50 @@ class ChoreInstanceSerializer(serializers.ModelSerializer):
     chore = ChoreSerializer(read_only=True)
     assigned_to = UserSerializer(read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    last_completion = serializers.SerializerMethodField()
 
     class Meta:
         model = ChoreInstance
         fields = [
             'id', 'chore', 'assigned_to', 'status', 'status_display',
             'assignment_reason', 'points_value', 'due_at', 'distribution_at',
-            'is_overdue', 'is_late_completion', 'completed_at'
+            'is_overdue', 'is_late_completion', 'completed_at',
+            'last_completion'
         ]
         read_only_fields = ['id']
+
+    def get_last_completion(self, obj):
+        """
+        Get the last completion record for this instance.
+
+        Returns None if not completed, otherwise returns:
+        {
+            'completed_by': UserSerializer data,
+            'completed_at': datetime,
+            'helpers': [UserSerializer data, ...],
+            'was_late': boolean
+        }
+        """
+        try:
+            completion = obj.completion
+            if completion and not completion.is_undone:
+                # Get all helpers (users who received points)
+                shares = completion.shares.all()
+                helpers = [
+                    UserSerializer(share.user).data
+                    for share in shares
+                ]
+
+                return {
+                    'completed_by': UserSerializer(completion.completed_by).data if completion.completed_by else None,
+                    'completed_at': completion.completed_at,
+                    'helpers': helpers,
+                    'was_late': completion.was_late
+                }
+        except Completion.DoesNotExist:
+            pass
+
+        return None
 
 
 class CompletionShareSerializer(serializers.ModelSerializer):
