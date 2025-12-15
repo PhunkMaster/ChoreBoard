@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Unassign Chores - Admin - ChoreBoard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Unassign Force-Assigned Chores</h1>
+            <p class="text-gray-400 mt-1">Return manually assigned chores back to the pool</p>
+        </div>
+    </div>
+
+    {% include "board/admin/_nav.html" with active_page='unassign' %}
+
+    <!-- Manually Assigned Chores List -->
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-xl font-semibold text-white">Manually Assigned Chores</h2>
+            <p class="text-gray-400 text-sm mt-1">Chores that were force-assigned by staff and can be returned to the pool</p>
+        </div>
+
+        {% if manually_assigned %}
+        <div class="divide-y divide-dark-border">
+            {% for instance in manually_assigned %}
+            <div class="p-6">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <h3 class="text-white font-semibold text-lg">{{ instance.chore.name }}</h3>
+                        <div class="mt-2 space-y-1">
+                            <p class="text-gray-400 text-sm">
+                                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                Assigned to: <span class="text-white font-medium">{{ instance.assigned_to.get_display_name }}</span>
+                            </p>
+                            <p class="text-gray-400 text-sm">
+                                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Due: {{ instance.due_at|date:"M j, Y g:i A" }}
+                            </p>
+                            <p class="text-gray-400 text-sm">
+                                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Points: {{ instance.points_value|floatformat:2 }}
+                            </p>
+                            {% if instance.is_overdue %}
+                            <p class="text-red-400 text-sm font-medium mt-1">
+                                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                OVERDUE
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="ml-6">
+                        <button onclick="unassignChore({{ instance.id }}, '{{ instance.chore.name|escapejs }}', '{{ instance.assigned_to.get_display_name|escapejs }}')"
+                                class="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                            </svg>
+                            Return to Pool
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 class="text-xl font-semibold text-gray-300 mb-2">No Manually Assigned Chores</h3>
+            <p class="text-gray-500">There are no force-assigned chores that can be returned to the pool.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    async function unassignChore(instanceId, choreName, userName) {
+        if (!confirm(`Are you sure you want to return "${choreName}" to the pool?\n\nIt will be unassigned from ${userName} and become available for anyone to claim.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/admin-panel/unassign/${instanceId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message, 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(data.error || 'Failed to unassign chore', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+</script>
+{% endblock %}

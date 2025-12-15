@@ -1598,6 +1598,78 @@ def admin_force_assign_action(request, instance_id):
 
 @login_required
 @user_passes_test(is_staff_user)
+def admin_unassign(request):
+    """
+    Interface to return force-assigned chores back to the pool.
+    Shows all manually assigned chores that staff can unassign.
+    """
+    # Get all manually assigned chores (not completed)
+    manually_assigned = ChoreInstance.objects.filter(
+        status=ChoreInstance.ASSIGNED,
+        assignment_reason=ChoreInstance.REASON_MANUAL
+    ).select_related('chore', 'assigned_to').order_by('due_at')
+
+    context = {
+        'active_page': 'unassign',
+        'manually_assigned': manually_assigned,
+    }
+
+    return render(request, 'board/admin/unassign.html', context)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_http_methods(["POST"])
+def admin_unassign_action(request, instance_id):
+    """
+    Return a manually assigned chore back to the pool.
+    """
+    try:
+        instance = get_object_or_404(ChoreInstance, id=instance_id)
+
+        if instance.status != ChoreInstance.ASSIGNED:
+            return JsonResponse({'error': 'Chore is not assigned'}, status=400)
+
+        if instance.assignment_reason != ChoreInstance.REASON_MANUAL:
+            return JsonResponse({'error': 'Can only unassign manually assigned chores'}, status=400)
+
+        with transaction.atomic():
+            # Store for logging
+            old_user = instance.assigned_to
+
+            # Return to pool
+            instance.status = ChoreInstance.POOL
+            instance.assigned_to = None
+            instance.assigned_at = None
+            instance.assignment_reason = ''
+            instance.save()
+
+            # Log the action
+            ActionLog.objects.create(
+                action_type=ActionLog.ACTION_UNASSIGN,
+                user=request.user,
+                target_user=old_user,
+                description=f"Returned '{instance.chore.name}' to pool (was assigned to {old_user.get_display_name()})",
+                metadata={
+                    'chore_instance_id': instance.id,
+                    'chore_name': instance.chore.name,
+                    'previous_user': old_user.username,
+                }
+            )
+
+            logger.info(f"Admin {request.user.username} unassigned chore {instance.id} from {old_user.username}")
+
+            return JsonResponse({
+                'message': f'Successfully returned "{instance.chore.name}" to pool',
+            })
+
+    except Exception as e:
+        logger.error(f"Error unassigning chore: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
 def admin_streaks(request):
     """
     Streak management interface.

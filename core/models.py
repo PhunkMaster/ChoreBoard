@@ -149,6 +149,7 @@ class ActionLog(models.Model):
     ACTION_UNDO = "undo"
     ACTION_FORCE_ASSIGN = "force_assign"
     ACTION_MANUAL_ASSIGN = "manual_assign"
+    ACTION_UNASSIGN = "unassign"
     ACTION_WEEKLY_RESET = "weekly_reset"
     ACTION_UNDO_RESET = "undo_reset"
     ACTION_SETTINGS_CHANGE = "settings_change"
@@ -167,6 +168,7 @@ class ActionLog(models.Model):
         (ACTION_UNDO, "Admin undid completion"),
         (ACTION_FORCE_ASSIGN, "System force-assigned chore"),
         (ACTION_MANUAL_ASSIGN, "Admin manually assigned chore"),
+        (ACTION_UNASSIGN, "Admin unassigned chore"),
         (ACTION_WEEKLY_RESET, "Admin performed weekly reset"),
         (ACTION_UNDO_RESET, "Admin undid weekly reset"),
         (ACTION_SETTINGS_CHANGE, "Admin changed settings"),
