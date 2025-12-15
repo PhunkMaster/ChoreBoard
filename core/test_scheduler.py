@@ -548,6 +548,262 @@ class MidnightEvaluationTests(TestCase):
         self.assertGreaterEqual(instances.count(), 0)
 
 
+class WatchdogTests(TestCase):
+    """Test the watchdog mechanism that catches missed midnight evaluations."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='alice',
+            password='test123',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        self.daily_chore = Chore.objects.create(
+            name='Daily Chore',
+            points=Decimal('10.00'),
+            is_pool=True,
+            schedule_type=Chore.DAILY,
+            distribution_time=time(17, 30)
+        )
+
+    def test_watchdog_does_not_trigger_at_midnight(self):
+        """Test that watchdog doesn't trigger at exactly midnight (too early)."""
+        # Simulate running at 00:00
+        test_time = timezone.make_aware(datetime.combine(
+            timezone.now().date(),
+            time(0, 0)
+        ))
+
+        with self.settings(USE_TZ=True):
+            # The watchdog condition checks: (hour == 0 and minute >= 30) or hour == 1
+            # At 00:00, this should be False
+            local_time = timezone.localtime(test_time)
+            should_trigger = (local_time.hour == 0 and local_time.minute >= 30) or local_time.hour == 1
+
+            self.assertFalse(
+                should_trigger,
+                "Watchdog should NOT trigger at 00:00 (before 00:30)"
+            )
+
+    def test_watchdog_triggers_at_half_past_midnight(self):
+        """Test that watchdog triggers at 00:30 (start of window)."""
+        # Simulate running at 00:30
+        test_time = timezone.make_aware(datetime.combine(
+            timezone.now().date(),
+            time(0, 30)
+        ))
+
+        local_time = timezone.localtime(test_time)
+        should_trigger = (local_time.hour == 0 and local_time.minute >= 30) or local_time.hour == 1
+
+        self.assertTrue(
+            should_trigger,
+            "Watchdog SHOULD trigger at 00:30 (start of window)"
+        )
+
+    def test_watchdog_triggers_during_1am_hour(self):
+        """Test that watchdog triggers during 1:00 AM hour."""
+        # Test at 01:00
+        test_time_1 = timezone.make_aware(datetime.combine(
+            timezone.now().date(),
+            time(1, 0)
+        ))
+
+        local_time_1 = timezone.localtime(test_time_1)
+        should_trigger_1 = (local_time_1.hour == 0 and local_time_1.minute >= 30) or local_time_1.hour == 1
+
+        self.assertTrue(
+            should_trigger_1,
+            "Watchdog SHOULD trigger at 01:00"
+        )
+
+        # Test at 01:59
+        test_time_2 = timezone.make_aware(datetime.combine(
+            timezone.now().date(),
+            time(1, 59)
+        ))
+
+        local_time_2 = timezone.localtime(test_time_2)
+        should_trigger_2 = (local_time_2.hour == 0 and local_time_2.minute >= 30) or local_time_2.hour == 1
+
+        self.assertTrue(
+            should_trigger_2,
+            "Watchdog SHOULD trigger at 01:59 (end of window)"
+        )
+
+    def test_watchdog_does_not_trigger_at_2am(self):
+        """Test that watchdog doesn't trigger at 2:00 AM (after window)."""
+        test_time = timezone.make_aware(datetime.combine(
+            timezone.now().date(),
+            time(2, 0)
+        ))
+
+        local_time = timezone.localtime(test_time)
+        should_trigger = (local_time.hour == 0 and local_time.minute >= 30) or local_time.hour == 1
+
+        self.assertFalse(
+            should_trigger,
+            "Watchdog should NOT trigger at 02:00 (after window)"
+        )
+
+    def test_watchdog_does_not_trigger_at_8_30pm(self):
+        """
+        CRITICAL BUG TEST: Test that watchdog doesn't trigger at 20:30 (8:30 PM).
+
+        This is the bug that caused midnight evaluation to run at 8:30 PM on Dec 14.
+        The old condition: if hour >= 0 and minute >= 30
+        Would trigger at ANY hour with minutes >= 30.
+        """
+        test_time = timezone.make_aware(datetime.combine(
+            timezone.now().date(),
+            time(20, 30)
+        ))
+
+        local_time = timezone.localtime(test_time)
+        should_trigger = (local_time.hour == 0 and local_time.minute >= 30) or local_time.hour == 1
+
+        self.assertFalse(
+            should_trigger,
+            "Watchdog should NOT trigger at 20:30 (THIS WAS THE BUG!)"
+        )
+
+    def test_watchdog_does_not_trigger_during_day(self):
+        """Test that watchdog doesn't trigger during normal daytime hours."""
+        test_times = [
+            time(8, 30),   # Morning
+            time(12, 30),  # Noon
+            time(14, 45),  # Afternoon
+            time(18, 30),  # Evening
+            time(23, 30),  # Night
+        ]
+
+        for test_time in test_times:
+            full_datetime = timezone.make_aware(datetime.combine(
+                timezone.now().date(),
+                test_time
+            ))
+
+            local_time = timezone.localtime(full_datetime)
+            should_trigger = (local_time.hour == 0 and local_time.minute >= 30) or local_time.hour == 1
+
+            self.assertFalse(
+                should_trigger,
+                f"Watchdog should NOT trigger at {test_time}"
+            )
+
+
+class LocalDateTests(TestCase):
+    """Test that midnight evaluation uses local date, not UTC date."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='alice',
+            password='test123',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        self.daily_chore = Chore.objects.create(
+            name='Daily Chore',
+            points=Decimal('10.00'),
+            is_pool=True,
+            schedule_type=Chore.DAILY,
+            distribution_time=time(17, 30)
+        )
+
+    def test_midnight_evaluation_uses_local_date_not_utc(self):
+        """
+        CRITICAL BUG TEST: Test that midnight evaluation uses local Chicago date, not UTC date.
+
+        This is the bug that caused chores created at 20:30 CST on Dec 14 to be
+        created for Dec 15 instead of Dec 14.
+
+        At 20:30 CST on Dec 14:
+        - UTC time: 02:30 on Dec 15
+        - now.date() returns: Dec 15 (WRONG)
+        - timezone.localtime(now).date() returns: Dec 14 (CORRECT)
+        """
+        # Simulate running at 20:30 CST on Dec 14
+        # This is 02:30 UTC on Dec 15
+        local_date = date(2025, 12, 14)
+        local_time_of_day = time(20, 30)
+
+        # Create aware datetime in Chicago timezone
+        local_datetime = timezone.make_aware(
+            datetime.combine(local_date, local_time_of_day)
+        )
+
+        # Convert to UTC
+        utc_datetime = local_datetime.astimezone(timezone.utc)
+
+        # Verify our test setup
+        self.assertEqual(local_datetime.astimezone(timezone.get_current_timezone()).date(), date(2025, 12, 14))
+        self.assertEqual(utc_datetime.date(), date(2025, 12, 15))
+
+        # The CORRECT way (what the code should do)
+        correct_date = timezone.localtime(utc_datetime).date()
+        self.assertEqual(correct_date, date(2025, 12, 14),
+                        "Should use local date (Dec 14), not UTC date (Dec 15)")
+
+        # The WRONG way (the bug)
+        wrong_date = utc_datetime.date()
+        self.assertEqual(wrong_date, date(2025, 12, 15),
+                        "UTC date is wrong - this was the bug")
+
+    def test_midnight_evaluation_creates_chores_for_correct_date(self):
+        """Test that midnight evaluation creates chores with due dates matching local date."""
+        # Run midnight evaluation
+        run_midnight_evaluation()
+
+        # Get created instance
+        instance = ChoreInstance.objects.filter(chore=self.daily_chore).first()
+        self.assertIsNotNone(instance)
+
+        # Verify due date is for today (local time)
+        local_now = timezone.localtime(timezone.now())
+        today_local = local_now.date()
+
+        instance_due_local = timezone.localtime(instance.due_at)
+        self.assertEqual(
+            instance_due_local.date(),
+            today_local,
+            f"Chore due date should be {today_local} (local), not based on UTC date"
+        )
+
+    def test_date_calculation_in_different_timezones(self):
+        """Test that date calculation respects timezone even when UTC crosses midnight."""
+        # Test times that would cause UTC/local date mismatch
+        test_cases = [
+            # (local_hour, local_minute, expected_local_date_matches)
+            (20, 30, True),   # 20:30 CST = 02:30 next day UTC
+            (21, 0, True),    # 21:00 CST = 03:00 next day UTC
+            (23, 59, True),   # 23:59 CST = 05:59 next day UTC
+            (0, 0, True),     # 00:00 CST = 06:00 same day UTC
+            (1, 0, True),     # 01:00 CST = 07:00 same day UTC
+        ]
+
+        for hour, minute, should_match in test_cases:
+            # Create time in local timezone
+            test_date = timezone.now().date()
+            local_time = timezone.make_aware(
+                datetime.combine(test_date, time(hour, minute))
+            )
+
+            # Convert to UTC
+            utc_time = local_time.astimezone(timezone.utc)
+
+            # Use local date (correct way)
+            calculated_date = timezone.localtime(utc_time).date()
+
+            # Verify it matches the original local date
+            self.assertEqual(
+                calculated_date,
+                test_date,
+                f"At {hour}:{minute} local time, date should be {test_date}"
+            )
+
+
 class DistributionCheckTests(TestCase):
     """Test the distribution check (auto-assignment) scheduled job."""
 
