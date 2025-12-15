@@ -759,6 +759,97 @@ class UnauthenticatedGETAPITests(TestCase):
         self.assertEqual(response.data, [])
 
 
+class UsersListAPITests(TestCase):
+    """Test the users list endpoint."""
+
+    def setUp(self):
+        """Set up test data."""
+        # Create multiple users
+        self.user1 = User.objects.create_user(
+            username='alice',
+            password='test123',
+            first_name='Alice',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        self.user2 = User.objects.create_user(
+            username='bob',
+            password='test123',
+            first_name='Bob',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        # Create an inactive user (should not appear)
+        self.inactive_user = User.objects.create_user(
+            username='inactive',
+            password='test123',
+            is_active=False,
+            can_be_assigned=True
+        )
+
+        # Create user who can't be assigned (should not appear)
+        self.unassignable_user = User.objects.create_user(
+            username='unassignable',
+            password='test123',
+            can_be_assigned=False
+        )
+
+        self.client = APIClient()
+
+    def test_users_list(self):
+        """Test getting list of users."""
+        response = self.client.get('/api/users/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, list)
+
+        # Should return 2 users (alice and bob)
+        self.assertEqual(len(response.data), 2)
+
+        # Check user data structure
+        if len(response.data) > 0:
+            user_data = response.data[0]
+            self.assertIn('username', user_data)
+            self.assertIn('display_name', user_data)
+            self.assertIn('weekly_points', user_data)
+            self.assertIn('all_time_points', user_data)
+            self.assertIn('can_be_assigned', user_data)
+            self.assertIn('eligible_for_points', user_data)
+
+    def test_users_list_without_auth(self):
+        """Test that users list works without authentication."""
+        response = self.client.get('/api/users/')
+        self.assertEqual(response.status_code, 200)
+        # Should return data even without auth
+        self.assertIsInstance(response.data, list)
+
+    def test_users_list_ordered_by_username(self):
+        """Test that users are ordered by username."""
+        response = self.client.get('/api/users/')
+        self.assertEqual(response.status_code, 200)
+
+        usernames = [user['username'] for user in response.data]
+        # Should be ordered alphabetically
+        self.assertEqual(usernames, ['alice', 'bob'])
+
+    def test_users_list_excludes_inactive(self):
+        """Test that inactive users are excluded."""
+        response = self.client.get('/api/users/')
+        self.assertEqual(response.status_code, 200)
+
+        usernames = [user['username'] for user in response.data]
+        self.assertNotIn('inactive', usernames)
+
+    def test_users_list_excludes_unassignable(self):
+        """Test that users who can't be assigned are excluded."""
+        response = self.client.get('/api/users/')
+        self.assertEqual(response.status_code, 200)
+
+        usernames = [user['username'] for user in response.data]
+        self.assertNotIn('unassignable', usernames)
+
+
 class CompleteLaterFieldTests(TestCase):
     """Test that ChoreInstance serializer exposes complete_later field."""
 

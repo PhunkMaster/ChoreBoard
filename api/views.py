@@ -585,3 +585,30 @@ def my_chores(request):
 
     serializer = ChoreInstanceSerializer(my_instances, many=True)
     return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all users",
+    description="Returns list of all active users eligible for assignments. Authentication optional.",
+    responses={200: UserSerializer(many=True)},
+    tags=['Users']
+)
+@api_view(['GET'])
+@authentication_classes([HMACAuthentication])
+@permission_classes([AllowAny])
+def users_list(request):
+    """
+    Get all active users eligible for assignments.
+
+    Authentication is optional but supported.
+
+    Returns:
+        200: List of active users
+    """
+    users = User.objects.filter(
+        is_active=True,
+        can_be_assigned=True
+    ).order_by('username')
+
+    serializer = UserSerializer(users, many=True)
+    return Response(serializer.data)

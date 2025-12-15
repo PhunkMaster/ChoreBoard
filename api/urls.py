@@ -25,4 +25,7 @@ urlpatterns = [
 
     # Leaderboard
     path('leaderboard/', views.leaderboard, name='leaderboard'),
+
+    # Users
+    path('users/', views.users_list, name='users_list'),
 ]
