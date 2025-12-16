@@ -106,7 +106,7 @@
                     </div>
 
                     <!-- Last Completion Info -->
-                    {% with last_completion=chore.get_last_completion %}
+                    {% with last_completion=chore.chore.get_last_completion %}
                     {% if last_completion %}
                     <div class="mb-3 p-2 bg-dark-card rounded-lg border border-dark-border">
                         <p class="text-xs text-gray-500 mb-1">Last completed:</p>
@@ -192,7 +192,7 @@
                     </div>
 
                     <!-- Last Completion Info -->
-                    {% with last_completion=chore.get_last_completion %}
+                    {% with last_completion=chore.chore.get_last_completion %}
                     {% if last_completion %}
                     <div class="mb-3 p-2 bg-dark-card rounded-lg border border-dark-border">
                         <p class="text-xs text-gray-500 mb-1">Last completed:</p>

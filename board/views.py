@@ -517,8 +517,13 @@ def users_minimal(request):
 
     # Get chore counts per user: include chores due today OR overdue from previous days
     assigned_chores = ChoreInstance.objects.filter(
-        status=ChoreInstance.ASSIGNED,
-        chore__is_active=True
+        status=ChoreInstance.ASSIGNED
+    ).filter(
+        Q(chore__is_active=True) |  # Active chores
+        Q(  # OR open instances of inactive chores
+            chore__is_active=False,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        )
     ).filter(
         Q(due_at__range=(today_start, today_end)) | Q(due_at__lt=today_start)  # Due today OR past due
     ).exclude(status=ChoreInstance.SKIPPED).select_related('assigned_to')
@@ -1179,8 +1184,13 @@ def get_updates(request):
 
         # Get updated chore instances: include chores due today OR overdue from previous days
         updated_instances = ChoreInstance.objects.filter(
-            updated_at__gt=since,
-            chore__is_active=True
+            updated_at__gt=since
+        ).filter(
+            Q(chore__is_active=True) |  # Active chores
+            Q(  # OR open instances of inactive chores
+                chore__is_active=False,
+                status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+            )
         ).filter(
             Q(due_at__range=(today_start, today_end)) | Q(due_at__lt=today_start)  # Due today OR past due
         ).exclude(

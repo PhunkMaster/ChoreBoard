@@ -93,7 +93,7 @@
                     </div>
 
                     <!-- Last Completion Info -->
-                    {% with last_completion=chore_instance.get_last_completion %}
+                    {% with last_completion=chore_instance.chore.get_last_completion %}
                     {% if last_completion %}
                     <div class="mt-3 p-3 bg-dark-card rounded-lg border border-dark-border">
                         <p class="text-xs text-gray-400 mb-2">Last completed:</p>
