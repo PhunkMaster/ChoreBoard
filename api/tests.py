@@ -849,6 +849,48 @@ class UsersListAPITests(TestCase):
         usernames = [user['username'] for user in response.data]
         self.assertNotIn('unassignable', usernames)
 
+    def test_users_api_includes_id_field(self):
+        """
+        Test that /api/users/ returns id field for Home Assistant integration.
+
+        CRITICAL: The Home Assistant ChoreBoard integration requires user IDs
+        for pool chore claim and complete operations. Without this field, the
+        integration's pool chores feature is completely broken.
+
+        See: downstream_integration_needs/USER_ID_API_REQUIREMENT.md
+        """
+        response = self.client.get('/api/users/')
+        self.assertEqual(response.status_code, 200)
+
+        users = response.data
+        self.assertGreater(len(users), 0, "Should have at least one user")
+
+        # Verify first user has id field
+        user = users[0]
+        self.assertIn('id', user, "User must have 'id' field")
+        self.assertIsInstance(user['id'], int, "User ID must be integer")
+        self.assertGreater(user['id'], 0, "User ID must be positive")
+
+        # Verify all required fields present for Home Assistant integration
+        required_fields = [
+            'id',  # CRITICAL for Home Assistant
+            'username',
+            'display_name',
+            'first_name',
+            'can_be_assigned',
+            'eligible_for_points',
+            'weekly_points',
+            'all_time_points',
+            'claims_today'
+        ]
+        for field in required_fields:
+            self.assertIn(field, user, f"User must have '{field}' field")
+
+        # Verify all users have id field
+        for user in users:
+            self.assertIn('id', user, "All users must have 'id' field")
+            self.assertIsInstance(user['id'], int, "All user IDs must be integers")
+
 
 class ChoreInstanceCompletionDataTests(TestCase):
     """Test that ChoreInstance serializer includes completion data."""
