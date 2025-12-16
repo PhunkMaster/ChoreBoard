@@ -172,27 +172,58 @@
 
 {% block extra_scripts %}
 <script>
+    // Track when modals are opened to prevent immediate closing on touch devices
+    let modalJustOpened = false;
+
     function showApproveModal(sessionId, choreName, userName) {
+        // Prevent immediate closing on touch devices
+        modalJustOpened = true;
+        setTimeout(() => { modalJustOpened = false; }, 300);
+
         document.getElementById('approveModal').classList.remove('hidden');
         document.getElementById('approveChoreName').textContent = choreName;
         document.getElementById('approveUserName').textContent = userName;
         document.getElementById('approveForm').action = `/arcade/approve/${sessionId}/`;
+
+        // Focus the judge select dropdown
+        setTimeout(() => {
+            document.querySelector('#approveModal select[name="judge_id"]').focus();
+        }, 100);
     }
 
     function hideApproveModal(event) {
+        // Don't close if modal just opened (prevents touch event propagation)
+        if (modalJustOpened) return;
+
+        // Only close if clicking on backdrop, not on modal content
         if (event && event.target !== event.currentTarget) return;
+
         document.getElementById('approveModal').classList.add('hidden');
     }
 
     function showDenyModal(sessionId, choreName, userName) {
+        // Prevent immediate closing on touch devices
+        modalJustOpened = true;
+        setTimeout(() => { modalJustOpened = false; }, 300);
+
         document.getElementById('denyModal').classList.remove('hidden');
         document.getElementById('denyChoreName').textContent = choreName;
         document.getElementById('denyUserName').textContent = userName;
         document.getElementById('denyForm').action = `/arcade/deny/${sessionId}/`;
+
+        // Focus the judge select dropdown
+        setTimeout(() => {
+            document.querySelector('#denyModal select[name="judge_id"]').focus();
+        }, 100);
     }
 
     function hideDenyModal(event) {
+        // Don't close if modal just opened (prevents touch event propagation)
+        if (modalJustOpened) return;
+
+        // Only close if clicking on backdrop, not on modal content
         if (event && event.target !== event.currentTarget) return;
+
         document.getElementById('denyModal').classList.add('hidden');
     }
 
