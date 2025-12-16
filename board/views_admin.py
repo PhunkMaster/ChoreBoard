@@ -38,10 +38,14 @@ def admin_dashboard(request):
     from django.db.models import Q
 
     now = timezone.now()
-    today = now.date()
+    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
 
     # Use year > 3000 to avoid overflow errors with year >= 9999
     far_future = timezone.make_aware(datetime(3000, 1, 1))
+
+    # Create timezone-aware datetime range for "today" in local timezone
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
     # Key metrics
     active_chores = Chore.objects.filter(is_active=True).count()
@@ -53,8 +57,8 @@ def admin_dashboard(request):
         status=ChoreInstance.POOL,
         chore__is_active=True
     ).filter(
-        Q(due_at__date=today) |  # Due today
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__range=(today_start, today_end)) |  # Due today (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date)
     ).count()
 
@@ -65,8 +69,8 @@ def admin_dashboard(request):
         assigned_to__eligible_for_points=True,  # Only count eligible users
         assigned_to__isnull=False
     ).filter(
-        Q(due_at__date=today) |  # Due today
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__range=(today_start, today_end)) |  # Due today (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date)
     ).count()
 
@@ -74,7 +78,7 @@ def admin_dashboard(request):
     completed_count = ChoreInstance.objects.filter(
         status=ChoreInstance.COMPLETED,
         chore__is_active=True,
-        due_at__date=today
+        due_at__range=(today_start, today_end)  # Due today (timezone-aware)
     ).count()
 
     # Overdue chores (eligible users only)
@@ -85,13 +89,16 @@ def admin_dashboard(request):
         assigned_to__isnull=False,
         is_overdue=True
     ).filter(
-        Q(due_at__date=today) |  # Due today but overdue
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__range=(today_start, today_end)) |  # Due today but overdue (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (can't be overdue but include for consistency)
     ).count()
 
     # Skipped chores count (today only is fine)
-    skipped_count = ChoreInstance.objects.filter(due_at__date=today, status=ChoreInstance.SKIPPED).count()
+    skipped_count = ChoreInstance.objects.filter(
+        due_at__range=(today_start, today_end),  # Due today (timezone-aware)
+        status=ChoreInstance.SKIPPED
+    ).count()
 
     # Points this week
     week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -2240,8 +2247,15 @@ def admin_skip_chores(request):
     """
     Admin page for skipping chores and viewing skipped chores history.
     """
-    today = timezone.now().date()
+    from datetime import datetime
+
     now = timezone.now()
+    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
+
+    # Create timezone-aware datetime range for "today" in local timezone
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+
     settings = Settings.get_settings()
     undo_limit_hours = settings.undo_time_limit_hours
     undo_cutoff = now - timedelta(hours=undo_limit_hours)
@@ -2249,7 +2263,7 @@ def admin_skip_chores(request):
     # Get active chores (pool + assigned) that can be skipped
     # Include all instances due today OR overdue from previous days
     active_chores = ChoreInstance.objects.filter(
-        Q(due_at__date=today) | Q(due_at__lt=now),
+        Q(due_at__range=(today_start, today_end)) | Q(due_at__lt=today_start),
         status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED],
         chore__is_active=True
     ).select_related('chore', 'assigned_to').order_by('due_at', 'status')
@@ -2737,6 +2751,8 @@ def admin_midnight_evaluation(request):
     ).order_by('-started_at').first()
 
     # Find chores that should be overdue but aren't
+    # Note: Using 'now' here is intentional - we want to find chores that are overdue
+    # at this exact moment but haven't been marked as such yet
     pending_overdue = ChoreInstance.objects.filter(
         status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED],
         due_at__lt=now,

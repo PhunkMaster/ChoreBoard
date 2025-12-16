@@ -50,7 +50,7 @@ class SplitAssignedChoresTest(TestCase):
         # Ensure chores are due today (not tomorrow)
         from datetime import datetime
         now = timezone.now()
-        today = now.date()
+        today = timezone.localtime(now).date()  # Use local timezone to match view logic
 
         # Set due_at to end of today, distribution_at to start of today
         due_at_today = timezone.make_aware(datetime.combine(today, datetime.max.time()))

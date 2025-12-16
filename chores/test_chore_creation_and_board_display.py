@@ -123,7 +123,7 @@ class MidnightEvaluationCreatesInstancesTests(TestCase):
         self.assertEqual(instance.points_value, chore.points)
         self.assertEqual(instance.chore, chore)
         # Due at should be today (signal creates instances with due_at = today at 23:59:59)
-        today = timezone.now().date()
+        today = timezone.localtime(timezone.now()).date()  # Use local timezone to match view logic
         self.assertEqual(instance.due_at.date(), today, "Signal creates instances with due_at = today")
 
     def test_new_weekly_chore_creates_instance_on_correct_day(self):
@@ -190,7 +190,7 @@ class BoardDisplayTests(TestCase):
         # Create instance with explicit date set to today
         from datetime import datetime
         now = timezone.now()
-        today = now.date()
+        today = timezone.localtime(now).date()  # Use local timezone to match view logic
         due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         distribution_at = timezone.make_aware(datetime.combine(today, datetime.min.time()))
 
@@ -215,7 +215,7 @@ class BoardDisplayTests(TestCase):
         # Create assigned instance with explicit date set to today
         from datetime import datetime
         now = timezone.now()
-        today = now.date()
+        today = timezone.localtime(now).date()  # Use local timezone to match view logic
         due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         distribution_at = timezone.make_aware(datetime.combine(today, datetime.min.time()))
 
@@ -268,7 +268,7 @@ class BoardDisplayTests(TestCase):
         # Create pool instance with explicit date set to today
         from datetime import datetime
         now = timezone.now()
-        today = now.date()
+        today = timezone.localtime(now).date()  # Use local timezone to match view logic
         due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         distribution_at = timezone.make_aware(datetime.combine(today, datetime.min.time()))
 
@@ -292,7 +292,7 @@ class BoardDisplayTests(TestCase):
         """Test that board views show instances due today and tomorrow (since midnight eval creates instances for tomorrow)."""
         from datetime import datetime
         now = timezone.now()
-        today = now.date()
+        today = timezone.localtime(now).date()  # Use local timezone to match view logic
         yesterday = today - timezone.timedelta(days=1)
         tomorrow = today + timezone.timedelta(days=1)
         day_after_tomorrow = today + timezone.timedelta(days=2)
@@ -373,7 +373,7 @@ class EndToEndChoreCreationTests(TestCase):
 
         # Step 2: Verify instance was created immediately by signal (NOT by midnight eval)
         # Note: Signal creates instances with due_at = today at 23:59:59
-        today = timezone.now().date()
+        today = timezone.localtime(timezone.now()).date()  # Use local timezone to match view logic
         instances_immediate = ChoreInstance.objects.filter(
             chore=chore,
             due_at__date=today
@@ -448,7 +448,7 @@ class ImmediateChoreInstanceCreationTests(TestCase):
         self.assertTrue(chore.is_active)
 
         # Check if an instance was created (signal creates with due_at = today)
-        today = timezone.now().date()
+        today = timezone.localtime(timezone.now()).date()  # Use local timezone to match view logic
         instances = ChoreInstance.objects.filter(
             chore=chore,
             due_at__date=today
@@ -475,7 +475,7 @@ class ImmediateChoreInstanceCreationTests(TestCase):
         it should create an instance immediately.
         """
         # Get today's weekday
-        today = timezone.now().date()
+        today = timezone.localtime(timezone.now()).date()  # Use local timezone to match view logic
         today_weekday = today.weekday()
 
         # Create a weekly chore for today's weekday
@@ -509,7 +509,7 @@ class ImmediateChoreInstanceCreationTests(TestCase):
         it should NOT create an instance immediately.
         """
         # Get a different weekday than today
-        today = timezone.now().date()
+        today = timezone.localtime(timezone.now()).date()  # Use local timezone to match view logic
         today_weekday = today.weekday()
         different_weekday = (today_weekday + 1) % 7  # Next day of week
 
@@ -610,7 +610,7 @@ class ImmediateChoreInstanceCreationTests(TestCase):
         self.assertTrue(chore.is_active)
 
         # CRITICAL ASSERTION: Check if instance was created (signal creates with due_at = tomorrow)
-        today = timezone.now().date()
+        today = timezone.localtime(timezone.now()).date()  # Use local timezone to match view logic
         instances = ChoreInstance.objects.filter(
             chore=chore,
             due_at__date=today

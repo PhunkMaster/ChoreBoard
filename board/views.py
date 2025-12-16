@@ -52,6 +52,12 @@ def main_board(request):
     from datetime import datetime
     far_future = timezone.make_aware(datetime(3000, 1, 1))
 
+    # Create timezone-aware datetime range for "today" in local timezone
+    # This fixes a bug where due_at__date=today would use UTC timezone,
+    # causing mismatches when comparing against local dates
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+
     pool_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.POOL
     ).filter(
@@ -61,8 +67,8 @@ def main_board(request):
             status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
         )
     ).filter(
-        Q(due_at__date=today) |  # Due today
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__range=(today_start, today_end)) |  # Due today (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
     ).select_related('chore').prefetch_related(
         'completion__completed_by',
@@ -80,8 +86,8 @@ def main_board(request):
             status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
         )
     ).filter(
-        Q(due_at__date=today) |  # Due today
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__range=(today_start, today_end)) |  # Due today (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
     ).select_related('chore', 'assigned_to').prefetch_related(
         'completion__completed_by',
@@ -170,6 +176,8 @@ def pool_only(request):
     # Use year > 3000 to avoid overflow errors with year >= 9999
     from datetime import datetime
     far_future = timezone.make_aware(datetime(3000, 1, 1))
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
     pool_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.POOL
@@ -180,8 +188,8 @@ def pool_only(request):
             status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
         )
     ).filter(
-        Q(due_at__date=today) |  # Due today
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__range=(today_start, today_end)) |  # Due today (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
     ).select_related('chore').prefetch_related(
         'completion__completed_by',
@@ -216,6 +224,8 @@ def user_board(request, username):
     # Use year > 3000 to avoid overflow errors with year >= 9999
     from datetime import datetime
     far_future = timezone.make_aware(datetime(3000, 1, 1))
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
     # Get chores assigned to this user: include chores due today, overdue, OR no due date
     assigned_chores = ChoreInstance.objects.filter(
@@ -228,8 +238,8 @@ def user_board(request, username):
             status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
         )
     ).filter(
-        Q(due_at__date=today) |  # Due today
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__range=(today_start, today_end)) |  # Due today (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
     ).select_related('chore').prefetch_related(
         'completion__completed_by',
@@ -286,6 +296,11 @@ def user_board_minimal(request, username):
     now = timezone.now()
     today = timezone.localtime(now).date()  # Convert to local timezone before getting date
 
+    # Create timezone-aware datetime range for "today" in local timezone
+    from datetime import datetime
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+
     # Get chores assigned to this user: include chores due today OR overdue from previous days
     assigned_chores = ChoreInstance.objects.filter(
         assigned_to=user,
@@ -297,7 +312,7 @@ def user_board_minimal(request, username):
             status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
         )
     ).filter(
-        Q(due_at__date=today) | Q(due_at__lt=now)  # Due today OR past due
+        Q(due_at__range=(today_start, today_end)) | Q(due_at__lt=today_start)  # Due today OR past due
     ).select_related('chore').prefetch_related(
         'completion__completed_by',
         'completion__shares__user'
@@ -346,6 +361,10 @@ def pool_minimal(request):
     from datetime import datetime, timedelta
     far_future = timezone.make_aware(datetime(3000, 1, 1))
 
+    # Create timezone-aware datetime range for "today" in local timezone
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+
     pool_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.POOL
     ).filter(
@@ -355,8 +374,8 @@ def pool_minimal(request):
             status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
         )
     ).filter(
-        Q(due_at__date=today) |  # Due today
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__range=(today_start, today_end)) |  # Due today (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
     ).select_related('chore').prefetch_related(
         'completion__completed_by',
@@ -402,6 +421,10 @@ def assigned_minimal(request):
     from datetime import datetime, timedelta
     far_future = timezone.make_aware(datetime(3000, 1, 1))
 
+    # Create timezone-aware datetime range for "today" in local timezone
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+
     # Get all assigned chores: include chores due today, overdue, OR no due date
     assigned_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.ASSIGNED
@@ -412,8 +435,8 @@ def assigned_minimal(request):
             status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
         )
     ).filter(
-        Q(due_at__date=today) |  # Due today
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__range=(today_start, today_end)) |  # Due today (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
     ).exclude(status=ChoreInstance.SKIPPED).select_related('chore', 'assigned_to').prefetch_related(
         'completion__completed_by',
@@ -478,7 +501,12 @@ def users_minimal(request):
     from chores.models import ArcadeSession
 
     now = timezone.now()
-    today = now.date()
+    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
+
+    # Create timezone-aware datetime range for "today" in local timezone
+    from datetime import datetime
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
     # Get all users eligible for points
     users = User.objects.filter(
@@ -492,7 +520,7 @@ def users_minimal(request):
         status=ChoreInstance.ASSIGNED,
         chore__is_active=True
     ).filter(
-        Q(due_at__date=today) | Q(due_at__lt=now)  # Due today OR past due
+        Q(due_at__range=(today_start, today_end)) | Q(due_at__lt=today_start)  # Due today OR past due
     ).exclude(status=ChoreInstance.SKIPPED).select_related('assigned_to')
 
     # Count chores per user
@@ -1138,7 +1166,11 @@ def get_updates(request):
 
         # Get current time for response
         now = timezone.now()
-        today = now.date()
+        today = timezone.localtime(now).date()  # Convert to local timezone before getting date
+
+        # Create timezone-aware datetime range for "today" in local timezone
+        today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+        today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
         updates = {
             'timestamp': now.isoformat(),
@@ -1150,7 +1182,7 @@ def get_updates(request):
             updated_at__gt=since,
             chore__is_active=True
         ).filter(
-            Q(due_at__date=today) | Q(due_at__lt=now)  # Due today OR past due
+            Q(due_at__range=(today_start, today_end)) | Q(due_at__lt=today_start)  # Due today OR past due
         ).exclude(
             status=ChoreInstance.SKIPPED
         ).select_related('chore', 'assigned_to')
