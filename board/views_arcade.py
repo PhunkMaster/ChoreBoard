@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods, require_POST
+from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q, Min
 from django.utils import timezone
 
@@ -275,6 +276,7 @@ def judge_approval_minimal(request):
     return render(request, 'board/arcade/judge_approval_minimal.html', context)
 
 
+@csrf_exempt
 @require_POST
 def approve_submission(request, session_id):
     """Judge approves an arcade completion. Supports kiosk mode."""
@@ -332,6 +334,7 @@ def approve_submission(request, session_id):
         return redirect('board:arcade_judge_approval')
 
 
+@csrf_exempt
 @require_POST
 def deny_submission(request, session_id):
     """Judge denies an arcade completion. Supports kiosk mode."""
