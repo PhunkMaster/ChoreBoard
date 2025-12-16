@@ -160,6 +160,28 @@ class Chore(models.Model):
             return False
         return self.dependencies_as_child.exists()
 
+    def get_last_completion(self):
+        """
+        Get the most recent completion for ANY instance of this chore.
+        This is useful for recurring chores to show who completed it last time.
+
+        Returns:
+            Completion object or None if never completed
+        """
+        if not self.pk:
+            return None
+
+        # Get the most recent non-undone completion across all instances of this chore
+        from chores.models import Completion
+        return Completion.objects.filter(
+            chore_instance__chore=self,
+            is_undone=False
+        ).select_related(
+            'completed_by'
+        ).prefetch_related(
+            'shares__user'
+        ).order_by('-completed_at').first()
+
 
 class ChoreTemplate(models.Model):
     """Reusable chore template for quick chore creation."""

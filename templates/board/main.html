@@ -195,7 +195,7 @@
                 {% endif %}
 
                 <!-- Last Completion Info -->
-                {% with last_completion=instance.get_last_completion %}
+                {% with last_completion=instance.chore.get_last_completion %}
                 {% if last_completion %}
                 <div class="mb-3 p-3 bg-dark-card rounded-lg border border-dark-border">
                     <p class="text-xs text-gray-400 mb-2">Last completed:</p>
@@ -373,7 +373,7 @@
                 {% endif %}
 
                 <!-- Last Completion Info -->
-                {% with last_completion=instance.get_last_completion %}
+                {% with last_completion=instance.chore.get_last_completion %}
                 {% if last_completion %}
                 <div class="mb-3 p-3 bg-dark-card rounded-lg border border-dark-border">
                     <p class="text-xs text-gray-400 mb-2">Last completed:</p>
@@ -525,7 +525,7 @@
                 {% endif %}
 
                 <!-- Last Completion Info -->
-                {% with last_completion=instance.get_last_completion %}
+                {% with last_completion=instance.chore.get_last_completion %}
                 {% if last_completion %}
                 <div class="mb-3 p-3 bg-dark-card rounded-lg border border-dark-border">
                     <p class="text-xs text-gray-400 mb-2">Last completed:</p>
