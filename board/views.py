@@ -143,12 +143,12 @@ def main_board(request):
         is_active=True
     ).order_by('first_name', 'username')
 
-    # Get active arcade session (kiosk-mode compatible)
-    # Check if ANY user has an active arcade session
+    # Get ALL active arcade sessions (kiosk-mode compatible)
+    # Support multiple concurrent arcade sessions
     from chores.models import ArcadeSession
-    active_arcade_session = ArcadeSession.objects.filter(
+    active_arcade_sessions = ArcadeSession.objects.filter(
         status=ArcadeSession.STATUS_ACTIVE
-    ).select_related('chore', 'user').first()
+    ).select_related('chore', 'user').order_by('start_time')
 
     context = {
         'pool_chores': pool_chores,
@@ -160,7 +160,7 @@ def main_board(request):
         'admin_users': admin_users,
         'today': today,
         'now': now,
-        'active_arcade_session': active_arcade_session,  # Arcade mode
+        'active_arcade_sessions': active_arcade_sessions,  # Arcade mode - ALL sessions
     }
 
     return render(request, 'board/main.html', context)
@@ -382,10 +382,11 @@ def pool_minimal(request):
         'completion__shares__user'
     ).order_by('due_at')
 
-    # Check for any active arcade session (kiosk-mode compatible)
-    active_arcade_session = ArcadeSession.objects.filter(
+    # Get ALL active arcade sessions (kiosk-mode compatible)
+    # Support multiple concurrent arcade sessions
+    active_arcade_sessions = ArcadeSession.objects.filter(
         status=ArcadeSession.STATUS_ACTIVE
-    ).select_related('chore', 'user').first()
+    ).select_related('chore', 'user').order_by('start_time')
 
     # Get all users for arcade mode and claiming (including those not eligible for points)
     # Note: Users not eligible for points can still complete chores,
@@ -398,7 +399,7 @@ def pool_minimal(request):
     context = {
         'pool_chores': pool_chores,
         'today': today,
-        'active_arcade_session': active_arcade_session,
+        'active_arcade_sessions': active_arcade_sessions,  # ALL sessions
         'users': users,
     }
 
@@ -469,10 +470,11 @@ def assigned_minimal(request):
     # Sort by user name
     assigned_by_user.sort(key=lambda x: x['user'].first_name or x['user'].username)
 
-    # Check for any active arcade session (kiosk-mode compatible)
-    active_arcade_session = ArcadeSession.objects.filter(
+    # Get ALL active arcade sessions (kiosk-mode compatible)
+    # Support multiple concurrent arcade sessions
+    active_arcade_sessions = ArcadeSession.objects.filter(
         status=ArcadeSession.STATUS_ACTIVE
-    ).select_related('chore', 'user').first()
+    ).select_related('chore', 'user').order_by('start_time')
 
     # Get all users for completing chores (including those not eligible for points)
     # Note: Users not eligible for points can still complete chores,
@@ -485,7 +487,7 @@ def assigned_minimal(request):
     context = {
         'assigned_by_user': assigned_by_user,
         'today': today,
-        'active_arcade_session': active_arcade_session,
+        'active_arcade_sessions': active_arcade_sessions,  # ALL sessions
         'users': users,
     }
 
@@ -543,15 +545,16 @@ def users_minimal(request):
             'chore_count': chore_counts.get(user.id, 0)
         })
 
-    # Check for any active arcade session (kiosk-mode compatible)
-    active_arcade_session = ArcadeSession.objects.filter(
+    # Get ALL active arcade sessions (kiosk-mode compatible)
+    # Support multiple concurrent arcade sessions
+    active_arcade_sessions = ArcadeSession.objects.filter(
         status=ArcadeSession.STATUS_ACTIVE
-    ).select_related('chore', 'user').first()
+    ).select_related('chore', 'user').order_by('start_time')
 
     context = {
         'users_with_counts': users_with_counts,
         'today': today,
-        'active_arcade_session': active_arcade_session,
+        'active_arcade_sessions': active_arcade_sessions,  # ALL sessions
     }
 
     return render(request, 'board/users_minimal.html', context)

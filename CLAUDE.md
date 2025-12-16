@@ -8,3 +8,4 @@
 - When the user identifies a problem, always write a comprehensive test to ensure that it does not resurface
 - Always ask questions if an instruction is unclear or ambiguous
 - Always use semver branches
+- Do not work on other projects, only create implementation documentation in those projects.

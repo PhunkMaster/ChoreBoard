@@ -35,22 +35,23 @@
         </div>
     </div>
 
-    <!-- Arcade Mode Banner (if user has active session) -->
-    {% if active_arcade_session %}
-    <div id="arcade-banner" class="bg-gradient-to-r from-purple-900/80 to-pink-900/80 border-2 border-purple-500 rounded-lg p-6 animate-pulse">
+    <!-- Arcade Mode Banners (support multiple concurrent sessions) -->
+    {% for active_arcade_session in active_arcade_sessions %}
+    <div id="arcade-banner-{{ active_arcade_session.id }}" class="bg-gradient-to-r from-purple-900/80 to-pink-900/80 border-2 border-purple-500 rounded-lg p-6 animate-pulse mb-4">
         <div class="flex flex-col md:flex-row items-center justify-between gap-4">
-            <!-- Left: Chore Info -->
+            <!-- Left: Chore Info & User -->
             <div class="flex items-center space-x-4">
                 <div class="text-4xl">⏱️</div>
                 <div>
                     <h3 class="text-xl font-bold text-white">Arcade Mode Active</h3>
                     <p class="text-purple-300">{{ active_arcade_session.chore.name }}</p>
+                    <p class="text-purple-400 text-sm">{{ active_arcade_session.user.get_display_name }}</p>
                 </div>
             </div>
 
             <!-- Center: Timer Display -->
             <div class="text-center">
-                <div id="arcade-timer" class="text-5xl font-bold text-yellow-400 tabular-nums">
+                <div id="arcade-timer-{{ active_arcade_session.id }}" class="text-5xl font-bold text-yellow-400 tabular-nums">
                     00:00
                 </div>
                 <p class="text-purple-300 text-sm mt-1">Elapsed Time</p>
@@ -69,7 +70,7 @@
             </div>
         </div>
     </div>
-    {% endif %}
+    {% endfor %}
 
     <!-- User Quick Links -->
     <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
@@ -1389,13 +1390,13 @@
         }
     }
 
-    // Update Arcade Timer Display
-    function updateArcadeTimer() {
-        const timerElement = document.getElementById('arcade-timer');
+    // Update Arcade Timer Display for a specific session
+    function updateArcadeTimer(sessionId, startTime) {
+        const timerElement = document.getElementById(`arcade-timer-${sessionId}`);
         if (!timerElement) return;
 
         const now = Date.now();
-        const elapsed = Math.floor((now - arcadeStartTime) / 1000);
+        const elapsed = Math.floor((now - startTime) / 1000);
 
         const hours = Math.floor(elapsed / 3600);
         const minutes = Math.floor((elapsed % 3600) / 60);
@@ -1408,20 +1409,32 @@
         }
     }
 
-    // Initialize Arcade Timer (if active session exists)
-    {% if active_arcade_session %}
+    // Initialize Arcade Timers (support multiple concurrent sessions)
+    {% if active_arcade_sessions %}
     document.addEventListener('DOMContentLoaded', function() {
-        // Calculate start time based on server data
-        const sessionStartTime = new Date('{{ active_arcade_session.start_time|date:"c" }}');
-        arcadeStartTime = sessionStartTime.getTime();
+        const arcadeSessions = [];
 
-        // Update immediately
-        updateArcadeTimer();
+        {% for session in active_arcade_sessions %}
+        // Store session data
+        const session{{ session.id }} = {
+            id: {{ session.id }},
+            startTime: new Date('{{ session.start_time|date:"c" }}').getTime()
+        };
+        arcadeSessions.push(session{{ session.id }});
+        console.log('Arcade timer initialized for session {{ session.id }} ({{ session.user.get_display_name }} - {{ session.chore.name }})');
+        {% endfor %}
 
-        // Update every second
-        arcadeTimerInterval = setInterval(updateArcadeTimer, 1000);
+        // Update all timers immediately
+        arcadeSessions.forEach(session => {
+            updateArcadeTimer(session.id, session.startTime);
+        });
 
-        console.log('Arcade timer initialized for session {{ active_arcade_session.id }}');
+        // Update all timers every second
+        arcadeTimerInterval = setInterval(() => {
+            arcadeSessions.forEach(session => {
+                updateArcadeTimer(session.id, session.startTime);
+            });
+        }, 1000);
     });
     {% endif %}
 
