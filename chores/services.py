@@ -154,7 +154,8 @@ class AssignmentService:
         """
         from chores.models import Completion
 
-        yesterday = timezone.now().date() - timedelta(days=1)
+        # Use local timezone, not UTC
+        yesterday = timezone.localtime(timezone.now()).date() - timedelta(days=1)
 
         # Get rotation state for all eligible users
         rotation_states = RotationState.objects.filter(
@@ -193,7 +194,7 @@ class AssignmentService:
         available_users.sort(key=lambda x: (
             x[1],  # Completion count (fewest first)
             x[2] is not None,  # Never completed first (None = False = first)
-            x[2] or timezone.now().date()  # Then oldest completion date
+            x[2] or timezone.localtime(timezone.now()).date()  # Then oldest completion date (use local timezone)
         ))
 
         selected_user = available_users[0][0]
@@ -269,7 +270,8 @@ class AssignmentService:
         if not chore.is_undesirable:
             return
 
-        today = timezone.now().date()
+        # Use local timezone, not UTC
+        today = timezone.localtime(timezone.now()).date()
 
         RotationState.objects.update_or_create(
             chore=chore,

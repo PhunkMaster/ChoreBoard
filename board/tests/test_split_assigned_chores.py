@@ -5,7 +5,7 @@ Tests that main board groups assigned chores by user.
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, datetime
 from chores.models import Chore, ChoreInstance
 from users.models import User
 
@@ -259,15 +259,16 @@ class SplitChoresHTMLTest(TestCase):
         )
 
         now = timezone.now()
-        # Set due_at to 11 PM today to ensure it stays within today's date
-        due_time = now.replace(hour=23, minute=0, second=0, microsecond=0)
+        # Set due_at to end of today in local timezone
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
         ChoreInstance.objects.create(
             chore=chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user,
             distribution_at=now,
-            due_at=due_time,
+            due_at=due_at,
             points_value=10
         )
 

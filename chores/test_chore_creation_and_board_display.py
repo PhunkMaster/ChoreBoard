@@ -124,12 +124,14 @@ class MidnightEvaluationCreatesInstancesTests(TestCase):
         self.assertEqual(instance.chore, chore)
         # Due at should be today (signal creates instances with due_at = today at 23:59:59)
         today = timezone.localtime(timezone.now()).date()  # Use local timezone to match view logic
-        self.assertEqual(instance.due_at.date(), today, "Signal creates instances with due_at = today")
+        # Use localtime to convert UTC datetime to local date for comparison
+        self.assertEqual(timezone.localtime(instance.due_at).date(), today, "Signal creates instances with due_at = today")
 
     def test_new_weekly_chore_creates_instance_on_correct_day(self):
         """Test that a newly created weekly chore generates instance on the correct weekday."""
         # Create chore for today's weekday
-        today_weekday = timezone.now().weekday()
+        # Use local timezone to match midnight_evaluation logic
+        today_weekday = timezone.localtime(timezone.now()).weekday()
         chore = Chore.objects.create(
             name='New Weekly Chore',
             points=Decimal('15.00'),
@@ -289,7 +291,7 @@ class BoardDisplayTests(TestCase):
         self.assertIn(instance, pool_chores)
 
     def test_board_shows_instances_only_for_today(self):
-        """Test that board views show instances due today and tomorrow (since midnight eval creates instances for tomorrow)."""
+        """Test that board views show instances due today or overdue, but NOT future instances."""
         from datetime import datetime
         now = timezone.now()
         today = timezone.localtime(now).date()  # Use local timezone to match view logic
@@ -314,7 +316,7 @@ class BoardDisplayTests(TestCase):
             distribution_at=timezone.make_aware(datetime.combine(yesterday, datetime.min.time()))
         )
 
-        # Tomorrow instance - should show because midnight eval creates instances with due_at = tomorrow
+        # Tomorrow instance - should NOT show (future chores are hidden until their day arrives)
         tomorrow_instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.POOL,
@@ -336,10 +338,11 @@ class BoardDisplayTests(TestCase):
         response = self.client.get('/')
         pool_chores = response.context['pool_chores']
 
-        # Today and tomorrow instances should be shown (yesterday due to being overdue, tomorrow because that's how midnight eval works)
+        # Only today and overdue (yesterday) instances should be shown
+        # Future instances are hidden and will appear when their date arrives
         self.assertIn(today_instance, pool_chores, "Today's instance should show")
         self.assertIn(yesterday_instance, pool_chores, "Yesterday's instance should show (overdue)")
-        self.assertIn(tomorrow_instance, pool_chores, "Tomorrow's instance should show (midnight eval creates instances for tomorrow)")
+        self.assertNotIn(tomorrow_instance, pool_chores, "Tomorrow's instance should NOT show (future chores are hidden)")
         self.assertNotIn(day_after_instance, pool_chores, "Day after tomorrow should not show")
 
 
@@ -467,7 +470,8 @@ class ImmediateChoreInstanceCreationTests(TestCase):
         self.assertEqual(instance.points_value, chore.points)
         self.assertIsNone(instance.assigned_to)
         # Due date should be today (signal creates instances with due_at = today at 23:59:59)
-        self.assertEqual(instance.due_at.date(), today, "Signal creates instances with due_at = today")
+        # Use localtime to convert UTC datetime to local date for comparison
+        self.assertEqual(timezone.localtime(instance.due_at).date(), today, "Signal creates instances with due_at = today")
 
     def test_weekly_chore_creates_instance_on_matching_weekday(self):
         """
@@ -632,7 +636,8 @@ class ImmediateChoreInstanceCreationTests(TestCase):
         self.assertIsNone(instance.assigned_to)
 
         # Verify the instance is due today (signal creates instances with due_at = today at 23:59:59)
+        # Use localtime to convert UTC datetime to local date for comparison
         self.assertEqual(
-            instance.due_at.date(), today,
+            timezone.localtime(instance.due_at).date(), today,
             "Instance should be due today (signal creates with due_at = today)"
         )

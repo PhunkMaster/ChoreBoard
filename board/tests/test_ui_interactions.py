@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 from chores.models import Chore, ChoreInstance, Completion, CompletionShare
 from core.models import Settings
 from decimal import Decimal
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 User = get_user_model()
 
@@ -70,12 +70,13 @@ class MainBoardViewTests(HTMXTestCase):
         """Test that pool chores are displayed on main board."""
         # Create pool chore instance
         now = timezone.now()
-        today_end = now.replace(hour=23, minute=59, second=59, microsecond=0)
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.POOL,
             distribution_at=now,
-            due_at=today_end,
+            due_at=due_at,
             points_value=self.chore.points
         )
 
@@ -87,12 +88,14 @@ class MainBoardViewTests(HTMXTestCase):
     def test_main_board_shows_assigned_chores(self):
         """Test that assigned chores are displayed separately."""
         now = timezone.now()
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user1,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=self.chore.points
         )
 
@@ -103,16 +106,17 @@ class MainBoardViewTests(HTMXTestCase):
 
     def test_main_board_separates_overdue_chores(self):
         """Test that overdue chores are shown separately."""
-        # Create overdue instance - due earlier today
+        # Create overdue instance - due yesterday
         now = timezone.now()
-        # Set due_at to 8 AM today (always in the past)
-        today_early = now.replace(hour=8, minute=0, second=0, microsecond=0)
+        today = timezone.localtime(now).date()
+        yesterday = today - timedelta(days=1)
+        overdue_due_at = timezone.make_aware(datetime.combine(yesterday, datetime.max.time()))
         instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user1,
-            distribution_at=today_early,
-            due_at=today_early,
+            distribution_at=overdue_due_at,
+            due_at=overdue_due_at,
             points_value=self.chore.points
         )
         instance.is_overdue = True
@@ -130,11 +134,13 @@ class ClaimChoreTests(HTMXTestCase):
     def test_claim_chore_success(self):
         """Test successful chore claim."""
         now = timezone.now()
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.POOL,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=self.chore.points
         )
 
@@ -164,11 +170,13 @@ class ClaimChoreTests(HTMXTestCase):
     def test_claim_chore_missing_user(self):
         """Test claim fails without user selection."""
         now = timezone.now()
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.POOL,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=self.chore.points
         )
 
@@ -185,12 +193,14 @@ class ClaimChoreTests(HTMXTestCase):
     def test_claim_chore_already_assigned(self):
         """Test claiming an already assigned chore fails."""
         now = timezone.now()
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user2,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=self.chore.points
         )
 
@@ -213,11 +223,13 @@ class ClaimChoreTests(HTMXTestCase):
         self.user1.save()
 
         now = timezone.now()
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.POOL,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=self.chore.points
         )
 
@@ -240,12 +252,14 @@ class CompleteChoreTests(HTMXTestCase):
     def test_complete_chore_success(self):
         """Test successful chore completion."""
         now = timezone.now()
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user1,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=Decimal('10.00')
         )
 
@@ -278,12 +292,14 @@ class CompleteChoreTests(HTMXTestCase):
     def test_complete_chore_with_helpers(self):
         """Test chore completion with multiple helpers."""
         now = timezone.now()
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user1,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=Decimal('12.00')
         )
 
@@ -341,12 +357,14 @@ class CompleteChoreTests(HTMXTestCase):
     def test_complete_chore_already_completed(self):
         """Test completing an already completed chore fails."""
         now = timezone.now()
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.COMPLETED,
             assigned_to=self.user1,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             completed_at=timezone.now(),
             points_value=Decimal('10.00')
         )
@@ -381,12 +399,14 @@ class CompleteChoreTests(HTMXTestCase):
         self.user2.save()
 
         now = timezone.now()
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=non_eligible_user,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=Decimal('10.00')
         )
 
@@ -441,12 +461,14 @@ class UserBoardViewTests(HTMXTestCase):
         """Test user board shows only chores assigned to that user."""
         # Create chore for user1
         now = timezone.now()
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         instance1 = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user1,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=self.chore.points
         )
 
@@ -461,7 +483,7 @@ class UserBoardViewTests(HTMXTestCase):
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user2,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=chore2.points
         )
 
@@ -537,11 +559,13 @@ class PoolOnlyViewTests(HTMXTestCase):
         """Test pool view shows only unclaimed chores."""
         # Pool chore
         now = timezone.now()
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         pool_instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.POOL,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=self.chore.points
         )
 
@@ -556,7 +580,7 @@ class PoolOnlyViewTests(HTMXTestCase):
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user1,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=chore2.points
         )
 
@@ -674,11 +698,13 @@ class CSRFExemptionTests(HTMXTestCase):
         csrf_client = Client(enforce_csrf_checks=True)
 
         now = timezone.now()
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.POOL,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=self.chore.points
         )
 
@@ -703,11 +729,13 @@ class CSRFExemptionTests(HTMXTestCase):
         csrf_client = Client(enforce_csrf_checks=True)
 
         now = timezone.now()
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.POOL,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=self.chore.points
         )
 
@@ -732,12 +760,14 @@ class CSRFExemptionTests(HTMXTestCase):
         csrf_client = Client(enforce_csrf_checks=True)
 
         now = timezone.now()
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.admin_user,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=self.chore.points
         )
 
@@ -763,12 +793,14 @@ class CSRFExemptionTests(HTMXTestCase):
         csrf_client = Client(enforce_csrf_checks=True)
 
         now = timezone.now()
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user1,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=self.chore.points
         )
 
@@ -788,12 +820,14 @@ class CSRFExemptionTests(HTMXTestCase):
         csrf_client = Client(enforce_csrf_checks=True)
 
         now = timezone.now()
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.admin_user,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=self.chore.points
         )
 

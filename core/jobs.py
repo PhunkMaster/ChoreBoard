@@ -438,10 +438,14 @@ def should_create_instance_today(chore, today):
     # 2. There's an open (non-closed) instance from a previous day
     from django.db.models import Q
 
+    # Use date range for timezone-aware comparison
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+
     existing = ChoreInstance.objects.filter(
         chore=chore
     ).filter(
-        Q(due_at__date=today) |  # Instance due today
+        Q(due_at__range=(today_start, today_end)) |  # Instance due today
         ~Q(status__in=['completed', 'skipped'])  # OR any open instance
     ).exists()
 
@@ -493,7 +497,9 @@ def should_create_instance_today(chore, today):
 
         try:
             # Parse RRULE JSON and check if today matches
-            return evaluate_rrule(chore.rrule_json, today, chore.created_at.date())
+            # Convert created_at to local timezone first
+            chore_created_date = timezone.localtime(chore.created_at).date()
+            return evaluate_rrule(chore.rrule_json, today, chore_created_date)
         except Exception as e:
             logger.error(f"Error evaluating RRULE for chore '{chore.name}': {e}")
             return False
@@ -660,7 +666,8 @@ def weekly_snapshot_job():
     logger.info("Starting weekly snapshot job")
 
     now = timezone.now()
-    week_ending = now.date()
+    # Use local timezone, not UTC
+    week_ending = timezone.localtime(now).date()
 
     # Get all users eligible for points
     eligible_users = User.objects.filter(eligible_for_points=True)

@@ -30,7 +30,7 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
             return
 
         now = timezone.now()
-        today = now.date()
+        today = timezone.localtime(now).date()  # Use local timezone, not UTC
         should_create_today = False
 
         if instance.schedule_type == Chore.DAILY:
@@ -76,10 +76,14 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
                 existing = ChoreInstance.objects.filter(chore=instance).exists()
             else:
                 # Regular chores: check for instance due today OR any open instance
+                # Use date range for timezone-aware comparison
+                today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+                today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+
                 existing = ChoreInstance.objects.filter(
                     chore=instance
                 ).filter(
-                    Q(due_at__date=today) |  # Instance due today
+                    Q(due_at__range=(today_start, today_end)) |  # Instance due today
                     ~Q(status__in=['completed', 'skipped'])  # OR any open instance
                 ).exists()
 
