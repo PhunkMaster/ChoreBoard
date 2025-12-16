@@ -2,7 +2,7 @@
 URL routing for ChoreBoard API.
 """
 from django.urls import path
-from api import views
+from api import views, views_arcade
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
 app_name = 'api'
@@ -35,4 +35,14 @@ urlpatterns = [
 
     # Completions
     path('completions/recent/', views.recent_completions, name='recent_completions'),
+
+    # Arcade Mode API Endpoints
+    path('arcade/start/', views_arcade.start_arcade, name='api_arcade_start'),
+    path('arcade/stop/', views_arcade.stop_arcade, name='api_arcade_stop'),
+    path('arcade/approve/', views_arcade.approve_arcade, name='api_arcade_approve'),
+    path('arcade/deny/', views_arcade.deny_arcade, name='api_arcade_deny'),
+    path('arcade/continue/', views_arcade.continue_arcade, name='api_arcade_continue'),
+    path('arcade/cancel/', views_arcade.cancel_arcade, name='api_arcade_cancel'),
+    path('arcade/status/', views_arcade.get_arcade_status, name='api_arcade_status'),
+    path('arcade/pending/', views_arcade.get_pending_approvals, name='api_arcade_pending'),
 ]
