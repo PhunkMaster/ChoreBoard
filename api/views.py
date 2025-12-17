@@ -203,6 +203,23 @@ def complete_chore(request):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+            # Validate undesirable chore configuration
+            if instance.chore.is_undesirable and not helper_ids:
+                from chores.models import ChoreEligibility
+                eligible_count = ChoreEligibility.objects.filter(
+                    chore=instance.chore,
+                    user__eligible_for_points=True
+                ).count()
+
+                if eligible_count == 0:
+                    return Response(
+                        {
+                            'error': 'Cannot complete this chore. It is marked as undesirable but has no eligible users configured. '
+                                   'Please contact an administrator to configure eligible users for this chore.'
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
             # Determine completion time and late status
             now = timezone.now()
             was_late = now > instance.due_at

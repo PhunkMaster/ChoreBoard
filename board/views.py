@@ -839,6 +839,20 @@ def complete_chore_view(request):
             if instance.status == ChoreInstance.COMPLETED:
                 return JsonResponse({'error': 'Already completed'}, status=400)
 
+            # Validate undesirable chore configuration
+            if instance.chore.is_undesirable and not helper_ids:
+                from chores.models import ChoreEligibility
+                eligible_count = ChoreEligibility.objects.filter(
+                    chore=instance.chore,
+                    user__eligible_for_points=True
+                ).count()
+
+                if eligible_count == 0:
+                    return JsonResponse({
+                        'error': 'Cannot complete this chore. It is marked as undesirable but has no eligible users configured. '
+                               'Please contact an administrator to configure eligible users for this chore.'
+                    }, status=400)
+
             # Determine completion time and late status
             now = timezone.now()
             was_late = now > instance.due_at
