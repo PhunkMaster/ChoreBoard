@@ -5,6 +5,7 @@ from rest_framework import serializers
 from chores.models import Chore, ChoreInstance, Completion, CompletionShare, ArcadeHighScore
 from users.models import User
 from core.models import WeeklySnapshot
+from board.models import SiteSettings
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -20,6 +21,15 @@ class UserSerializer(serializers.ModelSerializer):
             'weekly_points', 'all_time_points', 'claims_today'
         ]
         read_only_fields = ['id', 'username', 'weekly_points', 'all_time_points', 'claims_today']
+
+
+class SiteSettingsSerializer(serializers.ModelSerializer):
+    """Serializer for site-wide configuration settings."""
+
+    class Meta:
+        model = SiteSettings
+        fields = ['points_label', 'points_label_short']
+        read_only_fields = ['points_label', 'points_label_short']
 
 
 class ChoreSerializer(serializers.ModelSerializer):

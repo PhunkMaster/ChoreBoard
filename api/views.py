@@ -18,7 +18,7 @@ from api.auth import HMACAuthentication
 from api.serializers import (
     ChoreInstanceSerializer, CompletionSerializer, LeaderboardEntrySerializer,
     ClaimChoreSerializer, CompleteChoreSerializer, UndoCompletionSerializer,
-    UserSerializer, ArcadeHighScoreSerializer
+    UserSerializer, ArcadeHighScoreSerializer, SiteSettingsSerializer
 )
 from chores.models import ChoreInstance, Completion, CompletionShare, PointsLedger, Chore, ArcadeHighScore
 from chores.services import AssignmentService, DependencyService
@@ -642,6 +642,37 @@ def users_list(request):
     ).order_by('username')
 
     serializer = UserSerializer(users, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get site settings",
+    description="Returns site-wide configuration settings including custom points labels. "
+                "These labels are used throughout the application and should be used by "
+                "integrations to display point values consistently.",
+    responses={200: SiteSettingsSerializer},
+    tags=['Configuration']
+)
+@api_view(['GET'])
+@authentication_classes([HMACAuthentication])
+@permission_classes([AllowAny])
+def site_settings(request):
+    """
+    Get site-wide configuration settings.
+
+    Returns custom point labels configured by the administrator.
+    This endpoint does not require authentication.
+
+    Response:
+        {
+            "points_label": "points",
+            "points_label_short": "pts"
+        }
+    """
+    from board.models import SiteSettings
+
+    settings = SiteSettings.get_settings()
+    serializer = SiteSettingsSerializer(settings)
     return Response(serializer.data)
 
 

@@ -33,6 +33,9 @@ urlpatterns = [
     # Users
     path('users/', views.users_list, name='users_list'),
 
+    # Configuration
+    path('site-settings/', views.site_settings, name='site_settings'),
+
     # Completions
     path('completions/recent/', views.recent_completions, name='recent_completions'),
 

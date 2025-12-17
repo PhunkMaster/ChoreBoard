@@ -892,6 +892,129 @@ class UsersListAPITests(TestCase):
             self.assertIsInstance(user['id'], int, "All user IDs must be integers")
 
 
+class SiteSettingsAPITests(TestCase):
+    """Tests for the site settings API endpoint."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        from board.models import SiteSettings
+
+        # Create test user for authentication tests
+        self.user = User.objects.create_user(
+            username='testuser',
+            password='testpass123',
+            is_active=True,
+            can_be_assigned=True
+        )
+
+        # Get/create site settings
+        self.settings = SiteSettings.get_settings()
+
+        # Set up API client
+        self.client = APIClient()
+
+    def test_get_site_settings_default_values(self):
+        """Test that endpoint returns default points labels."""
+        response = self.client.get('/api/site-settings/')
+
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+        self.assertIn('points_label', data)
+        self.assertIn('points_label_short', data)
+        self.assertEqual(data['points_label'], 'points')
+        self.assertEqual(data['points_label_short'], 'pts')
+
+    def test_get_site_settings_custom_values(self):
+        """Test that endpoint returns custom points labels when configured."""
+        # Update settings with custom labels
+        self.settings.points_label = 'stars'
+        self.settings.points_label_short = '★'
+        self.settings.save()
+
+        response = self.client.get('/api/site-settings/')
+
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+        self.assertEqual(data['points_label'], 'stars')
+        self.assertEqual(data['points_label_short'], '★')
+
+    def test_get_site_settings_no_auth_required(self):
+        """Test that endpoint works without authentication."""
+        response = self.client.get('/api/site-settings/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('points_label', response.json())
+
+    def test_get_site_settings_with_auth(self):
+        """Test that endpoint works with valid HMAC authentication."""
+        token = HMACAuthentication.generate_token('testuser')
+
+        response = self.client.get(
+            '/api/site-settings/',
+            HTTP_AUTHORIZATION=f'Bearer {token}'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn('points_label', data)
+        self.assertIn('points_label_short', data)
+
+    def test_site_settings_only_returns_labels(self):
+        """Test that endpoint only exposes points labels, not other fields."""
+        response = self.client.get('/api/site-settings/')
+
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+        # Should only have these two fields
+        self.assertEqual(len(data), 2)
+        self.assertIn('points_label', data)
+        self.assertIn('points_label_short', data)
+        # Should not expose internal fields
+        self.assertNotIn('id', data)
+        self.assertNotIn('pk', data)
+
+    def test_site_settings_get_only(self):
+        """Test that endpoint only accepts GET requests."""
+        # POST should fail
+        response = self.client.post('/api/site-settings/', {})
+        self.assertEqual(response.status_code, 405)  # Method Not Allowed
+
+        # PUT should fail
+        response = self.client.put('/api/site-settings/', {})
+        self.assertEqual(response.status_code, 405)
+
+        # DELETE should fail
+        response = self.client.delete('/api/site-settings/')
+        self.assertEqual(response.status_code, 405)
+
+    def test_site_settings_response_format(self):
+        """Test that response format is valid JSON with correct types."""
+        response = self.client.get('/api/site-settings/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/json')
+
+        data = response.json()
+        self.assertIsInstance(data['points_label'], str)
+        self.assertIsInstance(data['points_label_short'], str)
+
+    def test_site_settings_unicode_labels(self):
+        """Test that endpoint handles Unicode characters in labels."""
+        # Set Unicode labels
+        self.settings.points_label = 'ポイント'  # Japanese for "points"
+        self.settings.points_label_short = '🌟'  # Star emoji
+        self.settings.save()
+
+        response = self.client.get('/api/site-settings/')
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['points_label'], 'ポイント')
+        self.assertEqual(data['points_label_short'], '🌟')
+
+
 class ChoreInstanceCompletionDataTests(TestCase):
     """Test that ChoreInstance serializer includes completion data."""
 
