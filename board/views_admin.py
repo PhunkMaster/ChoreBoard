@@ -1922,8 +1922,8 @@ def admin_force_assign_action(request, instance_id):
 @user_passes_test(is_staff_user)
 def admin_unassign(request):
     """
-    Interface to return force-assigned chores back to the pool.
-    Shows all force-assigned and manually assigned chores that staff can unassign.
+    Interface to return force-assigned chores back to the pool or reassign to another user.
+    Shows all force-assigned and manually assigned chores that staff can unassign/reassign.
     """
     from django.db.models import Q
 
@@ -1933,9 +1933,13 @@ def admin_unassign(request):
         assignment_reason__in=[ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED]
     ).select_related('chore', 'assigned_to').order_by('due_at')
 
+    # Get all eligible users for reassignment
+    users = User.objects.filter(is_active=True, can_be_assigned=True).order_by('username')
+
     context = {
         'active_page': 'unassign',
         'manually_assigned': manually_assigned,
+        'users': users,
     }
 
     return render(request, 'board/admin/unassign.html', context)
@@ -1989,6 +1993,68 @@ def admin_unassign_action(request, instance_id):
 
     except Exception as e:
         logger.error(f"Error unassigning chore: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_http_methods(["POST"])
+def admin_reassign_action(request, instance_id):
+    """
+    Reassign a manually/force-assigned chore from one user to another.
+    """
+    try:
+        user_id = request.POST.get('user_id')
+
+        if not user_id:
+            return JsonResponse({'error': 'User ID required'}, status=400)
+
+        instance = get_object_or_404(ChoreInstance, id=instance_id)
+        new_user = get_object_or_404(User, id=user_id)
+
+        if instance.status != ChoreInstance.ASSIGNED:
+            return JsonResponse({'error': 'Chore is not assigned'}, status=400)
+
+        if instance.assignment_reason not in [ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED]:
+            return JsonResponse({'error': 'Can only reassign force-assigned or manually assigned chores'}, status=400)
+
+        # Check if trying to reassign to the same user
+        if instance.assigned_to == new_user:
+            return JsonResponse({'error': 'Chore is already assigned to this user'}, status=400)
+
+        with transaction.atomic():
+            # Store for logging
+            old_user = instance.assigned_to
+
+            # Reassign to new user
+            instance.assigned_to = new_user
+            instance.assigned_at = timezone.now()
+            # Keep the same assignment_reason (manual or force_assigned)
+            instance.save()
+
+            # Log the action
+            ActionLog.objects.create(
+                action_type=ActionLog.ACTION_MANUAL_ASSIGN,
+                user=request.user,
+                target_user=new_user,
+                description=f"Reassigned '{instance.chore.name}' from {old_user.get_display_name()} to {new_user.get_display_name()}",
+                metadata={
+                    'chore_instance_id': instance.id,
+                    'chore_name': instance.chore.name,
+                    'previous_user': old_user.username,
+                    'new_user': new_user.username,
+                    'action': 'reassign',
+                }
+            )
+
+            logger.info(f"Admin {request.user.username} reassigned chore {instance.id} from {old_user.username} to {new_user.username}")
+
+            return JsonResponse({
+                'message': f'Successfully reassigned "{instance.chore.name}" from {old_user.get_display_name()} to {new_user.get_display_name()}',
+            })
+
+    except Exception as e:
+        logger.error(f"Error reassigning chore: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 

@@ -62,6 +62,7 @@ urlpatterns = [
     path('admin-panel/force-assign/<int:instance_id>/', views_admin.admin_force_assign_action, name='admin_force_assign_action'),
     path('admin-panel/unassign/', views_admin.admin_unassign, name='admin_unassign'),
     path('admin-panel/unassign/<int:instance_id>/', views_admin.admin_unassign_action, name='admin_unassign_action'),
+    path('admin-panel/reassign/<int:instance_id>/', views_admin.admin_reassign_action, name='admin_reassign_action'),
     path('admin-panel/streaks/', views_admin.admin_streaks, name='admin_streaks'),
     path('admin-panel/streak/<int:user_id>/increment/', views_admin.admin_streak_increment, name='admin_streak_increment'),
     path('admin-panel/streak/<int:user_id>/reset/', views_admin.admin_streak_reset, name='admin_streak_reset'),

@@ -68,7 +68,14 @@
                         </div>
                     </div>
 
-                    <div class="ml-6">
+                    <div class="ml-6 flex items-center gap-3">
+                        <button onclick="showReassignModal({{ instance.id }}, '{{ instance.chore.name|escapejs }}', '{{ instance.assigned_to.get_display_name|escapejs }}')"
+                                class="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                            </svg>
+                            Reassign
+                        </button>
                         <button onclick="unassignChore({{ instance.id }}, '{{ instance.chore.name|escapejs }}', '{{ instance.assigned_to.get_display_name|escapejs }}')"
                                 class="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -94,8 +101,112 @@
 </div>
 {% endblock %}
 
+<!-- Reassign Modal -->
+<div id="reassignModal" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-900 bg-opacity-75 transition-opacity" aria-hidden="true" onclick="hideReassignModal()"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-dark-surface rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-dark-border">
+            <div class="bg-dark-surface px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div class="sm:flex sm:items-start">
+                    <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-500/20 sm:mx-0 sm:h-10 sm:w-10">
+                        <svg class="h-6 w-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                        </svg>
+                    </div>
+                    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left flex-1">
+                        <h3 class="text-lg leading-6 font-medium text-white" id="modal-title">
+                            Reassign Chore
+                        </h3>
+                        <div class="mt-4">
+                            <p class="text-sm text-gray-400 mb-4">
+                                Reassigning: <span id="reassignChoreName" class="text-white font-semibold"></span>
+                            </p>
+                            <p class="text-sm text-gray-400 mb-4">
+                                Currently assigned to: <span id="reassignCurrentUser" class="text-white font-semibold"></span>
+                            </p>
+                            <div class="mt-2">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">
+                                    Reassign to:
+                                </label>
+                                <select id="reassignUserSelect"
+                                        class="w-full px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="">Select user...</option>
+                                    {% for user in users %}
+                                    <option value="{{ user.id }}">{{ user.get_display_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-dark-card px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
+                <button type="button" onclick="executeReassign()"
+                        class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-blue-500 text-base font-medium text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm">
+                    Reassign
+                </button>
+                <button type="button" onclick="hideReassignModal()"
+                        class="mt-3 w-full inline-flex justify-center rounded-lg border border-dark-border shadow-sm px-4 py-2 bg-dark-surface text-base font-medium text-gray-300 hover:bg-dark-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 sm:mt-0 sm:w-auto sm:text-sm">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
 {% block extra_scripts %}
 <script>
+    let currentReassignInstanceId = null;
+
+    function showReassignModal(instanceId, choreName, currentUser) {
+        currentReassignInstanceId = instanceId;
+        document.getElementById('reassignChoreName').textContent = choreName;
+        document.getElementById('reassignCurrentUser').textContent = currentUser;
+        document.getElementById('reassignUserSelect').value = '';
+        document.getElementById('reassignModal').classList.remove('hidden');
+    }
+
+    function hideReassignModal() {
+        document.getElementById('reassignModal').classList.add('hidden');
+        currentReassignInstanceId = null;
+    }
+
+    async function executeReassign() {
+        const userId = document.getElementById('reassignUserSelect').value;
+
+        if (!userId) {
+            showToast('Please select a user', 'error');
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('user_id', userId);
+
+            const response = await fetch(`/admin-panel/reassign/${currentReassignInstanceId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message, 'success');
+                hideReassignModal();
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(data.error || 'Failed to reassign chore', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
     async function unassignChore(instanceId, choreName, userName) {
         if (!confirm(`Are you sure you want to return "${choreName}" to the pool?\n\nIt will be unassigned from ${userName} and become available for anyone to claim.`)) {
             return;
