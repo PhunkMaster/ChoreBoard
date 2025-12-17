@@ -161,8 +161,15 @@
         if (!currentCompletionId) return;
 
         try {
+            // Get CSRF token from cookie
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                || document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+
             const response = await fetch(`/admin-panel/undo-completion/${currentCompletionId}/`, {
-                method: 'POST'
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken
+                }
             });
 
             const data = await response.json();
