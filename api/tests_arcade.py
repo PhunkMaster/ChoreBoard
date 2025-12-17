@@ -547,3 +547,176 @@ class ArcadeAPITests(TestCase):
                 response.status_code, 401,
                 f"{method.upper()} {url} should require authentication"
             )
+
+
+class ArcadeApprovalEdgeCasesTests(TestCase):
+    """Test edge cases in arcade approval, especially around existing completions."""
+
+    def setUp(self):
+        """Set up test data."""
+        from chores.models import Completion, CompletionShare
+
+        # Create users
+        self.user = User.objects.create_user(
+            username='testuser',
+            password='test123',
+            first_name='Test',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+        self.judge = User.objects.create_user(
+            username='judge',
+            password='test123',
+            first_name='Judge',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        # Create chore
+        self.chore = Chore.objects.create(
+            name='Test Chore',
+            description='Test',
+            points=Decimal('10.00'),
+            is_pool=True,
+            is_active=True,
+            schedule_type=Chore.DAILY
+        )
+
+        # Create chore instance
+        today = timezone.now().date()
+        due_at = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.max.time()))
+        distribution_at = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.min.time()))
+
+        self.chore_instance = ChoreInstance.objects.create(
+            chore=self.chore,
+            status=ChoreInstance.POOL,
+            due_at=due_at,
+            distribution_at=distribution_at,
+            points_value=self.chore.points
+        )
+
+        # Create arcade session
+        self.arcade_session = ArcadeSession.objects.create(
+            user=self.user,
+            chore_instance=self.chore_instance,
+            chore=self.chore,
+            status=ArcadeSession.STATUS_STOPPED,
+            is_active=False,
+            attempt_number=1,
+            cumulative_seconds=0,
+            start_time=timezone.now() - timezone.timedelta(minutes=5),
+            end_time=timezone.now(),
+            elapsed_seconds=300
+        )
+
+        # Store initial points
+        self.initial_user_points = self.user.weekly_points
+        self.initial_judge_points = self.judge.weekly_points
+
+    def test_approve_arcade_with_existing_undone_completion(self):
+        """Test that arcade approval reuses an undone completion record."""
+        from chores.models import Completion, CompletionShare
+        from chores.arcade_service import ArcadeService
+
+        # Create an undone completion
+        existing_completion = Completion.objects.create(
+            chore_instance=self.chore_instance,
+            completed_by=self.user,
+            was_late=False,
+            is_undone=True,
+            undone_at=timezone.now(),
+            undone_by=self.judge
+        )
+
+        # Approve arcade session
+        success, message, arcade_completion = ArcadeService.approve_arcade(
+            self.arcade_session,
+            judge=self.judge,
+            notes='Test approval'
+        )
+
+        self.assertTrue(success)
+        self.assertIsNotNone(arcade_completion)
+
+        # Should reuse the same completion record
+        self.chore_instance.refresh_from_db()
+        reused_completion = Completion.objects.get(chore_instance=self.chore_instance)
+        self.assertEqual(reused_completion.id, existing_completion.id)
+        self.assertFalse(reused_completion.is_undone)
+
+    def test_approve_arcade_with_existing_active_completion(self):
+        """Test that arcade approval handles existing non-undone completion by replacing it."""
+        from chores.models import Completion, CompletionShare
+        from chores.arcade_service import ArcadeService
+
+        # Create a non-undone completion (someone else completed the chore)
+        existing_completion = Completion.objects.create(
+            chore_instance=self.chore_instance,
+            completed_by=self.judge,
+            was_late=False,
+            is_undone=False
+        )
+
+        # Create completion share for the existing completion
+        CompletionShare.objects.create(
+            completion=existing_completion,
+            user=self.judge,
+            points_awarded=Decimal('10.00')
+        )
+
+        # Award points for the existing completion
+        self.judge.add_points(Decimal('10.00'), weekly=True, all_time=True)
+        self.judge.save()
+
+        initial_judge_points = self.judge.weekly_points
+
+        # Approve arcade session
+        success, message, arcade_completion = ArcadeService.approve_arcade(
+            self.arcade_session,
+            judge=self.judge,
+            notes='Test approval with existing completion'
+        )
+
+        self.assertTrue(success, f"Approval failed: {message}")
+        self.assertIsNotNone(arcade_completion)
+
+        # Should replace the existing completion
+        self.chore_instance.refresh_from_db()
+        updated_completion = Completion.objects.get(chore_instance=self.chore_instance)
+        self.assertEqual(updated_completion.id, existing_completion.id)
+        self.assertEqual(updated_completion.completed_by, self.user)  # Changed to arcade user
+
+        # Verify points were reversed for judge
+        self.judge.refresh_from_db()
+        self.assertEqual(self.judge.weekly_points, initial_judge_points - Decimal('10.00'))
+
+        # Verify new points awarded to arcade user
+        self.user.refresh_from_db()
+        self.assertGreater(self.user.weekly_points, self.initial_user_points)
+
+    def test_approve_arcade_without_existing_completion(self):
+        """Test normal arcade approval when no completion exists."""
+        from chores.models import Completion
+        from chores.arcade_service import ArcadeService
+
+        # No existing completion
+
+        # Approve arcade session
+        success, message, arcade_completion = ArcadeService.approve_arcade(
+            self.arcade_session,
+            judge=self.judge,
+            notes='Normal approval'
+        )
+
+        self.assertTrue(success)
+        self.assertIsNotNone(arcade_completion)
+
+        # Should create a new completion
+        self.chore_instance.refresh_from_db()
+        completion = Completion.objects.get(chore_instance=self.chore_instance)
+        self.assertEqual(completion.completed_by, self.user)
+        self.assertFalse(completion.is_undone)
+
+        # Verify points awarded
+        self.user.refresh_from_db()
+        self.assertGreater(self.user.weekly_points, self.initial_user_points)
