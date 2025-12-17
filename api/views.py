@@ -205,17 +205,17 @@ def complete_chore(request):
 
             # Validate undesirable chore configuration
             if instance.chore.is_undesirable and not helper_ids:
-                from chores.models import ChoreEligibility
-                eligible_count = ChoreEligibility.objects.filter(
-                    chore=instance.chore,
-                    user__eligible_for_points=True
+                eligible_count = User.objects.filter(
+                    eligible_for_points=True,
+                    can_be_assigned=True,
+                    is_active=True
                 ).count()
 
                 if eligible_count == 0:
                     return Response(
                         {
-                            'error': 'Cannot complete this chore. It is marked as undesirable but has no eligible users configured. '
-                                   'Please contact an administrator to configure eligible users for this chore.'
+                            'error': 'Cannot complete this chore. There are no users with eligible_for_points=True. '
+                                   'Please contact an administrator to configure user eligibility.'
                         },
                         status=status.HTTP_400_BAD_REQUEST
                     )
@@ -266,16 +266,17 @@ def complete_chore(request):
                 helpers = User.objects.filter(id__in=helper_ids, eligible_for_points=True)
                 helpers_list = list(helpers)
             else:
-                # If no helpers specified and chore is undesirable, distribute to all eligible
+                # If no helpers specified, determine who gets points
                 if instance.chore.is_undesirable:
-                    from chores.models import ChoreEligibility
-                    eligible_ids = ChoreEligibility.objects.filter(
-                        chore=instance.chore
-                    ).values_list('user_id', flat=True)
+                    # Undesirable chores always distribute to ALL eligible users
                     helpers_list = list(User.objects.filter(
-                        id__in=eligible_ids,
-                        eligible_for_points=True
+                        eligible_for_points=True,
+                        can_be_assigned=True,
+                        is_active=True
                     ))
+                    logger.info(
+                        f"Undesirable chore completed. Distributing {instance.points_value} pts to {len(helpers_list)} eligible users"
+                    )
                 else:
                     # Check if completing user is eligible for points
                     if completed_by_user.eligible_for_points:

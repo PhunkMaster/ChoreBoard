@@ -392,8 +392,8 @@ class CompleteChoreAPITests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('already completed', str(response.data).lower())
 
-    def test_complete_undesirable_chore_no_eligible_users_fails(self):
-        """Test that completing an undesirable chore with no eligible users fails."""
+    def test_complete_undesirable_chore_distributes_to_all_eligible(self):
+        """Test that undesirable chores distribute points to ALL users with eligible_for_points=True."""
         # Create an undesirable chore
         undesirable_chore = Chore.objects.create(
             name='Undesirable Test Chore',
@@ -412,52 +412,6 @@ class CompleteChoreAPITests(TestCase):
             due_at=now + timedelta(hours=6),
             distribution_at=now
         )
-
-        # No ChoreEligibility records created - this is the problem
-
-        # Try to complete it
-        response = self.client.post(
-            '/api/complete/',
-            {'instance_id': undesirable_instance.id},
-            HTTP_AUTHORIZATION=f'Bearer {self.token}',
-            format='json'
-        )
-
-        # Should fail with 400
-        self.assertEqual(response.status_code, 400)
-        self.assertIn('no eligible users configured', str(response.data).lower())
-
-        # Verify instance is NOT completed
-        undesirable_instance.refresh_from_db()
-        self.assertNotEqual(undesirable_instance.status, ChoreInstance.COMPLETED)
-
-        # Verify no completion record created
-        self.assertFalse(Completion.objects.filter(chore_instance=undesirable_instance).exists())
-
-    def test_complete_undesirable_chore_with_eligible_users_succeeds(self):
-        """Test that completing an undesirable chore with eligible users succeeds."""
-        # Create an undesirable chore
-        undesirable_chore = Chore.objects.create(
-            name='Undesirable Test Chore',
-            points=Decimal('75.00'),
-            is_undesirable=True,
-            is_pool=True,
-            schedule_type=Chore.DAILY
-        )
-
-        # Create instance of undesirable chore
-        now = timezone.now()
-        undesirable_instance = ChoreInstance.objects.create(
-            chore=undesirable_chore,
-            status=ChoreInstance.POOL,
-            points_value=undesirable_chore.points,
-            due_at=now + timedelta(hours=6),
-            distribution_at=now
-        )
-
-        # Add eligible users
-        ChoreEligibility.objects.create(chore=undesirable_chore, user=self.user)
-        ChoreEligibility.objects.create(chore=undesirable_chore, user=self.helper)
 
         # Complete the chore
         response = self.client.post(
@@ -474,11 +428,55 @@ class CompleteChoreAPITests(TestCase):
         undesirable_instance.refresh_from_db()
         self.assertEqual(undesirable_instance.status, ChoreInstance.COMPLETED)
 
-        # Verify points split between eligible users (75 / 2 = 37.50 each)
+        # Verify points split between ALL eligible users (75 / 2 = 37.50 each)
+        # self.user and self.helper both have eligible_for_points=True
         self.user.refresh_from_db()
         self.helper.refresh_from_db()
         self.assertEqual(self.user.weekly_points, Decimal('37.50'))
         self.assertEqual(self.helper.weekly_points, Decimal('37.50'))
+
+    def test_complete_undesirable_chore_no_eligible_users_fails(self):
+        """Test that completing an undesirable chore fails if NO users have eligible_for_points=True."""
+        # Mark both users as not eligible for points
+        self.user.eligible_for_points = False
+        self.user.save()
+        self.helper.eligible_for_points = False
+        self.helper.save()
+
+        # Create an undesirable chore
+        undesirable_chore = Chore.objects.create(
+            name='Undesirable Test Chore',
+            points=Decimal('75.00'),
+            is_undesirable=True,
+            is_pool=True,
+            schedule_type=Chore.DAILY
+        )
+
+        # Create instance
+        now = timezone.now()
+        undesirable_instance = ChoreInstance.objects.create(
+            chore=undesirable_chore,
+            status=ChoreInstance.POOL,
+            points_value=undesirable_chore.points,
+            due_at=now + timedelta(hours=6),
+            distribution_at=now
+        )
+
+        # Try to complete it - should fail
+        response = self.client.post(
+            '/api/complete/',
+            {'instance_id': undesirable_instance.id},
+            HTTP_AUTHORIZATION=f'Bearer {self.token}',
+            format='json'
+        )
+
+        # Should fail with 400
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('no users with eligible_for_points', str(response.data).lower())
+
+        # Verify instance is NOT completed
+        undesirable_instance.refresh_from_db()
+        self.assertNotEqual(undesirable_instance.status, ChoreInstance.COMPLETED)
 
     def test_complete_undesirable_chore_with_helpers_bypasses_validation(self):
         """Test that completing an undesirable chore with helpers specified bypasses validation."""
