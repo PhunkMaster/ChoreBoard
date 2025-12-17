@@ -645,6 +645,58 @@ class UndoCompletionAPITests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('already been undone', str(response.data).lower())
 
+    def test_undo_pool_chore_clears_assigned_to(self):
+        """Test that undoing a pool chore completion clears the assigned_to field."""
+        # Create a pool chore that was completed by an assigned user
+        pool_chore = Chore.objects.create(
+            name='Pool Chore',
+            points=Decimal('20.00'),
+            is_pool=True,
+            schedule_type=Chore.DAILY
+        )
+
+        now = timezone.now()
+        pool_instance = ChoreInstance.objects.create(
+            chore=pool_chore,
+            status=ChoreInstance.COMPLETED,
+            assigned_to=self.user,  # Was assigned when claimed
+            assignment_reason=ChoreInstance.REASON_CLAIMED,
+            points_value=pool_chore.points,
+            due_at=now + timedelta(hours=6),
+            distribution_at=now,
+            completed_at=now
+        )
+
+        pool_completion = Completion.objects.create(
+            chore_instance=pool_instance,
+            completed_by=self.user,
+            was_late=False
+        )
+
+        CompletionShare.objects.create(
+            completion=pool_completion,
+            user=self.user,
+            points_awarded=Decimal('20.00')
+        )
+
+        # Undo the completion
+        response = self.client.post(
+            '/api/undo/',
+            {'completion_id': pool_completion.id},
+            HTTP_AUTHORIZATION=f'Bearer {self.admin_token}',
+            format='json'
+        )
+
+        # Should succeed
+        self.assertEqual(response.status_code, 200)
+
+        # Verify instance state
+        pool_instance.refresh_from_db()
+        self.assertEqual(pool_instance.status, ChoreInstance.POOL)
+        self.assertIsNone(pool_instance.assigned_to)  # Should be cleared
+        self.assertIsNone(pool_instance.completed_at)
+        self.assertFalse(pool_instance.is_late_completion)
+
 
 class LeaderboardAPITests(TestCase):
     """Test the leaderboard API endpoint."""

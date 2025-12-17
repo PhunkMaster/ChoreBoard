@@ -416,7 +416,16 @@ def undo_completion(request):
 
             # Restore instance state
             instance = completion.chore_instance
-            instance.status = ChoreInstance.POOL if instance.chore.is_pool else ChoreInstance.ASSIGNED
+
+            # If was forced/manual assignment, restore to assigned
+            # Otherwise restore to pool
+            if instance.assignment_reason in [ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED]:
+                instance.status = ChoreInstance.ASSIGNED
+                # Keep assigned_to as-is
+            else:
+                instance.status = ChoreInstance.POOL
+                instance.assigned_to = None  # Pool chores can't have assigned_to
+
             instance.completed_at = None
             instance.is_late_completion = False
             instance.save()

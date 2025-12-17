@@ -586,7 +586,7 @@ class CompletionAdmin(admin.ModelAdmin):
                 instance = completion.chore_instance
                 # If was forced/manual assignment, restore to assigned
                 # Otherwise restore to pool
-                if instance.assignment_reason in [ChoreInstance.REASON_MANUAL_ASSIGN, ChoreInstance.REASON_FORCED]:
+                if instance.assignment_reason in [ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED]:
                     instance.status = ChoreInstance.ASSIGNED
                     # Keep assigned_to as-is
                 else:
