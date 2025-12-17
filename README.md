@@ -63,8 +63,9 @@ ChoreBoard is a web-based chore management system designed to:
 🏠 **Home Assistant Integration**
 
 - Full Home Assistant integration available
+  - **[ChoreBoard-HA-Integration](https://github.com/PhunkMaster/ChoreBoard-HA-Integration)** - Official Home Assistant integration
+  - **[ChoreBoard-HA-Card](https://github.com/PhunkMaster/ChoreBoard-HA-Card)** - Custom Lovelace card for beautiful displays
 - Display chores in Home Assistant dashboards
-- Custom Lovelace card for beautiful chore displays
 - Real-time updates and notifications
 
 ---
