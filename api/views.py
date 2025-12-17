@@ -230,12 +230,35 @@ def complete_chore(request):
             instance.is_late_completion = was_late
             instance.save()
 
-            # Create completion record
-            completion = Completion.objects.create(
-                chore_instance=instance,
-                completed_by=completed_by_user,
-                was_late=was_late
-            )
+            # Create or reuse completion record
+            # Check if an undone completion exists (can happen after undo)
+            try:
+                completion = Completion.objects.get(chore_instance=instance)
+                if completion.is_undone:
+                    # Reuse the undone completion record
+                    completion.completed_by = completed_by_user
+                    completion.completed_at = now
+                    completion.was_late = was_late
+                    completion.is_undone = False
+                    completion.undone_at = None
+                    completion.undone_by = None
+                    completion.save()
+
+                    # Delete old shares (will create new ones below)
+                    completion.shares.all().delete()
+                else:
+                    # This shouldn't happen due to status check, but just in case
+                    return Response(
+                        {'error': 'Completion record already exists'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except Completion.DoesNotExist:
+                # No existing completion, create new one
+                completion = Completion.objects.create(
+                    chore_instance=instance,
+                    completed_by=completed_by_user,
+                    was_late=was_late
+                )
 
             # Determine who gets points
             if helper_ids:

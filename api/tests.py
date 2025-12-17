@@ -697,6 +697,56 @@ class UndoCompletionAPITests(TestCase):
         self.assertIsNone(pool_instance.completed_at)
         self.assertFalse(pool_instance.is_late_completion)
 
+    def test_recomplete_after_undo_reuses_completion(self):
+        """Test that re-completing after undo reuses the existing completion record."""
+        # Complete the chore first
+        self.client.post(
+            '/api/complete/',
+            {'instance_id': self.instance.id},
+            HTTP_AUTHORIZATION=f'Bearer {HMACAuthentication.generate_token("alice")}',
+            format='json'
+        )
+
+        # Undo it
+        self.client.post(
+            '/api/undo/',
+            {'completion_id': self.completion.id},
+            HTTP_AUTHORIZATION=f'Bearer {self.admin_token}',
+            format='json'
+        )
+
+        # Mark as undone
+        self.completion.refresh_from_db()
+        self.assertTrue(self.completion.is_undone)
+
+        # Reset instance to pool
+        self.instance.refresh_from_db()
+        self.instance.status = ChoreInstance.POOL
+        self.instance.assigned_to = None
+        self.instance.completed_at = None
+        self.instance.save()
+
+        # Re-complete the chore
+        response = self.client.post(
+            '/api/complete/',
+            {'instance_id': self.instance.id},
+            HTTP_AUTHORIZATION=f'Bearer {HMACAuthentication.generate_token("alice")}',
+            format='json'
+        )
+
+        # Should succeed
+        self.assertEqual(response.status_code, 200)
+
+        # Should reuse the same completion record
+        self.completion.refresh_from_db()
+        self.assertFalse(self.completion.is_undone)
+        self.assertIsNone(self.completion.undone_at)
+        self.assertIsNone(self.completion.undone_by)
+
+        # Verify there's still only one completion for this instance
+        completion_count = Completion.objects.filter(chore_instance=self.instance).count()
+        self.assertEqual(completion_count, 1)
+
 
 class LeaderboardAPITests(TestCase):
     """Test the leaderboard API endpoint."""
