@@ -943,8 +943,10 @@ def admin_chore_create(request):
         # in chores/signals.py which fires within the transaction
 
         return JsonResponse({
+            'success': True,
             'message': f'Chore "{chore_name}" created successfully',
-            'chore_id': chore_id
+            'id': chore_id,
+            'chore_id': chore_id  # Keep for backwards compatibility
         })
 
     except ValueError as e:
@@ -1076,6 +1078,7 @@ def admin_chore_update(request, chore_id):
             logger.info(f"Admin {request.user.username} updated chore {chore.id}: {chore.name}")
 
             return JsonResponse({
+                'success': True,
                 'message': f'Chore "{chore.name}" updated successfully'
             })
 

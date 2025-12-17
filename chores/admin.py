@@ -12,8 +12,22 @@ from .models import (
 class ChoreEligibilityInline(admin.TabularInline):
     """Inline admin for eligible users (undesirable chores)."""
     model = ChoreEligibility
-    extra = 1
+    extra = 0  # Start with 0 extra rows, show only existing records
     autocomplete_fields = ['user']
+    fk_name = 'chore'
+    verbose_name = "Eligible User"
+    verbose_name_plural = "Eligible Users (for Undesirable Chores)"
+
+    def get_queryset(self, request):
+        """Ensure all existing eligible users are shown."""
+        qs = super().get_queryset(request)
+        return qs.select_related('user', 'chore')
+
+    def get_extra(self, request, obj=None, **kwargs):
+        """Show 1 extra row only if this is an undesirable chore."""
+        if obj and obj.is_undesirable:
+            return 1
+        return 0
 
 
 class ChoreDependencyAsChildInline(admin.TabularInline):
@@ -42,7 +56,7 @@ class ChoreAdmin(admin.ModelAdmin):
     list_display = ["name", "points", "colored_status", "assigned_to", "schedule_type", "has_dependencies", "is_difficult"]
     list_filter = ["is_active", "is_pool", "is_difficult", "is_undesirable", "is_late_chore", "complete_later", "schedule_type"]
     search_fields = ["name", "description"]
-    readonly_fields = ["created_at", "updated_at", "dependency_info"]
+    readonly_fields = ["created_at", "updated_at", "dependency_info", "eligible_users_display"]
     list_editable = ["points"]
     list_per_page = 50
     inlines = [ChoreEligibilityInline, ChoreDependencyAsParentInline, ChoreDependencyAsChildInline]
@@ -57,7 +71,7 @@ class ChoreAdmin(admin.ModelAdmin):
             "fields": ("is_pool", "assigned_to")
         }),
         ("Tags", {
-            "fields": ("is_difficult", "is_undesirable", "is_late_chore", "complete_later")
+            "fields": ("is_difficult", "is_undesirable", "eligible_users_display", "is_late_chore", "complete_later")
         }),
         ("Schedule", {
             "fields": ("schedule_type", "distribution_time", "n_days", "every_n_start_date",
@@ -133,6 +147,46 @@ class ChoreAdmin(admin.ModelAdmin):
 
         return mark_safe("".join(html))
     dependency_info.short_description = "Dependency Relationships"
+
+    def eligible_users_display(self, obj):
+        """Display eligible users for undesirable chores."""
+        if not obj.pk:
+            return "Save chore first to add eligible users"
+
+        if not obj.is_undesirable:
+            return format_html(
+                '<div style="background-color: #e3f2fd; border: 1px solid #2196f3; padding: 10px; border-radius: 4px;">'
+                '<strong>ℹ️ Info:</strong> This chore is not marked as undesirable. '
+                'Eligible users are only required for undesirable chores.'
+                '</div>'
+            )
+
+        # Get eligible users
+        eligible = obj.eligible_users.select_related('user').all()
+
+        if not eligible.exists():
+            return format_html(
+                '<div style="background-color: #fff3cd; border: 1px solid #ffc107; padding: 10px; border-radius: 4px;">'
+                '<strong>⚠️ Warning:</strong> This is an undesirable chore but has NO eligible users configured. '
+                'The chore will not be auto-assigned at distribution time until you add eligible users below.'
+                '</div>'
+            )
+
+        # Display eligible users as badges
+        html = ['<div style="background-color: #d4edda; border: 1px solid #28a745; padding: 10px; border-radius: 4px;">']
+        html.append('<strong>✅ Eligible Users:</strong><div style="margin-top: 8px;">')
+
+        for eligibility in eligible:
+            user = eligibility.user
+            html.append(
+                f'<span style="display: inline-block; background-color: #28a745; color: white; '
+                f'padding: 4px 12px; margin: 2px; border-radius: 12px; font-size: 13px;">'
+                f'{user.get_display_name()}</span>'
+            )
+
+        html.append('</div></div>')
+        return mark_safe("".join(html))
+    eligible_users_display.short_description = "Currently Eligible Users"
 
     @admin.action(description="✅ Activate selected chores")
     def activate_chores(self, request, queryset):
