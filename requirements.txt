@@ -5,6 +5,9 @@ python-dotenv>=1.0.0
 # Background Jobs
 APScheduler>=3.10.4
 django-apscheduler>=0.6.2
+celery>=5.3.6
+redis>=5.0.1
+supervisor>=4.2.5
 
 # Date/Time handling
 python-dateutil>=2.8.2

@@ -50,7 +50,7 @@ def main_board(request):
     # Note: Use year > 3000 instead of >= 9999 to avoid overflow errors
     # Note: Chores due in the future (after today) are hidden and will appear when their date arrives
     from datetime import datetime
-    far_future = timezone.make_aware(datetime(3000, 1, 1))
+    far_future = timezone.make_aware(datetime(9999, 12, 31))
 
     # Create timezone-aware datetime range for "today" in local timezone
     # This fixes a bug where due_at__date=today would use UTC timezone,
@@ -1169,6 +1169,20 @@ def health_check(request):
             health_data['checks']['scheduler'] = 'stopped'
     except Exception as e:
         health_data['checks']['scheduler'] = f'unknown: {str(e)}'
+
+    # Check Celery (if configured)
+    if settings.CELERY_BROKER_URL:
+        try:
+            from ChoreBoard.celery import app as celery_app
+            # Inspect workers to see if any are active
+            inspector = celery_app.control.inspect()
+            stats = inspector.stats()
+            if stats:
+                health_data['checks']['celery'] = f'ok ({len(stats)} workers)'
+            else:
+                health_data['checks']['celery'] = 'no workers'
+        except Exception as e:
+            health_data['checks']['celery'] = f'error: {str(e)}'
 
     # Basic system info
     health_data['info'] = {

@@ -225,6 +225,30 @@ if not DEBUG:
 APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
 APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Seconds
 
+# Celery Configuration
+from celery.schedules import crontab
+
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_BEAT_SCHEDULE = {
+    'midnight-evaluation': {
+        'task': 'core.tasks.midnight_evaluation_task',
+        'schedule': crontab(minute='*') if os.getenv('MIDNIGHT_TEST_MODE', 'false').lower() == 'true' else crontab(hour=0, minute=0),
+    },
+    'distribution-check': {
+        'task': 'core.tasks.distribution_check_task',
+        'schedule': crontab(minute='*/5'),
+    },
+    'weekly-snapshot': {
+        'task': 'core.tasks.weekly_snapshot_task',
+        'schedule': crontab(hour=0, minute=0, day_of_week='sun'),
+    },
+}
+
 # Iframe embedding is controlled by including/excluding XFrameOptionsMiddleware
 # See MIDDLEWARE configuration above
 # If ALLOW_IFRAME_EMBEDDING=True (default), middleware is excluded and iframes are allowed

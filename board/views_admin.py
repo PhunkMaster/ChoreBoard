@@ -2841,6 +2841,9 @@ def admin_midnight_evaluation(request):
     from core.scheduler import scheduler
     scheduler_running = scheduler.running if scheduler else False
 
+    # Check Celery status
+    celery_enabled = os.getenv('CELERY_BROKER_URL') is not None
+
     # Get next scheduled run time
     next_run_time = None
     if scheduler and scheduler.running:
@@ -2861,6 +2864,7 @@ def admin_midnight_evaluation(request):
         'pending_overdue_count': pending_overdue.count(),
         'midnight_action_logs': midnight_action_logs,
         'scheduler_running': scheduler_running,
+        'celery_enabled': celery_enabled,
         'next_run_time': next_run_time,
     }
 
@@ -2873,13 +2877,20 @@ def admin_midnight_evaluation_run(request):
     """
     Manually trigger midnight evaluation.
     """
+    from core.tasks import midnight_evaluation_task
     from core.jobs import midnight_evaluation
+    import os
 
     try:
         logger.info(f"Manual midnight evaluation triggered by {request.user.username}")
-        midnight_evaluation()
-
-        messages.success(request, "Midnight evaluation completed successfully!")
+        
+        # Trigger via Celery if enabled, otherwise run synchronously
+        if os.getenv('CELERY_BROKER_URL'):
+            midnight_evaluation_task.delay()
+            messages.success(request, "Midnight evaluation task has been queued in Celery!")
+        else:
+            midnight_evaluation()
+            messages.success(request, "Midnight evaluation completed successfully (synchronous)!")
 
     except Exception as e:
         logger.error(f"Manual midnight evaluation failed: {str(e)}")
@@ -2916,8 +2927,16 @@ def admin_midnight_evaluation_check(request):
         if not eval_exists:
             logger.warning(f"Watchdog check by {request.user.username}: No evaluation today")
             logger.info(f"Running missed midnight evaluation (triggered by {request.user.username})")
-            midnight_evaluation()
-            messages.success(request, "Watchdog check: Missed evaluation detected and executed!")
+            
+            # Trigger via Celery if enabled, otherwise run synchronously
+            import os
+            if os.getenv('CELERY_BROKER_URL'):
+                from core.tasks import midnight_evaluation_task
+                midnight_evaluation_task.delay()
+                messages.success(request, "Watchdog check: Missed evaluation detected. Task queued in Celery!")
+            else:
+                midnight_evaluation()
+                messages.success(request, "Watchdog check: Missed evaluation detected and executed (synchronous)!")
         else:
             messages.info(request, "Watchdog check: Midnight evaluation already ran today. No action needed.")
 
