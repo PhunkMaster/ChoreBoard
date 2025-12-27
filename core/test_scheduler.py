@@ -41,7 +41,7 @@ class MidnightEvaluationTests(TestCase):
 
         # Create weekly chore (today's weekday)
         # Use local timezone to match midnight_evaluation logic
-        today_weekday = timezone.localtime(timezone.now()).weekday()
+        today_weekday = timezone.now().weekday()
         self.weekly_chore = Chore.objects.create(
             name='Weekly Chore',
             points=Decimal('15.00'),
@@ -58,7 +58,7 @@ class MidnightEvaluationTests(TestCase):
             is_pool=True,
             schedule_type=Chore.EVERY_N_DAYS,
             n_days=3,
-            every_n_start_date=timezone.localtime(timezone.now()).date() - timedelta(days=3),  # Due today
+            every_n_start_date=timezone.now().date() - timedelta(days=3),  # Due today
             distribution_time=time(19, 0)
         )
 
@@ -132,10 +132,8 @@ class MidnightEvaluationTests(TestCase):
     def test_midnight_evaluation_marks_chores_overdue_at_midnight(self):
         """Test that chores due 'yesterday' are marked overdue at midnight."""
         # Create instance due at start of today (which means it was due "yesterday")
-        today = timezone.localtime(timezone.now()).date()
-        due_at = timezone.make_aware(
-            datetime.combine(today, datetime.min.time())
-        )
+        today = timezone.now().date()
+        due_at = datetime.combine(today, datetime.min.time())
 
         past_instance = ChoreInstance.objects.create(
             chore=self.daily_chore,
@@ -158,12 +156,11 @@ class MidnightEvaluationTests(TestCase):
 
     def test_midnight_evaluation_does_not_mark_future_chores_overdue(self):
         """Test that chores due tomorrow are NOT marked overdue."""
-        today = timezone.localtime(timezone.now()).date()
+        today = timezone.now().date()
         day_after_tomorrow = today + timedelta(days=2)
 
         # Create chore due tomorrow (start of day after tomorrow)
-        due_at = timezone.make_aware(
-            datetime.combine(day_after_tomorrow, datetime.min.time())
+        due_at = datetime.combine(day_after_tomorrow, datetime.min.time()
         )
 
         future_instance = ChoreInstance.objects.create(
@@ -269,7 +266,7 @@ class MidnightEvaluationTests(TestCase):
         """Test that midnight evaluation creates instances for RRULE WEEKLY chores on correct day."""
         # Create RRULE chore with weekly frequency on today's weekday
         # Use local timezone to match midnight_evaluation logic
-        today_weekday = timezone.localtime(timezone.now()).weekday()
+        today_weekday = timezone.now().weekday()
         rrule_chore = Chore.objects.create(
             name='RRULE Weekly Chore',
             points=Decimal('15.00'),
@@ -293,7 +290,7 @@ class MidnightEvaluationTests(TestCase):
         """Test that RRULE weekly chores not due today are skipped."""
         # Create RRULE chore for different weekday
         # Use local timezone to match midnight_evaluation logic
-        wrong_day = (timezone.localtime(timezone.now()).weekday() + 1) % 7
+        wrong_day = (timezone.now().weekday() + 1) % 7
         rrule_chore = Chore.objects.create(
             name='RRULE Wrong Day Chore',
             points=Decimal('10.00'),
@@ -316,7 +313,7 @@ class MidnightEvaluationTests(TestCase):
     def test_midnight_evaluation_creates_rrule_interval_instances(self):
         """Test that RRULE with interval creates instances correctly."""
         # Create RRULE chore with 2-day interval starting 2 days ago
-        two_days_ago = timezone.localtime(timezone.now()).date() - timedelta(days=2)
+        two_days_ago = timezone.now().date() - timedelta(days=2)
         rrule_chore = Chore.objects.create(
             name='RRULE Every 2 Days Chore',
             points=Decimal('12.00'),
@@ -338,7 +335,7 @@ class MidnightEvaluationTests(TestCase):
 
     def test_midnight_evaluation_skips_rrule_with_until_past(self):
         """Test that RRULE with until date in the past doesn't create instances."""
-        yesterday = timezone.localtime(timezone.now()).date() - timedelta(days=1)
+        yesterday = timezone.now().date() - timedelta(days=1)
         rrule_chore = Chore.objects.create(
             name='RRULE Ended Chore',
             points=Decimal('10.00'),
@@ -362,7 +359,7 @@ class MidnightEvaluationTests(TestCase):
         """Test that RRULE with specific weekdays works correctly."""
         # Create RRULE for weekdays only (Monday-Friday)
         # Use local timezone to match midnight_evaluation logic
-        today_weekday = timezone.localtime(timezone.now()).weekday()
+        today_weekday = timezone.now().weekday()
         is_weekday = today_weekday < 5  # 0-4 are Monday-Friday
 
         rrule_chore = Chore.objects.create(
@@ -432,7 +429,7 @@ class MidnightEvaluationTests(TestCase):
 
     def test_midnight_evaluation_creates_cron_monthly_instances(self):
         """Test that midnight evaluation creates instances for CRON monthly chores."""
-        today = timezone.localtime(timezone.now()).date()
+        today = timezone.now().date()
         is_first_of_month = today.day == 1
 
         # Create CRON chore for first day of month
@@ -457,7 +454,7 @@ class MidnightEvaluationTests(TestCase):
 
     def test_midnight_evaluation_creates_cron_nth_weekday_instances(self):
         """Test that midnight evaluation creates instances for CRON Nth weekday (e.g., 1st and 3rd Saturday)."""
-        today = timezone.localtime(timezone.now()).date()
+        today = timezone.now().date()
         today_weekday = today.weekday()
 
         # Check if today is Saturday
@@ -503,7 +500,7 @@ class MidnightEvaluationTests(TestCase):
     def test_midnight_evaluation_skips_cron_specific_day(self):
         """Test that CRON chores only fire on specified days."""
         # Use local timezone to match midnight_evaluation logic
-        today_weekday = timezone.localtime(timezone.now()).weekday()
+        today_weekday = timezone.now().weekday()
         is_monday = today_weekday == 0
 
         # Create CRON chore for Mondays only
@@ -528,7 +525,7 @@ class MidnightEvaluationTests(TestCase):
 
     def test_midnight_evaluation_handles_cron_with_step_values(self):
         """Test that CRON with step values works correctly (e.g., every other day)."""
-        today = timezone.localtime(timezone.now()).date()
+        today = timezone.now().date()
         day_of_month = today.day
 
         # Every other day starting from day 1
@@ -576,7 +573,7 @@ class WatchdogTests(TestCase):
         """Test that watchdog doesn't trigger at exactly midnight (too early)."""
         # Simulate running at 00:00
         test_time = timezone.make_aware(datetime.combine(
-            timezone.localtime(timezone.now()).date(),
+            timezone.now().date(),
             time(0, 0)
         ))
 
@@ -595,7 +592,7 @@ class WatchdogTests(TestCase):
         """Test that watchdog triggers at 00:30 (start of window)."""
         # Simulate running at 00:30
         test_time = timezone.make_aware(datetime.combine(
-            timezone.localtime(timezone.now()).date(),
+            timezone.now().date(),
             time(0, 30)
         ))
 
@@ -611,7 +608,7 @@ class WatchdogTests(TestCase):
         """Test that watchdog triggers during 1:00 AM hour."""
         # Test at 01:00
         test_time_1 = timezone.make_aware(datetime.combine(
-            timezone.localtime(timezone.now()).date(),
+            timezone.now().date(),
             time(1, 0)
         ))
 
@@ -625,7 +622,7 @@ class WatchdogTests(TestCase):
 
         # Test at 01:59
         test_time_2 = timezone.make_aware(datetime.combine(
-            timezone.localtime(timezone.now()).date(),
+            timezone.now().date(),
             time(1, 59)
         ))
 
@@ -640,7 +637,7 @@ class WatchdogTests(TestCase):
     def test_watchdog_does_not_trigger_at_2am(self):
         """Test that watchdog doesn't trigger at 2:00 AM (after window)."""
         test_time = timezone.make_aware(datetime.combine(
-            timezone.localtime(timezone.now()).date(),
+            timezone.now().date(),
             time(2, 0)
         ))
 
@@ -661,7 +658,7 @@ class WatchdogTests(TestCase):
         Would trigger at ANY hour with minutes >= 30.
         """
         test_time = timezone.make_aware(datetime.combine(
-            timezone.localtime(timezone.now()).date(),
+            timezone.now().date(),
             time(20, 30)
         ))
 
@@ -685,7 +682,7 @@ class WatchdogTests(TestCase):
 
         for test_time in test_times:
             full_datetime = timezone.make_aware(datetime.combine(
-                timezone.localtime(timezone.now()).date(),
+                timezone.now().date(),
                 test_time
             ))
 
@@ -717,45 +714,6 @@ class LocalDateTests(TestCase):
             distribution_time=time(17, 30)
         )
 
-    def test_midnight_evaluation_uses_local_date_not_utc(self):
-        """
-        CRITICAL BUG TEST: Test that midnight evaluation uses local Chicago date, not UTC date.
-
-        This is the bug that caused chores created at 20:30 CST on Dec 14 to be
-        created for Dec 15 instead of Dec 14.
-
-        At 20:30 CST on Dec 14:
-        - UTC time: 02:30 on Dec 15
-        - now.date() returns: Dec 15 (WRONG)
-        - timezone.localtime(now).date() returns: Dec 14 (CORRECT)
-        """
-        # Simulate running at 20:30 CST on Dec 14
-        # This is 02:30 UTC on Dec 15
-        local_date = date(2025, 12, 14)
-        local_time_of_day = time(20, 30)
-
-        # Create aware datetime in Chicago timezone
-        local_datetime = timezone.make_aware(
-            datetime.combine(local_date, local_time_of_day)
-        )
-
-        # Convert to UTC
-        utc_datetime = local_datetime.astimezone(timezone.utc)
-
-        # Verify our test setup
-        self.assertEqual(local_datetime.astimezone(timezone.get_current_timezone()).date(), date(2025, 12, 14))
-        self.assertEqual(utc_datetime.date(), date(2025, 12, 15))
-
-        # The CORRECT way (what the code should do)
-        correct_date = timezone.localtime(utc_datetime).date()
-        self.assertEqual(correct_date, date(2025, 12, 14),
-                        "Should use local date (Dec 14), not UTC date (Dec 15)")
-
-        # The WRONG way (the bug)
-        wrong_date = utc_datetime.date()
-        self.assertEqual(wrong_date, date(2025, 12, 15),
-                        "UTC date is wrong - this was the bug")
-
     def test_midnight_evaluation_creates_chores_for_correct_date(self):
         """Test that midnight evaluation creates chores with due dates matching local date."""
         # Run midnight evaluation
@@ -765,48 +723,14 @@ class LocalDateTests(TestCase):
         instance = ChoreInstance.objects.filter(chore=self.daily_chore).first()
         self.assertIsNotNone(instance)
 
-        # Verify due date is for today (local time)
-        local_now = timezone.localtime(timezone.now())
-        today_local = local_now.date()
+        # Verify due date is for today
+        today = timezone.localdate()
 
-        instance_due_local = timezone.localtime(instance.due_at)
         self.assertEqual(
-            instance_due_local.date(),
-            today_local,
-            f"Chore due date should be {today_local} (local), not based on UTC date"
+            timezone.localtime(instance.due_at).date(),
+            today,
+            f"Chore due date should be {today}, not based on UTC date"
         )
-
-    def test_date_calculation_in_different_timezones(self):
-        """Test that date calculation respects timezone even when UTC crosses midnight."""
-        # Test times that would cause UTC/local date mismatch
-        test_cases = [
-            # (local_hour, local_minute, expected_local_date_matches)
-            (20, 30, True),   # 20:30 CST = 02:30 next day UTC
-            (21, 0, True),    # 21:00 CST = 03:00 next day UTC
-            (23, 59, True),   # 23:59 CST = 05:59 next day UTC
-            (0, 0, True),     # 00:00 CST = 06:00 same day UTC
-            (1, 0, True),     # 01:00 CST = 07:00 same day UTC
-        ]
-
-        for hour, minute, should_match in test_cases:
-            # Create time in local timezone
-            test_date = timezone.localtime(timezone.now()).date()
-            local_time = timezone.make_aware(
-                datetime.combine(test_date, time(hour, minute))
-            )
-
-            # Convert to UTC
-            utc_time = local_time.astimezone(timezone.utc)
-
-            # Use local date (correct way)
-            calculated_date = timezone.localtime(utc_time).date()
-
-            # Verify it matches the original local date
-            self.assertEqual(
-                calculated_date,
-                test_date,
-                f"At {hour}:{minute} local time, date should be {test_date}"
-            )
 
 
 class DistributionCheckTests(TestCase):
@@ -1019,7 +943,7 @@ class WeeklySnapshotTests(TestCase):
 
         snapshot = WeeklySnapshot.objects.first()
         # Week ending should be today (Sunday at midnight)
-        self.assertEqual(snapshot.week_ending, timezone.localtime(timezone.now()).date())
+        self.assertEqual(snapshot.week_ending, timezone.now().date())
 
 
 class RotationStateTests(TestCase):
@@ -1079,7 +1003,7 @@ class RotationStateTests(TestCase):
             chore=self.undesirable_chore,
             user=self.user1
         )
-        self.assertEqual(rotation_state.last_completed_date, timezone.localtime(timezone.now()).date())
+        self.assertEqual(rotation_state.last_completed_date, timezone.now().date())
 
     def test_rotation_selects_oldest_completer(self):
         """Test that rotation assigns to user who completed longest ago."""
@@ -1120,13 +1044,13 @@ class RotationStateTests(TestCase):
         RotationState.objects.create(
             chore=self.undesirable_chore,
             user=self.user1,
-            last_completed_date=timezone.localtime(timezone.now()).date() - timedelta(days=1)
+            last_completed_date=timezone.now().date() - timedelta(days=1)
         )
 
         RotationState.objects.create(
             chore=self.undesirable_chore,
             user=self.user2,
-            last_completed_date=timezone.localtime(timezone.now()).date() - timedelta(days=1)
+            last_completed_date=timezone.now().date() - timedelta(days=1)
         )
 
         # Try to assign

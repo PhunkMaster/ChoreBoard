@@ -38,7 +38,7 @@ def admin_dashboard(request):
     from django.db.models import Q
 
     now = timezone.now()
-    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
+    today = timezone.localdate(now)  # Convert to local timezone before getting date
 
     # Use year > 3000 to avoid overflow errors with year >= 9999
     far_future = timezone.make_aware(datetime(3000, 1, 1))
@@ -2102,7 +2102,7 @@ def admin_streak_increment(request, user_id):
             streak.current_streak += 1
             if streak.current_streak > streak.longest_streak:
                 streak.longest_streak = streak.current_streak
-            streak.last_perfect_week = timezone.now().date()
+            streak.last_perfect_week = timezone.localdate()
             streak.save()
 
             # Log the action
@@ -2323,7 +2323,7 @@ def admin_skip_chores(request):
     from datetime import datetime
 
     now = timezone.now()
-    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
+    today = timezone.localdate(now)  # Convert to local timezone before getting date
 
     # Create timezone-aware datetime range for "today" in local timezone
     today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
@@ -2370,7 +2370,7 @@ def admin_reschedule_chores(request):
     """
     Admin page for rescheduling chores.
     """
-    today = timezone.now().date()
+    today = timezone.localdate()
 
     # Get all active chores
     active_chores = Chore.objects.filter(
@@ -2788,21 +2788,18 @@ def admin_midnight_evaluation(request):
     from django.db.models import Q
 
     now = timezone.now()
-    local_now = timezone.localtime(now)
-    today = local_now.date()
+    today = now.date()
 
     # Get recent evaluation logs
     eval_logs = EvaluationLog.objects.all().order_by('-started_at')[:20]
 
-    # Format logs with local time
+    # Format logs
     formatted_logs = []
     for log in eval_logs:
-        local_time = timezone.localtime(log.started_at)
         formatted_logs.append({
             'id': log.id,
-            'started_at_utc': log.started_at,
-            'started_at_local': local_time,
-            'date_local': local_time.date(),
+            'started_at': log.started_at,
+            'date': log.started_at.date(),
             'success': log.success,
             'chores_created': log.chores_created,
             'chores_marked_overdue': log.chores_marked_overdue,
@@ -2812,9 +2809,7 @@ def admin_midnight_evaluation(request):
         })
 
     # Check if evaluation ran today (any time, not just midnight window)
-    today_start = timezone.make_aware(
-        datetime.combine(today, datetime.min.time())
-    )
+    today_start = datetime.combine(today, datetime.min.time())
     today_end = today_start + timedelta(days=1)  # End of today
 
     # Get the most recent evaluation from today (any time, not just midnight window)
@@ -2859,7 +2854,7 @@ def admin_midnight_evaluation(request):
         'eval_logs': formatted_logs,
         'today_eval': today_eval,
         'today': today,
-        'local_now': local_now,
+        'local_now': now,
         'pending_overdue': pending_overdue,
         'pending_overdue_count': pending_overdue.count(),
         'midnight_action_logs': midnight_action_logs,
@@ -2911,12 +2906,9 @@ def admin_midnight_evaluation_check(request):
 
     try:
         now = timezone.now()
-        local_now = timezone.localtime(now)
 
         # Check if evaluation ran today (same logic as watchdog)
-        today_start = timezone.make_aware(
-            datetime.combine(local_now.date(), datetime.min.time())
-        )
+        today_start = datetime.combine(now.date(), datetime.min.time())
         today_end = today_start + timedelta(hours=1, minutes=30)
 
         eval_exists = EvaluationLog.objects.filter(

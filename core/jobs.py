@@ -83,8 +83,8 @@ def midnight_evaluation():
             logger.info(f"Found {active_chores.count()} active chores (excluding child chores)")
 
             # Create instances for each chore based on schedule
-            # IMPORTANT: Use local date, not UTC date!
-            today = timezone.localtime(now).date()
+            # IMPORTANT: Use local date!
+            today = timezone.localdate(now)
 
             for chore in active_chores:
                 try:
@@ -92,14 +92,10 @@ def midnight_evaluation():
 
                     if should_create:
                         # Calculate due time (end of today - chores due on same day they're created)
-                        due_at = timezone.make_aware(
-                            datetime.combine(today, datetime.max.time())
-                        )
+                        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
                         # Distribution time
-                        distribution_at = timezone.make_aware(
-                            datetime.combine(today, chore.distribution_time)
-                        )
+                        distribution_at = timezone.make_aware(datetime.combine(today, chore.distribution_time))
 
                         # Create instance
                         instance = ChoreInstance.objects.create(
@@ -438,9 +434,9 @@ def should_create_instance_today(chore, today):
     # 2. There's an open (non-closed) instance from a previous day
     from django.db.models import Q
 
-    # Use date range for timezone-aware comparison
-    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
-    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+    # Use date range for comparison
+    today_start = datetime.combine(today, datetime.min.time())
+    today_end = datetime.combine(today, datetime.max.time())
 
     existing = ChoreInstance.objects.filter(
         chore=chore
@@ -497,8 +493,7 @@ def should_create_instance_today(chore, today):
 
         try:
             # Parse RRULE JSON and check if today matches
-            # Convert created_at to local timezone first
-            chore_created_date = timezone.localtime(chore.created_at).date()
+            chore_created_date = chore.created_at.date()
             return evaluate_rrule(chore.rrule_json, today, chore_created_date)
         except Exception as e:
             logger.error(f"Error evaluating RRULE for chore '{chore.name}': {e}")
@@ -583,11 +578,8 @@ def distribution_check():
 
     # WATCHDOG: Check if midnight evaluation ran today
     # If it's between 12:30 AM and 2:00 AM and no evaluation log exists for today, trigger it
-    local_now = timezone.localtime(now)
-    if (local_now.hour == 0 and local_now.minute >= 30) or local_now.hour == 1:  # Between 00:30 and 01:59
-        today_start = timezone.make_aware(
-            datetime.combine(local_now.date(), datetime.min.time())
-        )
+    if (now.hour == 0 and now.minute >= 30) or now.hour == 1:  # Between 00:30 and 01:59
+        today_start = datetime.combine(now.date(), datetime.min.time())
         today_end = today_start + timedelta(hours=1, minutes=30)  # Check between midnight and 1:30 AM
 
         eval_exists = EvaluationLog.objects.filter(
@@ -596,7 +588,7 @@ def distribution_check():
         ).exists()
 
         if not eval_exists:
-            logger.warning(f"⚠️  WATCHDOG: Midnight evaluation has not run today ({local_now.date()})")
+            logger.warning(f"⚠️  WATCHDOG: Midnight evaluation has not run today ({now.date()})")
             logger.warning("⚠️  WATCHDOG: Triggering missed midnight evaluation now...")
             try:
                 midnight_evaluation()
@@ -615,11 +607,9 @@ def distribution_check():
 
     logger.info(f"Found {instances_to_distribute.count()} instances to distribute")
     for instance in instances_to_distribute:
-        local_distribution_at = timezone.localtime(instance.distribution_at)
-        local_now = timezone.localtime(now)
         logger.info(
-            f"  - {instance.chore.name}: distribution_at={local_distribution_at}, "
-            f"now={local_now}, status={instance.status}"
+            f"  - {instance.chore.name}: distribution_at={instance.distribution_at}, "
+            f"now={now}, status={instance.status}"
         )
 
     assigned_count = 0
@@ -666,8 +656,8 @@ def weekly_snapshot_job():
     logger.info("Starting weekly snapshot job")
 
     now = timezone.now()
-    # Use local timezone, not UTC
-    week_ending = timezone.localtime(now).date()
+    # Use current date
+    week_ending = now.date()
 
     # Get all users eligible for points
     eligible_users = User.objects.filter(eligible_for_points=True)

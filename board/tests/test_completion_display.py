@@ -58,7 +58,7 @@ class CompletionDisplayTests(TestCase):
         """Test that get_last_completion returns the most recent completion."""
         # Create completed instances
         now = timezone.now()
-        today = timezone.localtime(now).date()
+        today = now.date()
 
         # Yesterday's completion
         yesterday = today - timedelta(days=1)
@@ -67,8 +67,8 @@ class CompletionDisplayTests(TestCase):
             chore=self.chore,
             status=ChoreInstance.COMPLETED,
             points_value=self.chore.points,
-            due_at=timezone.make_aware(datetime.combine(yesterday, datetime.max.time())),
-            distribution_at=timezone.make_aware(datetime.combine(yesterday, datetime.min.time())),
+            due_at=datetime.combine(yesterday, datetime.max.time()),
+            distribution_at=datetime.combine(yesterday, datetime.min.time()),
             completed_at=yesterday_completed_at
         )
         yesterday_completion = Completion.objects.create(
@@ -87,8 +87,8 @@ class CompletionDisplayTests(TestCase):
             chore=self.chore,
             status=ChoreInstance.COMPLETED,
             points_value=self.chore.points,
-            due_at=timezone.make_aware(datetime.combine(two_days_ago, datetime.max.time())),
-            distribution_at=timezone.make_aware(datetime.combine(two_days_ago, datetime.min.time())),
+            due_at=datetime.combine(two_days_ago, datetime.max.time()),
+            distribution_at=datetime.combine(two_days_ago, datetime.min.time()),
             completed_at=two_days_ago_completed_at
         )
         old_completion = Completion.objects.create(
@@ -110,7 +110,7 @@ class CompletionDisplayTests(TestCase):
     def test_chore_get_last_completion_includes_helper_info(self):
         """Test that get_last_completion includes helper/share information."""
         now = timezone.now()
-        today = timezone.localtime(now).date()
+        today = now.date()
 
         # Create completed instance with helpers
         yesterday = today - timedelta(days=1)
@@ -118,8 +118,8 @@ class CompletionDisplayTests(TestCase):
             chore=self.chore,
             status=ChoreInstance.COMPLETED,
             points_value=self.chore.points,
-            due_at=timezone.make_aware(datetime.combine(yesterday, datetime.max.time())),
-            distribution_at=timezone.make_aware(datetime.combine(yesterday, datetime.min.time())),
+            due_at=datetime.combine(yesterday, datetime.max.time()),
+            distribution_at=datetime.combine(yesterday, datetime.min.time()),
             completed_at=timezone.make_aware(datetime.combine(yesterday, datetime.strptime('14:00', '%H:%M').time()))
         )
         completion = Completion.objects.create(
@@ -160,7 +160,7 @@ class CompletionDisplayTests(TestCase):
     def test_chore_get_last_completion_excludes_undone(self):
         """Test that get_last_completion excludes undone completions."""
         now = timezone.now()
-        today = timezone.localtime(now).date()
+        today = now.date()
         yesterday = today - timedelta(days=1)
 
         # Create a completion that was undone
@@ -168,8 +168,8 @@ class CompletionDisplayTests(TestCase):
             chore=self.chore,
             status=ChoreInstance.POOL,  # Back to pool after undo
             points_value=self.chore.points,
-            due_at=timezone.make_aware(datetime.combine(yesterday, datetime.max.time())),
-            distribution_at=timezone.make_aware(datetime.combine(yesterday, datetime.min.time()))
+            due_at=datetime.combine(yesterday, datetime.max.time()),
+            distribution_at=datetime.combine(yesterday, datetime.min.time())
         )
         completion = Completion.objects.create(
             chore_instance=instance,
@@ -187,7 +187,7 @@ class CompletionDisplayTests(TestCase):
     def test_main_board_shows_last_completion_for_pool_chore(self):
         """Test that main board displays last completion info for pool chores."""
         now = timezone.now()
-        today = timezone.localtime(now).date()
+        today = now.date()
 
         # Create yesterday's completed instance
         yesterday = today - timedelta(days=1)
@@ -195,8 +195,8 @@ class CompletionDisplayTests(TestCase):
             chore=self.chore,
             status=ChoreInstance.COMPLETED,
             points_value=self.chore.points,
-            due_at=timezone.make_aware(datetime.combine(yesterday, datetime.max.time())),
-            distribution_at=timezone.make_aware(datetime.combine(yesterday, datetime.min.time())),
+            due_at=datetime.combine(yesterday, datetime.max.time()),
+            distribution_at=datetime.combine(yesterday, datetime.min.time()),
             completed_at=timezone.make_aware(datetime.combine(yesterday, datetime.strptime('14:00', '%H:%M').time()))
         )
         completion = Completion.objects.create(
@@ -211,8 +211,8 @@ class CompletionDisplayTests(TestCase):
             chore=self.chore,
             status=ChoreInstance.POOL,
             points_value=self.chore.points,
-            due_at=timezone.make_aware(datetime.combine(today, datetime.max.time())),
-            distribution_at=timezone.make_aware(datetime.combine(today, datetime.min.time()))
+            due_at=datetime.combine(today, datetime.max.time()),
+            distribution_at=datetime.combine(today, datetime.min.time())
         )
 
         # Get main board
@@ -226,7 +226,7 @@ class CompletionDisplayTests(TestCase):
     def test_main_board_shows_helpers_in_completion_info(self):
         """Test that main board displays helper information."""
         now = timezone.now()
-        today = timezone.localtime(now).date()
+        today = now.date()
 
         # Create yesterday's completed instance with helpers
         yesterday = today - timedelta(days=1)
@@ -234,8 +234,8 @@ class CompletionDisplayTests(TestCase):
             chore=self.chore,
             status=ChoreInstance.COMPLETED,
             points_value=self.chore.points,
-            due_at=timezone.make_aware(datetime.combine(yesterday, datetime.max.time())),
-            distribution_at=timezone.make_aware(datetime.combine(yesterday, datetime.min.time())),
+            due_at=datetime.combine(yesterday, datetime.max.time()),
+            distribution_at=datetime.combine(yesterday, datetime.min.time()),
             completed_at=timezone.make_aware(datetime.combine(yesterday, datetime.strptime('14:00', '%H:%M').time()))
         )
         completion = Completion.objects.create(
@@ -260,8 +260,8 @@ class CompletionDisplayTests(TestCase):
             chore=self.chore,
             status=ChoreInstance.POOL,
             points_value=self.chore.points,
-            due_at=timezone.make_aware(datetime.combine(today, datetime.max.time())),
-            distribution_at=timezone.make_aware(datetime.combine(today, datetime.min.time()))
+            due_at=datetime.combine(today, datetime.max.time()),
+            distribution_at=datetime.combine(today, datetime.min.time())
         )
 
         # Get main board
@@ -277,15 +277,15 @@ class CompletionDisplayTests(TestCase):
     def test_main_board_no_completion_info_for_never_completed_chore(self):
         """Test that chores with no completions don't show completion section."""
         now = timezone.now()
-        today = timezone.localtime(now).date()
+        today = now.date()
 
         # Create today's pool instance (never completed before)
         today_instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.POOL,
             points_value=self.chore.points,
-            due_at=timezone.make_aware(datetime.combine(today, datetime.max.time())),
-            distribution_at=timezone.make_aware(datetime.combine(today, datetime.min.time()))
+            due_at=datetime.combine(today, datetime.max.time()),
+            distribution_at=datetime.combine(today, datetime.min.time())
         )
 
         # Get main board
@@ -300,7 +300,7 @@ class CompletionDisplayTests(TestCase):
     def test_completion_info_shows_for_assigned_chores(self):
         """Test that completion info also shows for assigned chores."""
         now = timezone.now()
-        today = timezone.localtime(now).date()
+        today = now.date()
 
         # Create yesterday's completed instance
         yesterday = today - timedelta(days=1)
@@ -309,8 +309,8 @@ class CompletionDisplayTests(TestCase):
             status=ChoreInstance.COMPLETED,
             points_value=self.chore.points,
             assigned_to=self.user1,
-            due_at=timezone.make_aware(datetime.combine(yesterday, datetime.max.time())),
-            distribution_at=timezone.make_aware(datetime.combine(yesterday, datetime.min.time())),
+            due_at=datetime.combine(yesterday, datetime.max.time()),
+            distribution_at=datetime.combine(yesterday, datetime.min.time()),
             completed_at=timezone.make_aware(datetime.combine(yesterday, datetime.strptime('14:00', '%H:%M').time()))
         )
         completion = Completion.objects.create(
@@ -326,8 +326,8 @@ class CompletionDisplayTests(TestCase):
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user2,
             points_value=self.chore.points,
-            due_at=timezone.make_aware(datetime.combine(today, datetime.max.time())),
-            distribution_at=timezone.make_aware(datetime.combine(today, datetime.min.time()))
+            due_at=datetime.combine(today, datetime.max.time()),
+            distribution_at=datetime.combine(today, datetime.min.time())
         )
 
         # Get main board

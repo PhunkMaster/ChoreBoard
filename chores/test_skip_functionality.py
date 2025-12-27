@@ -43,8 +43,8 @@ class SkipServiceTests(TestCase):
         )
 
         now = timezone.now()
-        today = timezone.localtime(now).date()  # Use local timezone
-        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+        today = now.date()  # Use local timezone
+        due_at = datetime.combine(today, datetime.max.time())
         self.pool_instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.POOL,
@@ -228,8 +228,8 @@ class SkipAdminViewTests(TestCase):
         )
 
         now = timezone.now()
-        today = timezone.localtime(now).date()  # Use local timezone
-        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+        today = now.date()  # Use local timezone
+        due_at = datetime.combine(today, datetime.max.time())
         self.instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.POOL,
@@ -391,8 +391,8 @@ class SkipIntegrationTests(TestCase):
         )
 
         now = timezone.now()
-        today = timezone.localtime(now).date()  # Use local timezone
-        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+        today = now.date()  # Use local timezone
+        due_at = datetime.combine(today, datetime.max.time())
         self.instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,

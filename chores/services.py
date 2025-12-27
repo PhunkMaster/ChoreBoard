@@ -69,7 +69,7 @@ class AssignmentService:
                 assigned_to=selected_user,
                 status=ChoreInstance.ASSIGNED,
                 chore__is_difficult=True,
-                due_at__date=timezone.now().date()
+                due_at__date=timezone.localdate()
             ).exclude(id=instance.id).exists()
 
             if has_difficult:
@@ -154,8 +154,7 @@ class AssignmentService:
         """
         from chores.models import Completion
 
-        # Use local timezone, not UTC
-        yesterday = timezone.localtime(timezone.now()).date() - timedelta(days=1)
+        yesterday = timezone.localdate() - timedelta(days=1)
 
         # Get rotation state for all eligible users
         rotation_states = RotationState.objects.filter(
@@ -194,7 +193,7 @@ class AssignmentService:
         available_users.sort(key=lambda x: (
             x[1],  # Completion count (fewest first)
             x[2] is not None,  # Never completed first (None = False = first)
-            x[2] or timezone.localtime(timezone.now()).date()  # Then oldest completion date (use local timezone)
+            x[2] or timezone.localdate()  # Then oldest completion date
         ))
 
         selected_user = available_users[0][0]
@@ -220,7 +219,7 @@ class AssignmentService:
         Returns:
             User or None
         """
-        today = timezone.now().date()
+        today = timezone.localdate()
         logger.info(f"Fairness selection: is_difficult={is_difficult}, eligible_users_count={eligible_users.count()}")
 
         # Annotate users with count of assigned chores today
@@ -271,7 +270,7 @@ class AssignmentService:
             return
 
         # Use local timezone, not UTC
-        today = timezone.localtime(timezone.now()).date()
+        today = timezone.localdate()
 
         RotationState.objects.update_or_create(
             chore=chore,
@@ -333,9 +332,7 @@ class DependencyService:
 
             # Calculate distribution time (use child's distribution time on due date)
             due_date = due_at.date()
-            distribution_at = timezone.make_aware(
-                timezone.datetime.combine(due_date, child_chore.distribution_time)
-            )
+            distribution_at = timezone.make_aware(timezone.datetime.combine(due_date, child_chore.distribution_time))
 
             # Create child instance - ALWAYS assign to user who completed parent
             # This overrides the child_chore's is_pool or assigned_to settings
@@ -572,7 +569,7 @@ class RescheduleService:
             return False, "Chore not found or is inactive", None
 
         # Validate date is in the future
-        today = timezone.now().date()
+        today = timezone.localdate()
         if new_date < today:
             return False, "Cannot reschedule to a past date", None
 

@@ -49,8 +49,8 @@ class UserPagesTest(TestCase):
 
         now = timezone.now()
         # Set due_at to end of today in local timezone
-        today = timezone.localtime(now).date()  # Use local timezone
-        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+        today = now.date()  # Use local timezone
+        due_at = datetime.combine(today, datetime.max.time())
 
         # Create chore for user1
         self.instance1 = ChoreInstance.objects.create(

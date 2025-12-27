@@ -86,7 +86,7 @@ class StreakAdmin(admin.ModelAdmin):
         if not obj.last_perfect_week:
             return format_html('<span style="color: #999;">Never</span>')
 
-        delta = timezone.now().date() - obj.last_perfect_week
+        delta = timezone.localdate() - obj.last_perfect_week
         if delta.days == 0:
             relative = "Today"
         elif delta.days == 1:

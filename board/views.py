@@ -42,7 +42,7 @@ def main_board(request):
     Main board view showing all chores (pool + assigned) with color coding.
     """
     now = timezone.now()
-    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
+    today = now.date()
 
     # Get all active chore instances for today (excluding skipped)
     # Bug #6 Fix: Filter out instances of inactive chores
@@ -50,13 +50,13 @@ def main_board(request):
     # Note: Use year > 3000 instead of >= 9999 to avoid overflow errors
     # Note: Chores due in the future (after today) are hidden and will appear when their date arrives
     from datetime import datetime
-    far_future = timezone.make_aware(datetime(9999, 12, 31))
+    far_future = datetime(9999, 12, 31)
 
-    # Create timezone-aware datetime range for "today" in local timezone
+    # Create datetime range for "today"
     # This fixes a bug where due_at__date=today would use UTC timezone,
     # causing mismatches when comparing against local dates
-    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
-    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+    today_start = datetime.combine(today, datetime.min.time())
+    today_end = datetime.combine(today, datetime.max.time())
 
     pool_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.POOL
@@ -171,13 +171,13 @@ def pool_only(request):
     Pool-only view showing only unclaimed chores.
     """
     now = timezone.now()
-    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
+    today = now.date()
 
     # Use year > 3000 to avoid overflow errors with year >= 9999
     from datetime import datetime
-    far_future = timezone.make_aware(datetime(3000, 1, 1))
-    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
-    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+    far_future = datetime(3000, 1, 1)
+    today_start = datetime.combine(today, datetime.min.time())
+    today_end = datetime.combine(today, datetime.max.time())
 
     pool_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.POOL
@@ -219,13 +219,13 @@ def user_board(request, username):
     """
     user = get_object_or_404(User, username=username, is_active=True)
     now = timezone.now()
-    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
+    today = now.date()
 
     # Use year > 3000 to avoid overflow errors with year >= 9999
     from datetime import datetime
-    far_future = timezone.make_aware(datetime(3000, 1, 1))
-    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
-    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+    far_future = datetime(3000, 1, 1)
+    today_start = datetime.combine(today, datetime.min.time())
+    today_end = datetime.combine(today, datetime.max.time())
 
     # Get chores assigned to this user: include chores due today, overdue, OR no due date
     assigned_chores = ChoreInstance.objects.filter(
@@ -294,12 +294,12 @@ def user_board_minimal(request, username):
     # Get user from URL parameter (kiosk-mode compatible, no login required)
     user = get_object_or_404(User, username=username, is_active=True)
     now = timezone.now()
-    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
+    today = now.date()
 
-    # Create timezone-aware datetime range for "today" in local timezone
+    # Create datetime range for "today"
     from datetime import datetime
-    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
-    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+    today_start = datetime.combine(today, datetime.min.time())
+    today_end = datetime.combine(today, datetime.max.time())
 
     # Get chores assigned to this user: include chores due today OR overdue from previous days
     assigned_chores = ChoreInstance.objects.filter(
@@ -354,16 +354,16 @@ def pool_minimal(request):
     from chores.models import ArcadeSession
 
     now = timezone.now()
-    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
+    today = now.date()
 
     # Get all pool chores for today
     # Use year > 3000 to avoid overflow errors with year >= 9999
     from datetime import datetime, timedelta
-    far_future = timezone.make_aware(datetime(3000, 1, 1))
+    far_future = datetime(3000, 1, 1)
 
-    # Create timezone-aware datetime range for "today" in local timezone
-    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
-    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+    # Create datetime range for "today"
+    today_start = datetime.combine(today, datetime.min.time())
+    today_end = datetime.combine(today, datetime.max.time())
 
     pool_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.POOL
@@ -416,15 +416,15 @@ def assigned_minimal(request):
     from chores.models import ArcadeSession
 
     now = timezone.now()
-    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
+    today = now.date()
 
     # Use year > 3000 to avoid overflow errors with year >= 9999
     from datetime import datetime, timedelta
-    far_future = timezone.make_aware(datetime(3000, 1, 1))
+    far_future = datetime(3000, 1, 1)
 
-    # Create timezone-aware datetime range for "today" in local timezone
-    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
-    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+    # Create datetime range for "today"
+    today_start = datetime.combine(today, datetime.min.time())
+    today_end = datetime.combine(today, datetime.max.time())
 
     # Get all assigned chores: include chores due today, overdue, OR no due date
     assigned_chores = ChoreInstance.objects.filter(
@@ -503,12 +503,12 @@ def users_minimal(request):
     from chores.models import ArcadeSession
 
     now = timezone.now()
-    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
+    today = now.date()
 
-    # Create timezone-aware datetime range for "today" in local timezone
+    # Create datetime range for "today"
     from datetime import datetime
-    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
-    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+    today_start = datetime.combine(today, datetime.min.time())
+    today_end = datetime.combine(today, datetime.max.time())
 
     # Get all users eligible for points
     users = User.objects.filter(
@@ -1100,7 +1100,7 @@ def reschedule_chore_view(request):
 
             old_due_at = instance.due_at
 
-            # Ensure new_due_at is timezone-aware
+            # Ensure new_due_at is aware
             if timezone.is_naive(new_due_at):
                 new_due_at = timezone.make_aware(new_due_at)
 
@@ -1211,11 +1211,11 @@ def get_updates(request):
         from datetime import datetime
         from django.utils.dateparse import parse_datetime
         try:
-            # Use Django's parse_datetime which handles timezone-aware datetimes
+            # Use Django's parse_datetime which handles both naive and aware datetimes
             since = parse_datetime(since_str)
             if since is None:
                 return JsonResponse({'error': 'Invalid timestamp format'}, status=400)
-            # If naive, make it timezone-aware using Django's timezone
+            # If naive, make it aware for comparison since USE_TZ=True
             if timezone.is_naive(since):
                 since = timezone.make_aware(since)
         except ValueError:
@@ -1223,9 +1223,9 @@ def get_updates(request):
 
         # Get current time for response
         now = timezone.now()
-        today = timezone.localtime(now).date()  # Convert to local timezone before getting date
+        today = timezone.localdate(now)
 
-        # Create timezone-aware datetime range for "today" in local timezone
+        # Create datetime range for "today"
         today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
         today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 

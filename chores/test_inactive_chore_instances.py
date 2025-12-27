@@ -54,8 +54,8 @@ class InactiveChoreInstanceTest(TestCase):
         )
 
         # Create a ChoreInstance for today
-        today = timezone.localtime(timezone.now()).date()  # Use local timezone to match view logic
-        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+        today = timezone.now().date()  # Use local timezone to match view logic
+        due_at = datetime.combine(today, datetime.max.time())
 
         instance = ChoreInstance.objects.create(
             chore=chore,
@@ -116,8 +116,8 @@ class InactiveChoreInstanceTest(TestCase):
         )
 
         # Create a ChoreInstance for today
-        today = timezone.localtime(timezone.now()).date()  # Use local timezone to match view logic
-        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+        today = timezone.now().date()  # Use local timezone to match view logic
+        due_at = datetime.combine(today, datetime.max.time())
 
         instance = ChoreInstance.objects.create(
             chore=chore,
@@ -186,8 +186,8 @@ class InactiveChoreInstanceTest(TestCase):
         )
 
         # Create a ChoreInstance for today
-        today = timezone.localtime(timezone.now()).date()  # Use local timezone to match view logic
-        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+        today = timezone.now().date()  # Use local timezone to match view logic
+        due_at = datetime.combine(today, datetime.max.time())
 
         instance = ChoreInstance.objects.create(
             chore=chore,
@@ -244,8 +244,8 @@ class InactiveChoreInstanceTest(TestCase):
         )
 
         # Create a completed ChoreInstance
-        today = timezone.localtime(timezone.now()).date()  # Use local timezone to match view logic
-        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+        today = timezone.now().date()  # Use local timezone to match view logic
+        due_at = datetime.combine(today, datetime.max.time())
 
         instance = ChoreInstance.objects.create(
             chore=chore,
@@ -309,7 +309,7 @@ class InactiveChoreInstanceTest(TestCase):
         )
 
         # Create multiple instances with different statuses
-        today = timezone.localtime(timezone.now()).date()  # Use local timezone to match view logic
+        today = timezone.now().date()  # Use local timezone to match view logic
 
         # Create POOL instances (should remain visible)
         # NOTE: We only create instances for today or overdue (not future dates)
@@ -317,7 +317,7 @@ class InactiveChoreInstanceTest(TestCase):
         pool_instances = []
         for i in range(2):
             due_date = today - timedelta(days=i)  # Today and yesterday (overdue)
-            due_at = timezone.make_aware(datetime.combine(due_date, datetime.max.time()))
+            due_at = datetime.combine(due_date, datetime.max.time())
 
             instance = ChoreInstance.objects.create(
                 chore=chore,

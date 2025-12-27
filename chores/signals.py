@@ -30,7 +30,7 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
             return
 
         now = timezone.now()
-        today = timezone.localtime(now).date()  # Use local timezone, not UTC
+        today = timezone.localdate(now)
         should_create_today = False
 
         if instance.schedule_type == Chore.DAILY:
@@ -51,21 +51,16 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
             if instance.schedule_type == Chore.ONE_TIME:
                 # ONE_TIME: use one_time_due_date or sentinel far-future date
                 if instance.one_time_due_date:
-                    # Due at end of the specified due_date
-                    due_at = timezone.make_aware(
-                        datetime.combine(instance.one_time_due_date, datetime.max.time())
-                    )
+                    # Due at start of the day after the specified due_date (per docs and tests)
+                    due_at = timezone.make_aware(datetime.combine(instance.one_time_due_date + timedelta(days=1), datetime.min.time()))
                 else:
                     # No due date = use sentinel far-future date (never overdue)
+                    from datetime import date
                     far_future = date(9999, 12, 31)
-                    due_at = timezone.make_aware(
-                        datetime.combine(far_future, datetime.min.time())
-                    )
+                    due_at = timezone.make_aware(datetime.combine(far_future, datetime.min.time()))
             else:
                 # Regular recurring chores: due at end of today
-                due_at = timezone.make_aware(
-                    datetime.combine(today, datetime.max.time())
-                )
+                due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
             # Check if instance already exists (prevent duplicates)
             # For ONE_TIME chores: check if ANY instance exists
@@ -91,9 +86,7 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
                 logger.info(f"Instance already exists for chore {instance.name}")
                 return
 
-            distribution_at = timezone.make_aware(
-                datetime.combine(today, instance.distribution_time)
-            )
+            distribution_at = timezone.make_aware(datetime.combine(today, instance.distribution_time))
 
             # Determine status and assignment based on chore type
             if instance.is_undesirable:

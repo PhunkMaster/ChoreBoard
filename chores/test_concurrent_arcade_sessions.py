@@ -66,7 +66,7 @@ class ConcurrentArcadeSessionsTests(TestCase):
         )
 
         # Create chore instances
-        today = timezone.localtime(timezone.now()).date()
+        today = timezone.now().date()
         due_at = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.max.time()))
         distribution_at = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.min.time()))
 

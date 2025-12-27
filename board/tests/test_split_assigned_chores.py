@@ -50,11 +50,11 @@ class SplitAssignedChoresTest(TestCase):
         # Ensure chores are due today (not tomorrow)
         from datetime import datetime
         now = timezone.now()
-        today = timezone.localtime(now).date()  # Use local timezone to match view logic
+        today = now.date()  # Use local timezone to match view logic
 
         # Set due_at to end of today, distribution_at to start of today
-        due_at_today = timezone.make_aware(datetime.combine(today, datetime.max.time()))
-        distribution_at_today = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+        due_at_today = datetime.combine(today, datetime.max.time())
+        distribution_at_today = datetime.combine(today, datetime.min.time())
 
         # Create instances for different users
         self.instance1 = ChoreInstance.objects.create(
@@ -260,8 +260,8 @@ class SplitChoresHTMLTest(TestCase):
 
         now = timezone.now()
         # Set due_at to end of today in local timezone
-        today = timezone.localtime(now).date()  # Use local timezone
-        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+        today = now.date()  # Use local timezone
+        due_at = datetime.combine(today, datetime.max.time())
 
         ChoreInstance.objects.create(
             chore=chore,

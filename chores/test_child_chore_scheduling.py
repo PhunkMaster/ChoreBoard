@@ -71,15 +71,15 @@ class ChildChoreSchedulingTests(TestCase):
     def test_midnight_evaluation_skips_child_chores(self):
         """Test that midnight_evaluation does NOT create instances for child chores."""
         from datetime import datetime
-        today = timezone.localtime(timezone.now()).date()  # Use local timezone to match midnight_evaluation logic
+        today = timezone.now().date()  # Use local timezone to match midnight_evaluation logic
 
         # Run midnight evaluation
         midnight_evaluation()
 
         # Check what instances were created (midnight eval creates instances with due_at = today in local timezone)
         # Use timezone-aware date range instead of due_at__date to avoid UTC/local timezone mismatch
-        today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
-        today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+        today_start = datetime.combine(today, datetime.min.time())
+        today_end = datetime.combine(today, datetime.max.time())
 
         parent_instances = ChoreInstance.objects.filter(chore=self.parent_chore, due_at__range=(today_start, today_end))
         child_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__range=(today_start, today_end))
@@ -175,14 +175,14 @@ class ChildChoreSchedulingTests(TestCase):
         )
 
         from datetime import datetime
-        today = timezone.localtime(timezone.now()).date()  # Use local timezone to match midnight_evaluation logic
+        today = timezone.now().date()  # Use local timezone to match midnight_evaluation logic
 
         # Run midnight evaluation
         midnight_evaluation()
 
         # Use timezone-aware date range instead of due_at__date to avoid UTC/local timezone mismatch
-        today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
-        today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+        today_start = datetime.combine(today, datetime.min.time())
+        today_end = datetime.combine(today, datetime.max.time())
 
         # Neither child should have instances (midnight eval creates instances with due_at = today)
         child1_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__range=(today_start, today_end))
@@ -231,14 +231,14 @@ class ChildChoreSchedulingTests(TestCase):
         )
 
         from datetime import datetime
-        today = timezone.localtime(timezone.now()).date()  # Use local timezone to match midnight_evaluation logic
+        today = timezone.now().date()  # Use local timezone to match midnight_evaluation logic
 
         # Run midnight evaluation
         midnight_evaluation()
 
         # Use timezone-aware date range instead of due_at__date to avoid UTC/local timezone mismatch
-        today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
-        today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+        today_start = datetime.combine(today, datetime.min.time())
+        today_end = datetime.combine(today, datetime.max.time())
 
         # Only parent and standalone should be created (midnight eval creates instances with due_at = today)
         parent_count = ChoreInstance.objects.filter(chore=self.parent_chore, due_at__range=(today_start, today_end)).count()
