@@ -5,7 +5,7 @@ Tests user-specific board views, navigation, and quick links.
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, datetime
 from chores.models import Chore, ChoreInstance
 from users.models import User
 
@@ -48,9 +48,9 @@ class UserPagesTest(TestCase):
         )
 
         now = timezone.now()
-        # Set due_at to 11 PM today to ensure it stays within today's date
-        # regardless of what time the test runs
-        due_time = now.replace(hour=23, minute=0, second=0, microsecond=0)
+        # Set due_at to end of today in local timezone
+        today = timezone.localtime(now).date()  # Use local timezone
+        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
         # Create chore for user1
         self.instance1 = ChoreInstance.objects.create(
@@ -58,7 +58,7 @@ class UserPagesTest(TestCase):
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user1,
             distribution_at=now,
-            due_at=due_time,
+            due_at=due_at,
             points_value=10
         )
 
@@ -68,7 +68,7 @@ class UserPagesTest(TestCase):
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user2,
             distribution_at=now,
-            due_at=due_time,
+            due_at=due_at,
             points_value=10
         )
 
@@ -156,20 +156,24 @@ class UserPagesTest(TestCase):
     #     self.assertIn(self.instance1.id, ontime_ids, "On-time chore should be in ontime section")
 
     def test_user_board_excludes_inactive_chores(self):
-        """Test that user board doesn't show instances of inactive chores."""
+        """
+        Feature #3 TEST: User board STILL shows instances of inactive chores
+        when they're in ASSIGNED/POOL status (to allow completion of pending work).
+        Only COMPLETED/SKIPPED instances are hidden.
+        """
         # Deactivate the chore
         self.chore.is_active = False
         self.chore.save()
 
         response = self.client.get(reverse('board:user', args=['john']))
 
-        # Check that chore doesn't appear
+        # Feature #3: Check that ASSIGNED instance STILL appears
         all_chores = list(response.context.get('overdue_chores', [])) + \
                      list(response.context.get('ontime_chores', []))
         chore_ids = [c.id for c in all_chores]
 
-        self.assertNotIn(self.instance1.id, chore_ids,
-                        "Inactive chore instances should not appear on user board")
+        self.assertIn(self.instance1.id, chore_ids,
+                        "Feature #3: Inactive chore instance SHOULD still appear when in ASSIGNED status")
 
     def test_user_board_url_structure(self):
         """Test that user board URL is correctly formatted."""

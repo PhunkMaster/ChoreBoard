@@ -149,6 +149,7 @@ class ActionLog(models.Model):
     ACTION_UNDO = "undo"
     ACTION_FORCE_ASSIGN = "force_assign"
     ACTION_MANUAL_ASSIGN = "manual_assign"
+    ACTION_UNASSIGN = "unassign"
     ACTION_WEEKLY_RESET = "weekly_reset"
     ACTION_UNDO_RESET = "undo_reset"
     ACTION_SETTINGS_CHANGE = "settings_change"
@@ -158,6 +159,8 @@ class ActionLog(models.Model):
     ACTION_CLEAR_RESCHEDULE = "clear_reschedule"
     ACTION_UNCLAIM = "unclaim"
     ACTION_ADMIN = "admin"
+    ACTION_MIDNIGHT_EVAL = "midnight_eval"
+    ACTION_CHORE_CREATED = "chore_created"
     ACTION_TYPES = [
         (ACTION_CLAIM, "User claimed chore"),
         (ACTION_UNCLAIM, "User unclaimed chore"),
@@ -165,6 +168,7 @@ class ActionLog(models.Model):
         (ACTION_UNDO, "Admin undid completion"),
         (ACTION_FORCE_ASSIGN, "System force-assigned chore"),
         (ACTION_MANUAL_ASSIGN, "Admin manually assigned chore"),
+        (ACTION_UNASSIGN, "Admin unassigned chore"),
         (ACTION_WEEKLY_RESET, "Admin performed weekly reset"),
         (ACTION_UNDO_RESET, "Admin undid weekly reset"),
         (ACTION_SETTINGS_CHANGE, "Admin changed settings"),
@@ -173,6 +177,8 @@ class ActionLog(models.Model):
         (ACTION_RESCHEDULE, "Admin rescheduled chore"),
         (ACTION_CLEAR_RESCHEDULE, "Admin cleared reschedule"),
         (ACTION_ADMIN, "Admin action"),
+        (ACTION_MIDNIGHT_EVAL, "Midnight evaluation run"),
+        (ACTION_CHORE_CREATED, "Chore instance created"),
     ]
 
     action_type = models.CharField(max_length=30, choices=ACTION_TYPES)
@@ -311,3 +317,13 @@ class Backup(models.Model):
                 return f"{size:.2f} {unit}"
             size /= 1024.0
         return f"{size:.2f} TB"
+
+    @property
+    def is_selective(self):
+        """Return True if this is a selective backup (no chore instances)."""
+        return 'selective' in self.filename.lower()
+
+    @property
+    def is_pre_restore(self):
+        """Return True if this is a pre-restore safety backup."""
+        return 'Auto-backup before restore' in (self.notes or '')

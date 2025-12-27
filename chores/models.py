@@ -69,6 +69,11 @@ class Chore(models.Model):
     is_difficult = models.BooleanField(default=False)
     is_undesirable = models.BooleanField(default=False)
     is_late_chore = models.BooleanField(default=False)
+    complete_later = models.BooleanField(
+        default=False,
+        help_text="If checked, this chore can be completed later in the day (e.g., after dinner). "
+                  "Unchecked means it should be completed immediately."
+    )
 
     # Distribution
     distribution_time = models.TimeField(default="17:30")
@@ -155,6 +160,28 @@ class Chore(models.Model):
             return False
         return self.dependencies_as_child.exists()
 
+    def get_last_completion(self):
+        """
+        Get the most recent completion for ANY instance of this chore.
+        This is useful for recurring chores to show who completed it last time.
+
+        Returns:
+            Completion object or None if never completed
+        """
+        if not self.pk:
+            return None
+
+        # Get the most recent non-undone completion across all instances of this chore
+        from chores.models import Completion
+        return Completion.objects.filter(
+            chore_instance__chore=self,
+            is_undone=False
+        ).select_related(
+            'completed_by'
+        ).prefetch_related(
+            'shares__user'
+        ).order_by('-completed_at').first()
+
 
 class ChoreTemplate(models.Model):
     """Reusable chore template for quick chore creation."""
@@ -175,6 +202,7 @@ class ChoreTemplate(models.Model):
     is_difficult = models.BooleanField(default=False)
     is_undesirable = models.BooleanField(default=False)
     is_late_chore = models.BooleanField(default=False)
+    complete_later = models.BooleanField(default=False)
     distribution_time = models.TimeField(default="17:30")
     schedule_type = models.CharField(max_length=20, choices=Chore.SCHEDULE_CHOICES, default=Chore.DAILY)
     n_days = models.IntegerField(null=True, blank=True)
@@ -208,6 +236,7 @@ class ChoreTemplate(models.Model):
             'is_difficult': self.is_difficult,
             'is_undesirable': self.is_undesirable,
             'is_late_chore': self.is_late_chore,
+            'complete_later': self.complete_later,
             'distribution_time': self.distribution_time,
             'schedule_type': self.schedule_type,
             'n_days': self.n_days,
@@ -377,6 +406,7 @@ class ChoreInstance(models.Model):
         indexes = [
             models.Index(fields=["status", "due_at"]),
             models.Index(fields=["assigned_to", "status"]),
+            models.Index(fields=["chore", "status"], name="chore_inst_chore_status_idx"),
         ]
 
     def __str__(self):
@@ -398,6 +428,13 @@ class ChoreInstance(models.Model):
             self.points_value = self.chore.points
         self.full_clean()
         super().save(*args, **kwargs)
+
+    def get_last_completion(self):
+        """Get the most recent non-undone completion for this instance."""
+        try:
+            return self.completion if not self.completion.is_undone else None
+        except Completion.DoesNotExist:
+            return None
 
 
 class Completion(models.Model):

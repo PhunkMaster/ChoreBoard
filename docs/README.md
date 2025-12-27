@@ -31,6 +31,14 @@ Welcome to the ChoreBoard documentation! This directory contains comprehensive g
   - Safety precautions
   - Step-by-step instructions
 
+### Integrations
+- **[Integrations Guide](INTEGRATIONS.md)** - Connect ChoreBoard to other systems
+  - Home Assistant integration
+  - Home Assistant custom card
+  - Webhook notifications
+  - REST API documentation
+  - Custom integration examples
+
 ## 🚀 Quick Links
 
 - [Installation](#) - See main [README.md](../README.md) for installation instructions

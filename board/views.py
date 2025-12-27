@@ -20,6 +20,7 @@ Views for ChoreBoard frontend.
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.utils import timezone
@@ -41,40 +42,57 @@ def main_board(request):
     Main board view showing all chores (pool + assigned) with color coding.
     """
     now = timezone.now()
-    today = now.date()
+    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
 
     # Get all active chore instances for today (excluding skipped)
     # Bug #6 Fix: Filter out instances of inactive chores
     # Include: due today, overdue from past, OR no due date (sentinel date)
     # Note: Use year > 3000 instead of >= 9999 to avoid overflow errors
-    # Note: Chores "for today" are created with due_at = start of tomorrow, so include tomorrow too
-    from datetime import datetime, timedelta
-    far_future = timezone.make_aware(datetime(3000, 1, 1))
-    tomorrow = today + timedelta(days=1)
+    # Note: Chores due in the future (after today) are hidden and will appear when their date arrives
+    from datetime import datetime
+    far_future = timezone.make_aware(datetime(9999, 12, 31))
+
+    # Create timezone-aware datetime range for "today" in local timezone
+    # This fixes a bug where due_at__date=today would use UTC timezone,
+    # causing mismatches when comparing against local dates
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
     pool_chores = ChoreInstance.objects.filter(
-        status=ChoreInstance.POOL,
-        chore__is_active=True
+        status=ChoreInstance.POOL
     ).filter(
-        Q(due_at__date=today) |  # Due today
-        Q(due_at__date=tomorrow) |  # Due tomorrow (chores created "for today")
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(chore__is_active=True) |  # Active chores
+        Q(  # OR open instances of inactive chores
+            chore__is_active=False,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        )
+    ).filter(
+        Q(due_at__range=(today_start, today_end)) |  # Due today (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
-    ).select_related('chore').order_by('due_at')
+    ).select_related('chore').prefetch_related(
+        'completion__completed_by',
+        'completion__shares__user'
+    ).order_by('due_at')
 
     # Get assigned chores: include chores due today, overdue, OR no due date
-    # Only include chores assigned to users who are eligible for points (to match what's displayed)
     assigned_chores = ChoreInstance.objects.filter(
         status=ChoreInstance.ASSIGNED,
-        chore__is_active=True,
-        assigned_to__eligible_for_points=True,  # Only count chores for eligible users
         assigned_to__isnull=False  # Exclude unassigned chores
     ).filter(
-        Q(due_at__date=today) |  # Due today
-        Q(due_at__date=tomorrow) |  # Due tomorrow (chores created "for today")
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(chore__is_active=True) |  # Active chores
+        Q(  # OR open instances of inactive chores
+            chore__is_active=False,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        )
+    ).filter(
+        Q(due_at__range=(today_start, today_end)) |  # Due today (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
-    ).select_related('chore', 'assigned_to').order_by('due_at')
+    ).select_related('chore', 'assigned_to').prefetch_related(
+        'completion__completed_by',
+        'completion__shares__user'
+    ).order_by('due_at')
 
     # Feature #8: Group assigned chores by user
     from collections import defaultdict
@@ -110,11 +128,12 @@ def main_board(request):
     # Calculate total assigned (for stat card)
     total_assigned_count = len(overdue_assigned) + len(ontime_assigned)
 
-    # Get all users for the user selector (only those eligible for points)
+    # Get all users for the user selector (including those not eligible for points)
+    # Note: Users not eligible for points can still complete chores,
+    # but points will be redistributed to eligible users
     users = User.objects.filter(
         is_active=True,
-        can_be_assigned=True,
-        eligible_for_points=True
+        can_be_assigned=True
     ).order_by('first_name', 'username')
 
     # Get admin users only for reschedule function
@@ -124,12 +143,12 @@ def main_board(request):
         is_active=True
     ).order_by('first_name', 'username')
 
-    # Get active arcade session (kiosk-mode compatible)
-    # Check if ANY user has an active arcade session
+    # Get ALL active arcade sessions (kiosk-mode compatible)
+    # Support multiple concurrent arcade sessions
     from chores.models import ArcadeSession
-    active_arcade_session = ArcadeSession.objects.filter(
+    active_arcade_sessions = ArcadeSession.objects.filter(
         status=ArcadeSession.STATUS_ACTIVE
-    ).select_related('chore', 'user').first()
+    ).select_related('chore', 'user').order_by('start_time')
 
     context = {
         'pool_chores': pool_chores,
@@ -141,7 +160,7 @@ def main_board(request):
         'admin_users': admin_users,
         'today': today,
         'now': now,
-        'active_arcade_session': active_arcade_session,  # Arcade mode
+        'active_arcade_sessions': active_arcade_sessions,  # Arcade mode - ALL sessions
     }
 
     return render(request, 'board/main.html', context)
@@ -152,28 +171,37 @@ def pool_only(request):
     Pool-only view showing only unclaimed chores.
     """
     now = timezone.now()
-    today = now.date()
+    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
 
     # Use year > 3000 to avoid overflow errors with year >= 9999
-    from datetime import datetime, timedelta
+    from datetime import datetime
     far_future = timezone.make_aware(datetime(3000, 1, 1))
-    tomorrow = today + timedelta(days=1)
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
     pool_chores = ChoreInstance.objects.filter(
-        status=ChoreInstance.POOL,
-        chore__is_active=True
+        status=ChoreInstance.POOL
     ).filter(
-        Q(due_at__date=today) |  # Due today
-        Q(due_at__date=tomorrow) |  # Due tomorrow (chores created "for today")
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(chore__is_active=True) |  # Active chores
+        Q(  # OR open instances of inactive chores
+            chore__is_active=False,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        )
+    ).filter(
+        Q(due_at__range=(today_start, today_end)) |  # Due today (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
-    ).select_related('chore').order_by('due_at')
+    ).select_related('chore').prefetch_related(
+        'completion__completed_by',
+        'completion__shares__user'
+    ).order_by('due_at')
 
-    # Get all users for the user selector (only those eligible for points)
+    # Get all users for the user selector (including those not eligible for points)
+    # Note: Users not eligible for points can still complete chores,
+    # but points will be redistributed to eligible users
     users = User.objects.filter(
         is_active=True,
-        can_be_assigned=True,
-        eligible_for_points=True
+        can_be_assigned=True
     ).order_by('first_name', 'username')
 
     context = {
@@ -191,24 +219,32 @@ def user_board(request, username):
     """
     user = get_object_or_404(User, username=username, is_active=True)
     now = timezone.now()
-    today = now.date()
+    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
 
     # Use year > 3000 to avoid overflow errors with year >= 9999
-    from datetime import datetime, timedelta
+    from datetime import datetime
     far_future = timezone.make_aware(datetime(3000, 1, 1))
-    tomorrow = today + timedelta(days=1)
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
     # Get chores assigned to this user: include chores due today, overdue, OR no due date
     assigned_chores = ChoreInstance.objects.filter(
         assigned_to=user,
-        status__in=[ChoreInstance.ASSIGNED, ChoreInstance.POOL],
-        chore__is_active=True
+        status__in=[ChoreInstance.ASSIGNED, ChoreInstance.POOL]
     ).filter(
-        Q(due_at__date=today) |  # Due today
-        Q(due_at__date=tomorrow) |  # Due tomorrow (chores created "for today")
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(chore__is_active=True) |  # Active chores
+        Q(  # OR open instances of inactive chores
+            chore__is_active=False,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        )
+    ).filter(
+        Q(due_at__range=(today_start, today_end)) |  # Due today (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
-    ).select_related('chore').order_by('due_at')
+    ).select_related('chore').prefetch_related(
+        'completion__completed_by',
+        'completion__shares__user'
+    ).order_by('due_at')
 
     # Separate overdue from on-time
     overdue_chores = assigned_chores.filter(is_overdue=True)
@@ -254,22 +290,33 @@ def user_board_minimal(request, username):
     Kiosk-mode compatible: Uses username from URL, not logged-in user.
     """
     from chores.models import ArcadeSession
-    from datetime import timedelta
 
     # Get user from URL parameter (kiosk-mode compatible, no login required)
     user = get_object_or_404(User, username=username, is_active=True)
     now = timezone.now()
-    today = now.date()
-    tomorrow = today + timedelta(days=1)
+    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
+
+    # Create timezone-aware datetime range for "today" in local timezone
+    from datetime import datetime
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
     # Get chores assigned to this user: include chores due today OR overdue from previous days
     assigned_chores = ChoreInstance.objects.filter(
         assigned_to=user,
-        status__in=[ChoreInstance.ASSIGNED, ChoreInstance.POOL],
-        chore__is_active=True
+        status__in=[ChoreInstance.ASSIGNED, ChoreInstance.POOL]
     ).filter(
-        Q(due_at__date=today) | Q(due_at__date=tomorrow) | Q(due_at__lt=now)  # Due today/tomorrow OR past due
-    ).select_related('chore').order_by('is_overdue', 'due_at')
+        Q(chore__is_active=True) |  # Active chores
+        Q(  # OR open instances of inactive chores
+            chore__is_active=False,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        )
+    ).filter(
+        Q(due_at__range=(today_start, today_end)) | Q(due_at__lt=today_start)  # Due today OR past due
+    ).select_related('chore').prefetch_related(
+        'completion__completed_by',
+        'completion__shares__user'
+    ).order_by('is_overdue', 'due_at')
 
     # Check for active arcade session for THIS user only (from URL username)
     # This ensures Alice's arcade session only shows on /user/alice/minimal/
@@ -279,11 +326,12 @@ def user_board_minimal(request, username):
         user=user  # Filter by user from URL, not request.user
     ).select_related('chore', 'user').first()
 
-    # Get all users for arcade mode selection (only those eligible for points)
+    # Get all users for arcade mode selection (including those not eligible for points)
+    # Note: Users not eligible for points can still complete chores,
+    # but points will be redistributed to eligible users
     users = User.objects.filter(
         is_active=True,
-        can_be_assigned=True,
-        eligible_for_points=True
+        can_be_assigned=True
     ).order_by('first_name', 'username')
 
     context = {
@@ -306,40 +354,52 @@ def pool_minimal(request):
     from chores.models import ArcadeSession
 
     now = timezone.now()
-    today = now.date()
+    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
 
     # Get all pool chores for today
     # Use year > 3000 to avoid overflow errors with year >= 9999
     from datetime import datetime, timedelta
     far_future = timezone.make_aware(datetime(3000, 1, 1))
-    tomorrow = today + timedelta(days=1)
+
+    # Create timezone-aware datetime range for "today" in local timezone
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
     pool_chores = ChoreInstance.objects.filter(
-        status=ChoreInstance.POOL,
-        chore__is_active=True
+        status=ChoreInstance.POOL
     ).filter(
-        Q(due_at__date=today) |  # Due today
-        Q(due_at__date=tomorrow) |  # Due tomorrow (chores created "for today")
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(chore__is_active=True) |  # Active chores
+        Q(  # OR open instances of inactive chores
+            chore__is_active=False,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        )
+    ).filter(
+        Q(due_at__range=(today_start, today_end)) |  # Due today (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
-    ).select_related('chore').order_by('due_at')
+    ).select_related('chore').prefetch_related(
+        'completion__completed_by',
+        'completion__shares__user'
+    ).order_by('due_at')
 
-    # Check for any active arcade session (kiosk-mode compatible)
-    active_arcade_session = ArcadeSession.objects.filter(
+    # Get ALL active arcade sessions (kiosk-mode compatible)
+    # Support multiple concurrent arcade sessions
+    active_arcade_sessions = ArcadeSession.objects.filter(
         status=ArcadeSession.STATUS_ACTIVE
-    ).select_related('chore', 'user').first()
+    ).select_related('chore', 'user').order_by('start_time')
 
-    # Get all users for arcade mode and claiming (only those eligible for points)
+    # Get all users for arcade mode and claiming (including those not eligible for points)
+    # Note: Users not eligible for points can still complete chores,
+    # but points will be redistributed to eligible users
     users = User.objects.filter(
         is_active=True,
-        can_be_assigned=True,
-        eligible_for_points=True
+        can_be_assigned=True
     ).order_by('first_name', 'username')
 
     context = {
         'pool_chores': pool_chores,
         'today': today,
-        'active_arcade_session': active_arcade_session,
+        'active_arcade_sessions': active_arcade_sessions,  # ALL sessions
         'users': users,
     }
 
@@ -356,23 +416,33 @@ def assigned_minimal(request):
     from chores.models import ArcadeSession
 
     now = timezone.now()
-    today = now.date()
+    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
 
     # Use year > 3000 to avoid overflow errors with year >= 9999
     from datetime import datetime, timedelta
     far_future = timezone.make_aware(datetime(3000, 1, 1))
-    tomorrow = today + timedelta(days=1)
+
+    # Create timezone-aware datetime range for "today" in local timezone
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
     # Get all assigned chores: include chores due today, overdue, OR no due date
     assigned_chores = ChoreInstance.objects.filter(
-        status=ChoreInstance.ASSIGNED,
-        chore__is_active=True
+        status=ChoreInstance.ASSIGNED
     ).filter(
-        Q(due_at__date=today) |  # Due today
-        Q(due_at__date=tomorrow) |  # Due tomorrow (chores created "for today")
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(chore__is_active=True) |  # Active chores
+        Q(  # OR open instances of inactive chores
+            chore__is_active=False,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        )
+    ).filter(
+        Q(due_at__range=(today_start, today_end)) |  # Due today (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date beyond year 3000)
-    ).exclude(status=ChoreInstance.SKIPPED).select_related('chore', 'assigned_to').order_by('due_at')
+    ).exclude(status=ChoreInstance.SKIPPED).select_related('chore', 'assigned_to').prefetch_related(
+        'completion__completed_by',
+        'completion__shares__user'
+    ).order_by('due_at')
 
     # Group assigned chores by user
     chores_by_user = defaultdict(lambda: {'overdue': [], 'ontime': []})
@@ -385,7 +455,7 @@ def assigned_minimal(request):
             chores_by_user[user]['ontime'].append(chore)
 
     # Convert to list of dicts for template
-    # Filter out users not eligible for points (and None users from unassigned chores)
+    # Filter out None users from unassigned chores
     assigned_by_user = [
         {
             'user': user,
@@ -394,28 +464,30 @@ def assigned_minimal(request):
             'total': len(chores['overdue']) + len(chores['ontime'])
         }
         for user, chores in chores_by_user.items()
-        if user is not None and user.eligible_for_points
+        if user is not None
     ]
 
     # Sort by user name
     assigned_by_user.sort(key=lambda x: x['user'].first_name or x['user'].username)
 
-    # Check for any active arcade session (kiosk-mode compatible)
-    active_arcade_session = ArcadeSession.objects.filter(
+    # Get ALL active arcade sessions (kiosk-mode compatible)
+    # Support multiple concurrent arcade sessions
+    active_arcade_sessions = ArcadeSession.objects.filter(
         status=ArcadeSession.STATUS_ACTIVE
-    ).select_related('chore', 'user').first()
+    ).select_related('chore', 'user').order_by('start_time')
 
-    # Get all users for completing chores (only those eligible for points)
+    # Get all users for completing chores (including those not eligible for points)
+    # Note: Users not eligible for points can still complete chores,
+    # but points will be redistributed to eligible users
     users = User.objects.filter(
         is_active=True,
-        can_be_assigned=True,
-        eligible_for_points=True
+        can_be_assigned=True
     ).order_by('first_name', 'username')
 
     context = {
         'assigned_by_user': assigned_by_user,
         'today': today,
-        'active_arcade_session': active_arcade_session,
+        'active_arcade_sessions': active_arcade_sessions,  # ALL sessions
         'users': users,
     }
 
@@ -429,11 +501,14 @@ def users_minimal(request):
     Kiosk-mode compatible.
     """
     from chores.models import ArcadeSession
-    from datetime import timedelta
 
     now = timezone.now()
-    today = now.date()
-    tomorrow = today + timedelta(days=1)
+    today = timezone.localtime(now).date()  # Convert to local timezone before getting date
+
+    # Create timezone-aware datetime range for "today" in local timezone
+    from datetime import datetime
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
     # Get all users eligible for points
     users = User.objects.filter(
@@ -444,10 +519,15 @@ def users_minimal(request):
 
     # Get chore counts per user: include chores due today OR overdue from previous days
     assigned_chores = ChoreInstance.objects.filter(
-        status=ChoreInstance.ASSIGNED,
-        chore__is_active=True
+        status=ChoreInstance.ASSIGNED
     ).filter(
-        Q(due_at__date=today) | Q(due_at__date=tomorrow) | Q(due_at__lt=now)  # Due today/tomorrow OR past due
+        Q(chore__is_active=True) |  # Active chores
+        Q(  # OR open instances of inactive chores
+            chore__is_active=False,
+            status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+        )
+    ).filter(
+        Q(due_at__range=(today_start, today_end)) | Q(due_at__lt=today_start)  # Due today OR past due
     ).exclude(status=ChoreInstance.SKIPPED).select_related('assigned_to')
 
     # Count chores per user
@@ -465,15 +545,16 @@ def users_minimal(request):
             'chore_count': chore_counts.get(user.id, 0)
         })
 
-    # Check for any active arcade session (kiosk-mode compatible)
-    active_arcade_session = ArcadeSession.objects.filter(
+    # Get ALL active arcade sessions (kiosk-mode compatible)
+    # Support multiple concurrent arcade sessions
+    active_arcade_sessions = ArcadeSession.objects.filter(
         status=ArcadeSession.STATUS_ACTIVE
-    ).select_related('chore', 'user').first()
+    ).select_related('chore', 'user').order_by('start_time')
 
     context = {
         'users_with_counts': users_with_counts,
         'today': today,
-        'active_arcade_session': active_arcade_session,
+        'active_arcade_sessions': active_arcade_sessions,  # ALL sessions
     }
 
     return render(request, 'board/users_minimal.html', context)
@@ -678,6 +759,7 @@ def quick_add_task(request):
     return JsonResponse({'error': 'Invalid request method'}, status=400)
 
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def claim_chore_view(request):
     """Handle chore claim from frontend (kiosk mode with user selection)."""
@@ -737,6 +819,7 @@ def claim_chore_view(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def complete_chore_view(request):
     """Handle chore completion from frontend (kiosk mode with user selection)."""
@@ -756,6 +839,20 @@ def complete_chore_view(request):
             if instance.status == ChoreInstance.COMPLETED:
                 return JsonResponse({'error': 'Already completed'}, status=400)
 
+            # Validate undesirable chore configuration
+            if instance.chore.is_undesirable and not helper_ids:
+                eligible_count = User.objects.filter(
+                    eligible_for_points=True,
+                    can_be_assigned=True,
+                    is_active=True
+                ).count()
+
+                if eligible_count == 0:
+                    return JsonResponse({
+                        'error': 'Cannot complete this chore. There are no users with eligible_for_points=True. '
+                               'Please contact an administrator to configure user eligibility.'
+                    }, status=400)
+
             # Determine completion time and late status
             now = timezone.now()
             was_late = now > instance.due_at
@@ -772,12 +869,32 @@ def complete_chore_view(request):
             instance.is_late_completion = was_late
             instance.save()
 
-            # Create completion record
-            completion = Completion.objects.create(
-                chore_instance=instance,
-                completed_by=user,
-                was_late=was_late
-            )
+            # Create or reuse completion record
+            # Check if an undone completion exists (can happen after undo)
+            try:
+                completion = Completion.objects.get(chore_instance=instance)
+                if completion.is_undone:
+                    # Reuse the undone completion record
+                    completion.completed_by = user
+                    completion.completed_at = now
+                    completion.was_late = was_late
+                    completion.is_undone = False
+                    completion.undone_at = None
+                    completion.undone_by = None
+                    completion.save()
+
+                    # Delete old shares (will create new ones below)
+                    completion.shares.all().delete()
+                else:
+                    # This shouldn't happen due to status check, but just in case
+                    return JsonResponse({'error': 'Completion record already exists'}, status=400)
+            except Completion.DoesNotExist:
+                # No existing completion, create new one
+                completion = Completion.objects.create(
+                    chore_instance=instance,
+                    completed_by=user,
+                    was_late=was_late
+                )
 
             # Determine who gets points
             if helper_ids:
@@ -787,14 +904,15 @@ def complete_chore_view(request):
                 ))
             else:
                 if instance.chore.is_undesirable:
-                    from chores.models import ChoreEligibility
-                    eligible_ids = ChoreEligibility.objects.filter(
-                        chore=instance.chore
-                    ).values_list('user_id', flat=True)
+                    # Undesirable chores always distribute to ALL eligible users
                     helpers_list = list(User.objects.filter(
-                        id__in=eligible_ids,
-                        eligible_for_points=True
+                        eligible_for_points=True,
+                        can_be_assigned=True,
+                        is_active=True
                     ))
+                    logger.info(
+                        f"Undesirable chore completed. Distributing {instance.points_value} pts to {len(helpers_list)} eligible users"
+                    )
                 else:
                     # Check if completing user is eligible for points
                     if user.eligible_for_points:
@@ -865,6 +983,7 @@ def complete_chore_view(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@csrf_exempt
 def unclaim_chore_view(request):
     """Handle unclaiming a chore (returning it to the pool)."""
     try:
@@ -889,6 +1008,7 @@ def unclaim_chore_view(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def skip_chore_view(request):
     """Handle skipping a chore from frontend (kiosk mode with user selection)."""
@@ -932,6 +1052,7 @@ def skip_chore_view(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def reschedule_chore_view(request):
     """Handle rescheduling a chore instance from frontend (kiosk mode with user selection)."""
@@ -978,7 +1099,17 @@ def reschedule_chore_view(request):
                 return JsonResponse({'error': 'Cannot reschedule a completed chore'}, status=400)
 
             old_due_at = instance.due_at
+
+            # Ensure new_due_at is timezone-aware
+            if timezone.is_naive(new_due_at):
+                new_due_at = timezone.make_aware(new_due_at)
+
             instance.due_at = new_due_at
+
+            # Recalculate is_overdue based on new due_at
+            now = timezone.now()
+            instance.is_overdue = new_due_at < now
+
             instance.save()
 
             # Log the reschedule action
@@ -1039,6 +1170,20 @@ def health_check(request):
     except Exception as e:
         health_data['checks']['scheduler'] = f'unknown: {str(e)}'
 
+    # Check Celery (if configured)
+    if settings.CELERY_BROKER_URL:
+        try:
+            from ChoreBoard.celery import app as celery_app
+            # Inspect workers to see if any are active
+            inspector = celery_app.control.inspect()
+            stats = inspector.stats()
+            if stats:
+                health_data['checks']['celery'] = f'ok ({len(stats)} workers)'
+            else:
+                health_data['checks']['celery'] = 'no workers'
+        except Exception as e:
+            health_data['checks']['celery'] = f'error: {str(e)}'
+
     # Basic system info
     health_data['info'] = {
         'debug_mode': settings.DEBUG,
@@ -1077,10 +1222,12 @@ def get_updates(request):
             return JsonResponse({'error': 'Invalid timestamp format'}, status=400)
 
         # Get current time for response
-        from datetime import timedelta
         now = timezone.now()
-        today = now.date()
-        tomorrow = today + timedelta(days=1)
+        today = timezone.localtime(now).date()  # Convert to local timezone before getting date
+
+        # Create timezone-aware datetime range for "today" in local timezone
+        today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+        today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
         updates = {
             'timestamp': now.isoformat(),
@@ -1089,10 +1236,15 @@ def get_updates(request):
 
         # Get updated chore instances: include chores due today OR overdue from previous days
         updated_instances = ChoreInstance.objects.filter(
-            updated_at__gt=since,
-            chore__is_active=True
+            updated_at__gt=since
         ).filter(
-            Q(due_at__date=today) | Q(due_at__date=tomorrow) | Q(due_at__lt=now)  # Due today/tomorrow OR past due
+            Q(chore__is_active=True) |  # Active chores
+            Q(  # OR open instances of inactive chores
+                chore__is_active=False,
+                status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED]
+            )
+        ).filter(
+            Q(due_at__range=(today_start, today_end)) | Q(due_at__lt=today_start)  # Due today OR past due
         ).exclude(
             status=ChoreInstance.SKIPPED
         ).select_related('chore', 'assigned_to')

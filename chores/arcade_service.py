@@ -182,12 +182,55 @@ class ArcadeService:
         chore_instance.completed_at = completion_time
         chore_instance.save()
 
-        # Create standard Completion record (for compatibility with existing system)
-        completion = Completion.objects.create(
-            chore_instance=chore_instance,
-            completed_by=user,
-            was_late=chore_instance.is_overdue
-        )
+        # Create or reuse standard Completion record (for compatibility with existing system)
+        try:
+            completion = Completion.objects.get(chore_instance=chore_instance)
+            if completion.is_undone:
+                # Reuse the undone completion record
+                completion.completed_by = user
+                completion.completed_at = completion_time
+                completion.was_late = chore_instance.is_overdue
+                completion.is_undone = False
+                completion.undone_at = None
+                completion.undone_by = None
+                completion.save()
+                # Delete old shares (will create new ones below)
+                completion.shares.all().delete()
+                logger.info(f"Reused undone completion record {completion.id} for arcade approval")
+            else:
+                # Completion already exists and is not undone - this is an edge case where
+                # the chore was completed while an arcade session was active.
+                # Replace the existing completion with the arcade completion.
+                logger.warning(
+                    f"Overwriting existing completion {completion.id} with arcade approval. "
+                    f"Original completed by {completion.completed_by.username}, "
+                    f"arcade by {user.username}"
+                )
+
+                # Reverse the points from the original completion
+                old_shares = completion.shares.all()
+                for share in old_shares:
+                    share.user.add_points(-share.points_awarded, weekly=True, all_time=True)
+                    share.user.save()
+                    logger.info(f"Reversed {share.points_awarded} points from {share.user.username}")
+
+                # Delete old shares
+                old_shares.delete()
+
+                # Update the completion record for arcade
+                completion.completed_by = user
+                completion.completed_at = completion_time
+                completion.was_late = chore_instance.is_overdue
+                completion.save()
+
+                logger.info(f"Replaced completion {completion.id} with arcade completion")
+        except Completion.DoesNotExist:
+            # No existing completion, create new one
+            completion = Completion.objects.create(
+                chore_instance=chore_instance,
+                completed_by=user,
+                was_late=chore_instance.is_overdue
+            )
 
         # Spawn dependent chores (if any)
         from chores.services import DependencyService, AssignmentService

@@ -5,6 +5,9 @@ python-dotenv>=1.0.0
 # Background Jobs
 APScheduler>=3.10.4
 django-apscheduler>=0.6.2
+celery>=5.3.6
+redis>=5.0.1
+supervisor>=4.2.5
 
 # Date/Time handling
 python-dateutil>=2.8.2
@@ -16,6 +19,7 @@ whitenoise>=6.6.0
 
 # API Framework
 djangorestframework>=3.14.0
+drf-spectacular>=0.27.0
 
 # HTTP Library
 requests>=2.31.0

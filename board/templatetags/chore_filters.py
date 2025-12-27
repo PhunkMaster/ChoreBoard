@@ -1,5 +1,6 @@
 """Custom template filters for chore display."""
 from django import template
+from chores.models import Completion
 
 register = template.Library()
 
@@ -32,3 +33,18 @@ def is_sentinel_date(due_at):
         return False
 
     return due_at.year >= 9999
+
+
+@register.simple_tag
+def get_completion_details(completion_id):
+    """Get completion details including helpers."""
+    if not completion_id:
+        return None
+    try:
+        return Completion.objects.select_related(
+            'completed_by'
+        ).prefetch_related(
+            'shares__user'
+        ).get(id=completion_id)
+    except Completion.DoesNotExist:
+        return None

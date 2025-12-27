@@ -623,6 +623,15 @@ ChoreBoard Admin → Site Settings (`/admin/board/sitesettings/`):
 
 ChoreBoard can send webhook notifications to Home Assistant or other automation systems when key events occur.
 
+> **💡 Full Home Assistant Integration Available**
+>
+> For a complete Home Assistant experience with real-time sensors and a beautiful custom card, see:
+> - **[ChoreBoard Home Assistant Integration](https://github.com/PhunkMaster/ChoreBoard-HA-Integration)** - Full integration with sensor entities
+> - **[ChoreBoard Home Assistant Card](https://github.com/PhunkMaster/ChoreBoard-HA-Card)** - Custom Lovelace card for dashboards
+> - **[Complete Integration Guide](INTEGRATIONS.md)** - Detailed setup instructions
+>
+> The webhook notifications below are useful for custom automations, but the full integration provides a richer experience.
+
 **Configuring Webhooks** (Django Admin → Settings):
 
 1. **Enable Notifications**: Check the "Enable notifications" checkbox

@@ -1,31 +1,34 @@
 version: '3.8'
 
 services:
-  web:
-    # Option 1: Build from source
+  choreboard:
     build: .
-    # Option 2: Use pre-built image (uncomment and remove 'build' line above)
-    # image: ghcr.io/YOUR_USERNAME/choreboard2:latest
     container_name: choreboard
     ports:
       - "8000:8000"
     volumes:
-      # Mount database directory for persistence
       - ./data:/app/data
-      # Mount static files
       - ./staticfiles:/app/staticfiles
     environment:
-      # Django settings
       - DJANGO_SETTINGS_MODULE=ChoreBoard.settings
       - SECRET_KEY=${SECRET_KEY:-django-insecure-change-this-in-production}
       - DEBUG=${DEBUG:-False}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
-      # Database path (SQLite)
       - DATABASE_PATH=/app/data/db.sqlite3
-      # Timezone
       - TZ=America/Chicago
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - SKIP_SCHEDULER=True
+    depends_on:
+      - redis
     restart: unless-stopped
-    command: python manage.py runserver 0.0.0.0:8000
+
+  redis:
+    image: redis:7-alpine
+    container_name: choreboard_redis
+    restart: unless-stopped
+    expose:
+      - "6379"
 
 volumes:
   # Named volumes for data persistence

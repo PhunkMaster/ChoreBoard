@@ -47,7 +47,12 @@
                     <tr class="hover:bg-dark-card/50 transition">
                         <td class="px-6 py-4">
                             <div>
-                                <p class="text-white font-medium">{{ chore.name }}</p>
+                                <p class="text-white font-medium">
+                                    {{ chore.name }}
+                                    {% if chore.complete_later %}
+                                    <span class="ml-2 text-yellow-400" title="Complete Later">🕐</span>
+                                    {% endif %}
+                                </p>
                                 {% if chore.description %}
                                 <p class="text-gray-400 text-sm mt-1">{{ chore.description|truncatewords:15 }}</p>
                                 {% endif %}
@@ -226,6 +231,15 @@
                     <input type="checkbox" id="chore-is-difficult" name="is_difficult"
                            class="w-4 h-4 text-primary-600 bg-dark-card border-dark-border rounded focus:ring-primary-500">
                     <span class="ml-2 text-gray-300">Difficult (Requires extra effort)</span>
+                </label>
+            </div>
+
+            <!-- Complete Later -->
+            <div>
+                <label class="flex items-center">
+                    <input type="checkbox" id="chore-complete-later" name="complete_later"
+                           class="w-4 h-4 text-primary-600 bg-dark-card border-dark-border rounded focus:ring-primary-500">
+                    <span class="ml-2 text-gray-300">Complete Later (Can be done later in the day, not immediately)</span>
                 </label>
             </div>
 
@@ -681,6 +695,7 @@ async function editChore(choreId) {
 
             document.getElementById('chore-undesirable').checked = data.is_undesirable;
             document.getElementById('chore-is-difficult').checked = data.is_difficult || false;
+            document.getElementById('chore-complete-later').checked = data.complete_later || false;
             document.getElementById('chore-distribution-time').value = data.distribution_time;
             document.getElementById('chore-schedule-type').value = data.schedule_type;
 
@@ -989,24 +1004,24 @@ function toggleEligibleUsers() {
 }
 
 // Populate eligible users multi-select
-function populateEligibleUsers() {
-    fetch('/admin-panel/users/list/')
-        .then(response => response.json())
-        .then(data => {
-            const select = document.getElementById('chore-eligible-users');
-            select.innerHTML = ''; // Clear existing options
+async function populateEligibleUsers() {
+    try {
+        const response = await fetch('/admin-panel/users/list/');
+        const data = await response.json();
 
-            data.users.forEach(user => {
-                const option = document.createElement('option');
-                option.value = user.id;
-                option.textContent = user.display_name || user.first_name || user.username;
-                select.appendChild(option);
-            });
-        })
-        .catch(error => {
-            console.error('Error fetching users:', error);
-            showToast('Failed to load eligible users', 'error');
+        const select = document.getElementById('chore-eligible-users');
+        select.innerHTML = ''; // Clear existing options
+
+        data.users.forEach(user => {
+            const option = document.createElement('option');
+            option.value = user.id;
+            option.textContent = user.display_name || user.first_name || user.username;
+            select.appendChild(option);
         });
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        showToast('Failed to load eligible users', 'error');
+    }
 }
 
 function loadRRuleFromJSON(jsonString) {
@@ -1136,6 +1151,7 @@ document.getElementById('chore-form').addEventListener('submit', async function(
     formData.set('is_pool', isPool ? 'true' : 'false');
     formData.set('is_undesirable', document.getElementById('chore-undesirable').checked ? 'true' : 'false');
     formData.set('is_difficult', document.getElementById('chore-is-difficult').checked ? 'true' : 'false');
+    formData.set('complete_later', document.getElementById('chore-complete-later').checked ? 'true' : 'false');
 
     // Add eligible users for undesirable chores
     if (document.getElementById('chore-undesirable').checked) {

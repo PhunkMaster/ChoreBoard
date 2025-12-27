@@ -83,17 +83,17 @@ def midnight_evaluation():
             logger.info(f"Found {active_chores.count()} active chores (excluding child chores)")
 
             # Create instances for each chore based on schedule
-            today = now.date()
+            # IMPORTANT: Use local date, not UTC date!
+            today = timezone.localtime(now).date()
 
             for chore in active_chores:
                 try:
                     should_create = should_create_instance_today(chore, today)
 
                     if should_create:
-                        # Calculate due time (start of next day - clearer and DST-safe)
-                        tomorrow = today + timedelta(days=1)
+                        # Calculate due time (end of today - chores due on same day they're created)
                         due_at = timezone.make_aware(
-                            datetime.combine(tomorrow, datetime.min.time())
+                            datetime.combine(today, datetime.max.time())
                         )
 
                         # Distribution time
@@ -113,6 +113,21 @@ def midnight_evaluation():
 
                         chores_created += 1
                         logger.info(f"Created instance for chore: {chore.name}")
+
+                        # Log chore creation to ActionLog
+                        from core.models import ActionLog
+                        ActionLog.objects.create(
+                            action_type=ActionLog.ACTION_CHORE_CREATED,
+                            user=None,
+                            description=f"Created instance: {chore.name}",
+                            metadata={
+                                'chore_id': chore.id,
+                                'instance_id': instance.id,
+                                'points': float(instance.points_value),
+                                'status': instance.status,
+                                'created_by': 'midnight_evaluation'
+                            }
+                        )
 
                         # If chore is undesirable and in pool, assign immediately
                         if chore.is_undesirable and chore.is_pool:
@@ -155,6 +170,22 @@ def midnight_evaluation():
             logger.info(f"Midnight evaluation completed in {execution_time:.2f}s")
             logger.info(f"Created {chores_created} instances, marked {chores_marked_overdue} overdue")
 
+            # Log to ActionLog
+            from core.models import ActionLog
+            ActionLog.objects.create(
+                action_type=ActionLog.ACTION_MIDNIGHT_EVAL,
+                user=None,  # System action
+                description=f"Midnight evaluation: {chores_created} created, {chores_marked_overdue} overdue",
+                metadata={
+                    'success': len(errors) == 0,
+                    'chores_created': chores_created,
+                    'chores_marked_overdue': chores_marked_overdue,
+                    'execution_time_seconds': float(execution_time),
+                    'errors_count': len(errors),
+                    'evaluation_log_id': eval_log.id
+                }
+            )
+
             return eval_log
 
     except Exception as e:
@@ -175,6 +206,21 @@ def midnight_evaluation():
             errors_count=len(errors),
             error_details="\n".join(errors),
             execution_time_seconds=Decimal(str(execution_time))
+        )
+
+        # Log failure to ActionLog
+        from core.models import ActionLog
+        ActionLog.objects.create(
+            action_type=ActionLog.ACTION_MIDNIGHT_EVAL,
+            user=None,
+            description=f"Midnight evaluation FAILED: {len(errors)} errors",
+            metadata={
+                'success': False,
+                'chores_created': chores_created,
+                'chores_marked_overdue': chores_marked_overdue,
+                'errors_count': len(errors),
+                'evaluation_log_id': eval_log.id
+            }
         )
 
         raise
@@ -386,12 +432,21 @@ def should_create_instance_today(chore, today):
     Returns:
         bool: True if instance should be created
     """
-    # Check if instance already exists for today
-    # Note: With our due_at logic, instances "for today" have due_at = start of tomorrow
-    tomorrow = today + timedelta(days=1)
+    # Check if instance already exists for today OR if there's any open instance
+    # This prevents creating duplicates when:
+    # 1. An instance for today already exists
+    # 2. There's an open (non-closed) instance from a previous day
+    from django.db.models import Q
+
+    # Use date range for timezone-aware comparison
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+
     existing = ChoreInstance.objects.filter(
-        chore=chore,
-        due_at__date=tomorrow
+        chore=chore
+    ).filter(
+        Q(due_at__range=(today_start, today_end)) |  # Instance due today
+        ~Q(status__in=['completed', 'skipped'])  # OR any open instance
     ).exists()
 
     if existing:
@@ -442,7 +497,9 @@ def should_create_instance_today(chore, today):
 
         try:
             # Parse RRULE JSON and check if today matches
-            return evaluate_rrule(chore.rrule_json, today, chore.created_at.date())
+            # Convert created_at to local timezone first
+            chore_created_date = timezone.localtime(chore.created_at).date()
+            return evaluate_rrule(chore.rrule_json, today, chore_created_date)
         except Exception as e:
             logger.error(f"Error evaluating RRULE for chore '{chore.name}': {e}")
             return False
@@ -508,12 +565,13 @@ def cleanup_completed_one_time_tasks():
 
 def distribution_check():
     """
-    Distribution check job (runs at 17:30 daily).
+    Distribution check job (runs every 5 minutes).
 
     Tasks:
-    1. Find ChoreInstances with distribution_time that has passed
-    2. Auto-assign based on assignment algorithm
-    3. Send notifications for assigned chores
+    1. Check if midnight evaluation was missed and run it if needed
+    2. Find ChoreInstances with distribution_time that has passed
+    3. Auto-assign based on assignment algorithm
+    4. Send notifications for assigned chores
     """
     from chores.services import AssignmentService
 
@@ -522,6 +580,31 @@ def distribution_check():
     now = timezone.now()
     current_tz = timezone.get_current_timezone()
     logger.info(f"Distribution check running at {now} (timezone: {current_tz})")
+
+    # WATCHDOG: Check if midnight evaluation ran today
+    # If it's between 12:30 AM and 2:00 AM and no evaluation log exists for today, trigger it
+    local_now = timezone.localtime(now)
+    if (local_now.hour == 0 and local_now.minute >= 30) or local_now.hour == 1:  # Between 00:30 and 01:59
+        today_start = timezone.make_aware(
+            datetime.combine(local_now.date(), datetime.min.time())
+        )
+        today_end = today_start + timedelta(hours=1, minutes=30)  # Check between midnight and 1:30 AM
+
+        eval_exists = EvaluationLog.objects.filter(
+            started_at__gte=today_start,
+            started_at__lt=today_end
+        ).exists()
+
+        if not eval_exists:
+            logger.warning(f"⚠️  WATCHDOG: Midnight evaluation has not run today ({local_now.date()})")
+            logger.warning("⚠️  WATCHDOG: Triggering missed midnight evaluation now...")
+            try:
+                midnight_evaluation()
+                logger.info("✓ WATCHDOG: Successfully ran missed midnight evaluation")
+            except Exception as e:
+                logger.error(f"✗ WATCHDOG: Failed to run missed midnight evaluation: {str(e)}")
+        else:
+            logger.debug(f"✓ WATCHDOG: Midnight evaluation already ran today")
 
     # Find pool chores that need distribution
     instances_to_distribute = ChoreInstance.objects.filter(
@@ -532,9 +615,11 @@ def distribution_check():
 
     logger.info(f"Found {instances_to_distribute.count()} instances to distribute")
     for instance in instances_to_distribute:
+        local_distribution_at = timezone.localtime(instance.distribution_at)
+        local_now = timezone.localtime(now)
         logger.info(
-            f"  - {instance.chore.name}: distribution_at={instance.distribution_at}, "
-            f"now={now}, status={instance.status}"
+            f"  - {instance.chore.name}: distribution_at={local_distribution_at}, "
+            f"now={local_now}, status={instance.status}"
         )
 
     assigned_count = 0
@@ -581,7 +666,8 @@ def weekly_snapshot_job():
     logger.info("Starting weekly snapshot job")
 
     now = timezone.now()
-    week_ending = now.date()
+    # Use local timezone, not UTC
+    week_ending = timezone.localtime(now).date()
 
     # Get all users eligible for points
     eligible_users = User.objects.filter(eligible_for_points=True)
