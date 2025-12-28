@@ -18,6 +18,34 @@ from core.notifications import NotificationService
 logger = logging.getLogger(__name__)
 
 
+def mark_overdue_chores():
+    """
+    Find and mark all past-due chore instances as overdue.
+    Sends notifications for newly marked chores.
+    """
+    now = timezone.now()
+    overdue_instances = ChoreInstance.objects.filter(
+        status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED],
+        due_at__lt=now,
+        is_overdue=False
+    ).select_related('chore', 'assigned_to')
+
+    # Collect instances before updating (can't iterate after update)
+    overdue_list = list(overdue_instances)
+    overdue_count = overdue_instances.update(is_overdue=True)
+
+    if overdue_count > 0:
+        logger.info(f"Marked {overdue_count} chore instances as overdue")
+        # Send webhook notifications for overdue chores
+        for instance in overdue_list:
+            try:
+                NotificationService.notify_chore_overdue(instance)
+            except Exception as e:
+                logger.error(f"Error sending overdue notification for {instance.id}: {str(e)}")
+
+    return overdue_count
+
+
 def midnight_evaluation():
     """
     Midnight evaluation job (runs at 00:00 daily).
@@ -28,7 +56,8 @@ def midnight_evaluation():
     3. Reset users' claims_today counter
     4. Log execution results
     """
-    started_at = timezone.now()
+    now = timezone.now()
+    started_at = now
     logger.info(f"Starting midnight evaluation at {started_at}")
 
     chores_created = 0
@@ -42,22 +71,7 @@ def midnight_evaluation():
             logger.info("Reset daily claim counters for all users")
 
             # Mark overdue chores
-            now = timezone.now()
-            overdue_instances = ChoreInstance.objects.filter(
-                status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED],
-                due_at__lt=now,
-                is_overdue=False
-            ).select_related('chore', 'assigned_to')
-
-            # Collect instances before updating (can't iterate after update)
-            overdue_list = list(overdue_instances)
-            overdue_count = overdue_instances.update(is_overdue=True)
-            chores_marked_overdue = overdue_count
-            logger.info(f"Marked {overdue_count} chore instances as overdue")
-
-            # Send webhook notifications for overdue chores
-            for instance in overdue_list:
-                NotificationService.notify_chore_overdue(instance)
+            chores_marked_overdue = mark_overdue_chores()
 
             # Cleanup completed one-time tasks (archive after undo window)
             try:
@@ -576,27 +590,39 @@ def distribution_check():
     current_tz = timezone.get_current_timezone()
     logger.info(f"Distribution check running at {now} (timezone: {current_tz})")
 
+    # Mark overdue chores first
+    mark_overdue_chores()
+
     # WATCHDOG: Check if midnight evaluation ran today
-    # If it's between 12:30 AM and 2:00 AM and no evaluation log exists for today, trigger it
-    if (now.hour == 0 and now.minute >= 30) or now.hour == 1:  # Between 00:30 and 01:59
-        today_start = datetime.combine(now.date(), datetime.min.time())
-        today_end = today_start + timedelta(hours=1, minutes=30)  # Check between midnight and 1:30 AM
+    # Runs "as soon as possible" after midnight if the scheduled job was missed.
+    now_local = timezone.localtime(now)
+    today_local = now_local.date()
 
-        eval_exists = EvaluationLog.objects.filter(
-            started_at__gte=today_start,
-            started_at__lt=today_end
-        ).exists()
+    # Check if a successful evaluation has run for the current local date
+    eval_exists = EvaluationLog.objects.filter(
+        started_at__date=today_local,
+        success=True
+    ).exists()
 
-        if not eval_exists:
-            logger.warning(f"⚠️  WATCHDOG: Midnight evaluation has not run today ({now.date()})")
-            logger.warning("⚠️  WATCHDOG: Triggering missed midnight evaluation now...")
+    # To avoid double-running exactly at midnight (scheduled job), we wait at least 5 minutes.
+    # We also check for any attempt today to avoid infinite loops on persistent failures.
+    if not eval_exists and (now_local.hour > 0 or now_local.minute >= 5):
+        attempts_today = EvaluationLog.objects.filter(
+            started_at__date=today_local
+        ).count()
+
+        if attempts_today < 3:
+            logger.warning(f"⚠️  WATCHDOG: Midnight evaluation has not run successfully today ({today_local})")
+            logger.warning(f"⚠️  WATCHDOG: Attempt {attempts_today + 1}/3. Triggering now...")
             try:
                 midnight_evaluation()
                 logger.info("✓ WATCHDOG: Successfully ran missed midnight evaluation")
             except Exception as e:
                 logger.error(f"✗ WATCHDOG: Failed to run missed midnight evaluation: {str(e)}")
-        else:
-            logger.debug(f"✓ WATCHDOG: Midnight evaluation already ran today")
+        elif attempts_today == 3:
+            logger.error(f"✗ WATCHDOG: Midnight evaluation failed 3 times today ({today_local}). Giving up to avoid loop.")
+    else:
+        logger.debug(f"✓ WATCHDOG: Midnight evaluation check passed")
 
     # Find pool chores that need distribution
     instances_to_distribute = ChoreInstance.objects.filter(

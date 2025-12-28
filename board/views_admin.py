@@ -81,13 +81,13 @@ def admin_dashboard(request):
         due_at__range=(today_start, today_end)  # Due today (timezone-aware)
     ).count()
 
-    # Overdue chores (eligible users only)
+    # Overdue chores (assigned to eligible users OR in pool)
     overdue_count = ChoreInstance.objects.filter(
-        status=ChoreInstance.ASSIGNED,
+        status__in=[ChoreInstance.ASSIGNED, ChoreInstance.POOL],
         chore__is_active=True,
-        assigned_to__eligible_for_points=True,
-        assigned_to__isnull=False,
         is_overdue=True
+    ).filter(
+        Q(assigned_to__isnull=True) | Q(assigned_to__eligible_for_points=True)
     ).filter(
         Q(due_at__range=(today_start, today_end)) |  # Due today but overdue (timezone-aware)
         Q(due_at__lt=today_start) |  # Overdue from previous days

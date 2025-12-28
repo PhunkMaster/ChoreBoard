@@ -8,6 +8,7 @@ from decimal import Decimal
 from django.test import TestCase
 from django.utils import timezone
 from datetime import timedelta, date, time, datetime
+from unittest.mock import patch
 
 from users.models import User
 from chores.models import Chore, ChoreInstance, Completion, CompletionShare
@@ -569,130 +570,98 @@ class WatchdogTests(TestCase):
             distribution_time=time(17, 30)
         )
 
-    def test_watchdog_does_not_trigger_at_midnight(self):
-        """Test that watchdog doesn't trigger at exactly midnight (too early)."""
-        # Simulate running at 00:00
-        test_time = timezone.make_aware(datetime.combine(
-            timezone.now().date(),
-            time(0, 0)
-        ))
+    @patch('core.jobs.midnight_evaluation')
+    def test_watchdog_does_not_trigger_during_grace_period(self, mock_midnight):
+        """Test that watchdog doesn't trigger during 5-minute grace period after midnight."""
+        # 00:01 AM local time
+        now = timezone.make_aware(datetime.combine(timezone.localdate(), time(0, 1)))
+        
+        with patch('django.utils.timezone.now', return_value=now):
+            run_distribution_check()
+            
+        self.assertFalse(mock_midnight.called, "Watchdog should NOT trigger during grace period")
 
-        with self.settings(USE_TZ=True):
-            # The watchdog condition checks: (hour == 0 and minute >= 30) or hour == 1
-            # At 00:00, this should be False
-            local_time = timezone.localtime(test_time)
-            should_trigger = (local_time.hour == 0 and local_time.minute >= 30) or local_time.hour == 1
+    @patch('core.jobs.midnight_evaluation')
+    def test_watchdog_triggers_after_grace_period(self, mock_midnight):
+        """Test that watchdog triggers after 5-minute grace period (e.g., 00:06)."""
+        # 00:06 AM local time
+        now = timezone.make_aware(datetime.combine(timezone.localdate(), time(0, 6)))
+        
+        with patch('django.utils.timezone.now', return_value=now):
+            run_distribution_check()
+            
+        self.assertTrue(mock_midnight.called, "Watchdog SHOULD trigger after grace period if no log exists")
 
-            self.assertFalse(
-                should_trigger,
-                "Watchdog should NOT trigger at 00:00 (before 00:30)"
-            )
-
-    def test_watchdog_triggers_at_half_past_midnight(self):
-        """Test that watchdog triggers at 00:30 (start of window)."""
-        # Simulate running at 00:30
-        test_time = timezone.make_aware(datetime.combine(
-            timezone.now().date(),
-            time(0, 30)
-        ))
-
-        local_time = timezone.localtime(test_time)
-        should_trigger = (local_time.hour == 0 and local_time.minute >= 30) or local_time.hour == 1
-
-        self.assertTrue(
-            should_trigger,
-            "Watchdog SHOULD trigger at 00:30 (start of window)"
-        )
-
-    def test_watchdog_triggers_during_1am_hour(self):
-        """Test that watchdog triggers during 1:00 AM hour."""
-        # Test at 01:00
-        test_time_1 = timezone.make_aware(datetime.combine(
-            timezone.now().date(),
-            time(1, 0)
-        ))
-
-        local_time_1 = timezone.localtime(test_time_1)
-        should_trigger_1 = (local_time_1.hour == 0 and local_time_1.minute >= 30) or local_time_1.hour == 1
-
-        self.assertTrue(
-            should_trigger_1,
-            "Watchdog SHOULD trigger at 01:00"
-        )
-
-        # Test at 01:59
-        test_time_2 = timezone.make_aware(datetime.combine(
-            timezone.now().date(),
-            time(1, 59)
-        ))
-
-        local_time_2 = timezone.localtime(test_time_2)
-        should_trigger_2 = (local_time_2.hour == 0 and local_time_2.minute >= 30) or local_time_2.hour == 1
-
-        self.assertTrue(
-            should_trigger_2,
-            "Watchdog SHOULD trigger at 01:59 (end of window)"
-        )
-
-    def test_watchdog_does_not_trigger_at_2am(self):
-        """Test that watchdog doesn't trigger at 2:00 AM (after window)."""
-        test_time = timezone.make_aware(datetime.combine(
-            timezone.now().date(),
-            time(2, 0)
-        ))
-
-        local_time = timezone.localtime(test_time)
-        should_trigger = (local_time.hour == 0 and local_time.minute >= 30) or local_time.hour == 1
-
-        self.assertFalse(
-            should_trigger,
-            "Watchdog should NOT trigger at 02:00 (after window)"
-        )
-
-    def test_watchdog_does_not_trigger_at_8_30pm(self):
-        """
-        CRITICAL BUG TEST: Test that watchdog doesn't trigger at 20:30 (8:30 PM).
-
-        This is the bug that caused midnight evaluation to run at 8:30 PM on Dec 14.
-        The old condition: if hour >= 0 and minute >= 30
-        Would trigger at ANY hour with minutes >= 30.
-        """
-        test_time = timezone.make_aware(datetime.combine(
-            timezone.now().date(),
-            time(20, 30)
-        ))
-
-        local_time = timezone.localtime(test_time)
-        should_trigger = (local_time.hour == 0 and local_time.minute >= 30) or local_time.hour == 1
-
-        self.assertFalse(
-            should_trigger,
-            "Watchdog should NOT trigger at 20:30 (THIS WAS THE BUG!)"
-        )
-
-    def test_watchdog_does_not_trigger_during_day(self):
-        """Test that watchdog doesn't trigger during normal daytime hours."""
+    @patch('core.jobs.midnight_evaluation')
+    def test_watchdog_triggers_during_day(self, mock_midnight):
+        """Test that watchdog triggers anytime during the day if no log exists."""
         test_times = [
-            time(8, 30),   # Morning
-            time(12, 30),  # Noon
-            time(14, 45),  # Afternoon
-            time(18, 30),  # Evening
-            time(23, 30),  # Night
+            time(2, 0),    # After old window
+            time(10, 0),   # Morning
+            time(15, 30),  # Afternoon
+            time(20, 30),  # Evening (previously excluded by window)
         ]
+        
+        for t in test_times:
+            mock_midnight.reset_mock()
+            now = timezone.make_aware(datetime.combine(timezone.localdate(), t))
+            
+            with patch('django.utils.timezone.now', return_value=now):
+                run_distribution_check()
+                
+            self.assertTrue(mock_midnight.called, f"Watchdog SHOULD trigger at {t} if no log exists")
 
-        for test_time in test_times:
-            full_datetime = timezone.make_aware(datetime.combine(
-                timezone.now().date(),
-                test_time
-            ))
+    @patch('core.jobs.midnight_evaluation')
+    def test_watchdog_does_not_trigger_if_log_exists(self, mock_midnight):
+        """Test that watchdog does NOT trigger if a successful log already exists for today."""
+        # Create successful log for today
+        EvaluationLog.objects.create(
+            started_at=timezone.now(),
+            success=True
+        )
+        
+        # 10:00 AM local time
+        now = timezone.make_aware(datetime.combine(timezone.localdate(), time(10, 0)))
+        
+        with patch('django.utils.timezone.now', return_value=now):
+            run_distribution_check()
+            
+        self.assertFalse(mock_midnight.called, "Watchdog should NOT trigger if successful log exists")
 
-            local_time = timezone.localtime(full_datetime)
-            should_trigger = (local_time.hour == 0 and local_time.minute >= 30) or local_time.hour == 1
+    @patch('core.jobs.midnight_evaluation')
+    def test_watchdog_retries_on_failure(self, mock_midnight):
+        """Test that watchdog retries if previous attempts today failed (up to 3)."""
+        # Create 1 failed log for today
+        EvaluationLog.objects.create(
+            started_at=timezone.now(),
+            success=False
+        )
+        
+        # 10:00 AM local time
+        now = timezone.make_aware(datetime.combine(timezone.localdate(), time(10, 0)))
+        
+        with patch('django.utils.timezone.now', return_value=now):
+            run_distribution_check()
+            
+        self.assertTrue(mock_midnight.called, "Watchdog SHOULD retry if only failed logs exist")
 
-            self.assertFalse(
-                should_trigger,
-                f"Watchdog should NOT trigger at {test_time}"
+    @patch('core.jobs.midnight_evaluation')
+    def test_watchdog_stops_after_3_attempts(self, mock_midnight):
+        """Test that watchdog stops trying after 3 attempts today."""
+        # Create 3 failed logs for today
+        for _ in range(3):
+            EvaluationLog.objects.create(
+                started_at=timezone.now(),
+                success=False
             )
+            
+        # 10:00 AM local time
+        now = timezone.make_aware(datetime.combine(timezone.localdate(), time(10, 0)))
+        
+        with patch('django.utils.timezone.now', return_value=now):
+            run_distribution_check()
+            
+        self.assertFalse(mock_midnight.called, "Watchdog should STOP after 3 attempts")
 
 
 class LocalDateTests(TestCase):

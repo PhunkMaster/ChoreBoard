@@ -144,7 +144,7 @@
         {% if pool_chores %}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {% for instance in pool_chores %}
-            <div class="chore-card bg-dark-surface rounded-lg p-6 border-2 border-green-500/50 hover:border-green-500"
+            <div class="chore-card bg-dark-surface rounded-lg p-6 border-2 {% if instance.is_overdue %}border-red-500/50 hover:border-red-500{% else %}border-green-500/50 hover:border-green-500{% endif %}"
                  data-instance-id="{{ instance.id }}">
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex-1">
@@ -163,7 +163,11 @@
                         <p class="text-gray-400 text-sm mt-1">{{ instance.chore.description }}</p>
                         {% endif %}
                     </div>
+                    {% if instance.is_overdue %}
+                    <span class="status-badge badge-overdue ml-2">Late</span>
+                    {% else %}
                     <span class="status-badge badge-pool ml-2">Pool</span>
+                    {% endif %}
                 </div>
 
                 <div class="flex justify-between items-center text-sm mb-4">

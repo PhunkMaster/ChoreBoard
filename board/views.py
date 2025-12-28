@@ -316,7 +316,7 @@ def user_board_minimal(request, username):
     ).select_related('chore').prefetch_related(
         'completion__completed_by',
         'completion__shares__user'
-    ).order_by('is_overdue', 'due_at')
+    ).order_by('-is_overdue', 'due_at')
 
     # Check for active arcade session for THIS user only (from URL username)
     # This ensures Alice's arcade session only shows on /user/alice/minimal/
