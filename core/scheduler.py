@@ -41,7 +41,7 @@ def start_scheduler():
         try:
             scheduler.add_job(
                 midnight_evaluation,
-                trigger=CronTrigger(minute='*', timezone="America/Chicago"),
+                trigger=CronTrigger(minute='*', timezone=os.getenv("TZ", "America/Chicago")),
                 id="midnight_evaluation",
                 max_instances=1,
                 replace_existing=True,
@@ -56,7 +56,7 @@ def start_scheduler():
         try:
             scheduler.add_job(
                 midnight_evaluation,
-                trigger=CronTrigger(hour=0, minute=0, timezone="America/Chicago"),
+                trigger=CronTrigger(hour=0, minute=0, timezone=os.getenv("TZ", "America/Chicago")),
                 id="midnight_evaluation",
                 max_instances=1,
                 replace_existing=True,
@@ -71,7 +71,7 @@ def start_scheduler():
     try:
         scheduler.add_job(
             distribution_check,
-            trigger=CronTrigger(minute='*/5', timezone="America/Chicago"),
+            trigger=CronTrigger(minute='*/5', timezone=os.getenv("TZ", "America/Chicago")),
             id="distribution_check",
             max_instances=1,
             replace_existing=True,
@@ -86,7 +86,7 @@ def start_scheduler():
     try:
         scheduler.add_job(
             weekly_snapshot_job,
-            trigger=CronTrigger(day_of_week='sun', hour=0, minute=0, timezone="America/Chicago"),
+            trigger=CronTrigger(day_of_week='sun', hour=0, minute=0, timezone=os.getenv("TZ", "America/Chicago")),
             id="weekly_snapshot",
             max_instances=1,
             replace_existing=True,

@@ -345,6 +345,8 @@ class ChoreInstance(models.Model):
     REASON_CLAIMED = "claimed"
     REASON_FORCE_ASSIGNED = "force_assigned"
     REASON_MANUAL = "manual_assign"
+    REASON_MANUAL_ASSIGN = "manual_assign"
+    REASON_FIXED = "fixed"
     REASON_NO_ELIGIBLE = "no_eligible_users"
     REASON_ALL_COMPLETED_YESTERDAY = "all_completed_yesterday"
     REASON_PARENT_COMPLETION = "parent_completion"
@@ -352,6 +354,7 @@ class ChoreInstance(models.Model):
         (REASON_CLAIMED, "User claimed"),
         (REASON_FORCE_ASSIGNED, "Force assigned by system"),
         (REASON_MANUAL, "Manually assigned by admin"),
+        (REASON_FIXED, "Fixed assignment"),
         (REASON_NO_ELIGIBLE, "No eligible users"),
         (REASON_ALL_COMPLETED_YESTERDAY, "All eligible users completed yesterday"),
         (REASON_PARENT_COMPLETION, "Spawned from parent chore completion"),

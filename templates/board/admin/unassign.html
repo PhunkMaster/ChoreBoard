@@ -36,6 +36,16 @@
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30">
                                 System Force-Assigned
                             </span>
+                            {% elif instance.assignment_reason == 'fixed' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                                Fixed Assignment
+                            </span>
+                            {% endif %}
+
+                            {% if instance.chore.is_undesirable %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+                                Undesirable
+                            </span>
                             {% endif %}
                         </div>
                         <div class="mt-2 space-y-1">
@@ -99,7 +109,6 @@
         {% endif %}
     </div>
 </div>
-{% endblock %}
 
 <!-- Reassign Modal -->
 <div id="reassignModal" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">

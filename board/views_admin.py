@@ -1927,10 +1927,11 @@ def admin_unassign(request):
     """
     from django.db.models import Q
 
-    # Get all force-assigned and manually assigned chores (not completed)
+    # Get all force-assigned, manually assigned chores, fixed assignments, or undesirable chores (not completed)
     manually_assigned = ChoreInstance.objects.filter(
-        status=ChoreInstance.ASSIGNED,
-        assignment_reason__in=[ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED]
+        Q(assignment_reason__in=[ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED, ChoreInstance.REASON_FIXED]) |
+        Q(chore__is_undesirable=True),
+        status=ChoreInstance.ASSIGNED
     ).select_related('chore', 'assigned_to').order_by('due_at')
 
     # Get all eligible users for reassignment
@@ -1958,8 +1959,8 @@ def admin_unassign_action(request, instance_id):
         if instance.status != ChoreInstance.ASSIGNED:
             return JsonResponse({'error': 'Chore is not assigned'}, status=400)
 
-        if instance.assignment_reason not in [ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED]:
-            return JsonResponse({'error': 'Can only unassign force-assigned or manually assigned chores'}, status=400)
+        if instance.assignment_reason not in [ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED, ChoreInstance.REASON_FIXED] and not instance.chore.is_undesirable:
+            return JsonResponse({'error': 'Can only unassign force-assigned, manually assigned, fixed, or undesirable chores'}, status=400)
 
         with transaction.atomic():
             # Store for logging
@@ -2015,8 +2016,8 @@ def admin_reassign_action(request, instance_id):
         if instance.status != ChoreInstance.ASSIGNED:
             return JsonResponse({'error': 'Chore is not assigned'}, status=400)
 
-        if instance.assignment_reason not in [ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED]:
-            return JsonResponse({'error': 'Can only reassign force-assigned or manually assigned chores'}, status=400)
+        if instance.assignment_reason not in [ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED, ChoreInstance.REASON_FIXED] and not instance.chore.is_undesirable:
+            return JsonResponse({'error': 'Can only reassign force-assigned, manually assigned, fixed, or undesirable chores'}, status=400)
 
         # Check if trying to reassign to the same user
         if instance.assigned_to == new_user:
