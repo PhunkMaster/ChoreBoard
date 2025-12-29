@@ -104,6 +104,13 @@
                                         class="text-amber-400 hover:text-amber-300 font-medium text-sm transition">
                                     {% if chore.is_active %}Deactivate{% else %}Activate{% endif %}
                                 </button>
+                                {% if not chore.is_active %}
+                                <span class="text-gray-600">|</span>
+                                <button onclick="deleteChore({{ chore.id }}, '{{ chore.name|escapejs }}')"
+                                        class="text-red-400 hover:text-red-300 font-medium text-sm transition">
+                                    Delete
+                                </button>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -148,10 +155,17 @@
                 <label for="template-selector" class="block text-primary-400 mb-2 font-medium">
                     📋 Load from Template
                 </label>
-                <select id="template-selector" onchange="loadTemplate(this.value)"
-                        class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
-                    <option value="">-- Select a template (optional) --</option>
-                </select>
+                <div class="flex space-x-2">
+                    <select id="template-selector" onchange="loadTemplate(this.value)"
+                            class="flex-1 bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                        <option value="">-- Select a template (optional) --</option>
+                    </select>
+                    <button type="button" onclick="deleteTemplate()" id="btn-delete-template"
+                            class="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded-lg transition"
+                            title="Delete selected template">
+                        <i class="fas fa-trash-alt"></i> 🗑️
+                    </button>
+                </div>
                 <p class="text-gray-400 text-sm mt-2">Load a saved template to quickly fill in the form fields</p>
             </div>
 
@@ -612,6 +626,41 @@ async function loadTemplate(templateId) {
     } catch (error) {
         showToast('Network error loading template', 'error');
         console.error('Failed to load template:', error);
+    }
+}
+
+// Delete selected template
+async function deleteTemplate() {
+    const selector = document.getElementById('template-selector');
+    const templateId = selector.value;
+    const templateName = selector.options[selector.selectedIndex].text;
+
+    if (!templateId) {
+        showToast('Please select a template to delete', 'error');
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to delete template "${templateName}"?`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/admin-panel/template/delete/${templateId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            }
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message, 'success');
+            loadTemplatesList(); // Refresh the list
+        } else {
+            showToast(data.error || 'Failed to delete template', 'error');
+        }
+    } catch (error) {
+        showToast('Network error. Please try again.', 'error');
     }
 }
 
@@ -1127,6 +1176,32 @@ async function toggleChoreActive(choreId) {
             setTimeout(() => window.location.reload(), 1500);
         } else {
             showToast(data.error || 'Failed to update chore status', 'error');
+        }
+    } catch (error) {
+        showToast('Network error. Please try again.', 'error');
+    }
+}
+
+// Delete chore permanently
+async function deleteChore(choreId, choreName) {
+    if (!confirm(`Are you sure you want to PERMANENTLY delete chore "${choreName}"?\n\nThis action cannot be undone and will delete all related history/instances.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/admin-panel/chore/delete/${choreId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            }
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message, 'success');
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showToast(data.error || 'Failed to delete chore', 'error');
         }
     } catch (error) {
         showToast('Network error. Please try again.', 'error');

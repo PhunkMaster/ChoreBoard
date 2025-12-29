@@ -4,7 +4,7 @@ Admin panel views for ChoreBoard.
 import os
 import logging
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods, require_POST
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -1127,6 +1127,46 @@ def admin_chore_toggle_active(request, chore_id):
 
     except Exception as e:
         logger.error(f"Error toggling chore status: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_http_methods(["POST"])
+def admin_chore_delete(request, chore_id):
+    """
+    Permanently delete a chore.
+    Only allowed for deactivated chores.
+    """
+    try:
+        chore = get_object_or_404(Chore, id=chore_id)
+
+        if chore.is_active:
+            return JsonResponse({
+                'error': 'Only deactivated chores can be permanently deleted. Deactivate it first.'
+            }, status=400)
+
+        chore_name = chore.name
+        chore.delete()
+
+        # Log the action
+        ActionLog.objects.create(
+            action_type=ActionLog.ACTION_ADMIN,
+            user=request.user,
+            description=f"Permanently deleted chore: {chore_name}",
+            metadata={'chore_id': chore_id, 'chore_name': chore_name}
+        )
+
+        logger.info(f"Admin {request.user.username} permanently deleted chore {chore_id}: {chore_name}")
+
+        return JsonResponse({
+            'message': f'Chore "{chore_name}" deleted successfully'
+        })
+
+    except Http404:
+        return JsonResponse({'error': 'Chore not found'}, status=404)
+    except Exception as e:
+        logger.error(f"Error deleting chore: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 
