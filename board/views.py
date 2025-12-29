@@ -128,6 +128,10 @@ def main_board(request):
     # Calculate total assigned (for stat card)
     total_assigned_count = len(overdue_assigned) + len(ontime_assigned)
 
+    # Calculate total overdue (assigned + pool)
+    overdue_pool_count = sum(1 for chore in pool_chores if chore.is_overdue)
+    total_overdue_count = len(overdue_assigned) + overdue_pool_count
+
     # Get all users for the user selector (including those not eligible for points)
     # Note: Users not eligible for points can still complete chores,
     # but points will be redistributed to eligible users
@@ -154,6 +158,7 @@ def main_board(request):
         'pool_chores': pool_chores,
         'assigned_by_user': assigned_by_user,  # NEW: Grouped by user
         'overdue_assigned': overdue_assigned,  # For stats
+        'total_overdue_count': total_overdue_count,  # Total overdue (assigned + pool)
         'ontime_assigned': ontime_assigned,    # For stats
         'total_assigned_count': total_assigned_count,  # Total assigned (on-time + overdue)
         'users': users,
