@@ -327,11 +327,12 @@ class DependencyService:
                 logger.info(f"Skipping inactive dependent chore: {child_chore.name}")
                 continue
 
-            # Calculate due time with offset
-            due_at = completion_time + timedelta(hours=dep.offset_hours)
+            # Calculate due time with offset - chores are generally due at the end of the day
+            due_at_base = completion_time + timedelta(hours=dep.offset_hours)
+            due_date = timezone.localdate(due_at_base)
+            due_at = timezone.make_aware(timezone.datetime.combine(due_date, timezone.datetime.max.time()))
 
             # Calculate distribution time (use child's distribution time on due date)
-            due_date = due_at.date()
             distribution_at = timezone.make_aware(timezone.datetime.combine(due_date, child_chore.distribution_time))
 
             # Create child instance - ALWAYS assign to user who completed parent
