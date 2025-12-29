@@ -159,6 +159,36 @@ def admin_chores(request):
 
 @login_required
 @user_passes_test(is_staff_user)
+def admin_chore_history(request, chore_id):
+    """
+    View all spawned instances of a chore.
+    """
+    chore = get_object_or_404(Chore, id=chore_id)
+    instances = ChoreInstance.objects.filter(chore=chore).select_related(
+        'assigned_to',
+        'completion__completed_by',
+        'skipped_by'
+    ).order_by('-due_at', '-created_at')
+
+    # Calculate stats
+    stats = {
+        'total': instances.count(),
+        'completed': instances.filter(status=ChoreInstance.COMPLETED).count(),
+        'skipped': instances.filter(status=ChoreInstance.SKIPPED).count(),
+        'late': instances.filter(is_late_completion=True).count(),
+    }
+
+    context = {
+        'chore': chore,
+        'instances': instances,
+        'stats': stats,
+    }
+
+    return render(request, 'board/admin/chore_history.html', context)
+
+
+@login_required
+@user_passes_test(is_staff_user)
 @require_http_methods(["GET"])
 def admin_chores_list(request):
     """

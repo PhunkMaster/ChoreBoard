@@ -100,6 +100,11 @@
                                     Edit
                                 </button>
                                 <span class="text-gray-600">|</span>
+                                <a href="{% url 'board:admin_chore_history' chore.id %}"
+                                   class="text-blue-400 hover:text-blue-300 font-medium text-sm transition">
+                                    History
+                                </a>
+                                <span class="text-gray-600">|</span>
                                 <button onclick="toggleChoreActive({{ chore.id }})"
                                         class="text-amber-400 hover:text-amber-300 font-medium text-sm transition">
                                     {% if chore.is_active %}Deactivate{% else %}Activate{% endif %}
