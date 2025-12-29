@@ -692,6 +692,15 @@ def quick_add_task(request):
             # Assignment
             assignment_type = request.POST.get('assignment_type', 'pool')
             assigned_to_id = request.POST.get('assigned_to')
+            assigned_user = None
+
+            if assignment_type == 'assigned' and assigned_to_id:
+                try:
+                    assigned_user = User.objects.get(id=assigned_to_id, is_active=True, can_be_assigned=True)
+                except User.DoesNotExist:
+                    return JsonResponse({'error': 'Invalid user selected for assignment'}, status=400)
+            elif assignment_type == 'assigned':
+                return JsonResponse({'error': 'Please select a user for assignment'}, status=400)
 
             # Due date (optional)
             from datetime import datetime
@@ -717,29 +726,26 @@ def quick_add_task(request):
                     points=points,
                     is_difficult=is_difficult,
                     is_active=True,
-                    is_pool=(assignment_type == 'pool')
+                    is_pool=(assignment_type == 'pool'),
+                    assigned_to=assigned_user
                 )
 
                 # If directly assigned, assign the instance
-                if assignment_type == 'assigned' and assigned_to_id:
-                    try:
-                        assigned_user = User.objects.get(id=assigned_to_id, is_active=True, can_be_assigned=True)
-                        instance = ChoreInstance.objects.filter(chore=chore).first()
-                        if instance:
-                            instance.status = ChoreInstance.ASSIGNED
-                            instance.assigned_to = assigned_user
-                            instance.assigned_at = timezone.now()
-                            instance.assignment_reason = ChoreInstance.REASON_FIXED
-                            instance.save(update_fields=['status', 'assigned_to', 'assigned_at', 'assignment_reason'])
+                if assigned_user:
+                    instance = ChoreInstance.objects.filter(chore=chore).first()
+                    if instance:
+                        instance.status = ChoreInstance.ASSIGNED
+                        instance.assigned_to = assigned_user
+                        instance.assigned_at = timezone.now()
+                        instance.assignment_reason = ChoreInstance.REASON_FIXED
+                        instance.save(update_fields=['status', 'assigned_to', 'assigned_at', 'assignment_reason'])
 
-                            ActionLog.objects.create(
-                                action_type=ActionLog.ACTION_ADMIN,
-                                user=request.user if request.user.is_authenticated else assigned_user,
-                                description=f"Created and assigned one-time task: {chore.name} to {assigned_user.get_display_name()}",
-                                metadata={'chore_id': chore.id, 'instance_id': instance.id}
-                            )
-                    except User.DoesNotExist:
-                        return JsonResponse({'error': 'Invalid user selected for assignment'}, status=400)
+                        ActionLog.objects.create(
+                            action_type=ActionLog.ACTION_ADMIN,
+                            user=request.user if request.user.is_authenticated else assigned_user,
+                            description=f"Created and assigned one-time task: {chore.name} to {assigned_user.get_display_name()}",
+                            metadata={'chore_id': chore.id, 'instance_id': instance.id}
+                        )
                 else:
                     # Log pool task creation
                     ActionLog.objects.create(
