@@ -628,7 +628,6 @@ def distribution_check():
     instances_to_distribute = ChoreInstance.objects.filter(
         status=ChoreInstance.POOL,
         distribution_at__lte=now,
-        due_at__gt=now  # Not yet due
     )
 
     logger.info(f"Found {instances_to_distribute.count()} instances to distribute")
