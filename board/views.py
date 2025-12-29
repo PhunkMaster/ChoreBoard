@@ -667,7 +667,13 @@ def quick_add_task(request):
             eligible_for_points=True
         ).order_by('first_name', 'username')
 
-        return render(request, 'board/quick_add_task.html', {'users': users})
+        # Get all active chores for "spawn after" dropdown
+        chores = Chore.objects.filter(is_active=True).order_by('name')
+
+        return render(request, 'board/quick_add_task.html', {
+            'users': users,
+            'chores': chores
+        })
 
     elif request.method == 'POST':
         # Create one-time task
@@ -676,6 +682,8 @@ def quick_add_task(request):
             description = request.POST.get('description', '').strip()
             points = request.POST.get('points', '10')
             is_difficult = request.POST.get('is_difficult') == 'true'
+            complete_later = request.POST.get('complete_later') == 'true'
+            depends_on_id = request.POST.get('depends_on')
 
             # Security: Non-admin users can only create 0-point tasks to prevent abuse
             if not (request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)):
@@ -694,19 +702,28 @@ def quick_add_task(request):
             assigned_to_id = request.POST.get('assigned_to')
             assigned_user = None
 
-            if assignment_type == 'assigned' and assigned_to_id:
+            if not depends_on_id:
+                if assignment_type == 'assigned' and assigned_to_id:
+                    try:
+                        assigned_user = User.objects.get(id=assigned_to_id, is_active=True, can_be_assigned=True)
+                    except User.DoesNotExist:
+                        return JsonResponse({'error': 'Invalid user selected for assignment'}, status=400)
+                elif assignment_type == 'assigned':
+                    return JsonResponse({'error': 'Please select a user for assignment'}, status=400)
+
+            # Parent chore validation
+            parent_chore = None
+            if depends_on_id:
                 try:
-                    assigned_user = User.objects.get(id=assigned_to_id, is_active=True, can_be_assigned=True)
-                except User.DoesNotExist:
-                    return JsonResponse({'error': 'Invalid user selected for assignment'}, status=400)
-            elif assignment_type == 'assigned':
-                return JsonResponse({'error': 'Please select a user for assignment'}, status=400)
+                    parent_chore = Chore.objects.get(id=depends_on_id, is_active=True)
+                except Chore.DoesNotExist:
+                    return JsonResponse({'error': 'Invalid parent chore selected'}, status=400)
 
             # Due date (optional)
             from datetime import datetime
             due_date_str = request.POST.get('due_date', '').strip()
             one_time_due_date = None
-            if due_date_str:
+            if due_date_str and not depends_on_id:
                 try:
                     one_time_due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
                 except ValueError:
@@ -718,6 +735,9 @@ def quick_add_task(request):
 
             # Create chore
             with transaction.atomic():
+                # If it has a dependency, we create it as inactive first to prevent
+                # the post_save signal from creating a ChoreInstance immediately.
+                # It should only be created when the parent chore is completed.
                 chore = Chore.objects.create(
                     name=name,
                     description=description,
@@ -725,13 +745,30 @@ def quick_add_task(request):
                     one_time_due_date=one_time_due_date,
                     points=points,
                     is_difficult=is_difficult,
-                    is_active=True,
-                    is_pool=(assignment_type == 'pool'),
-                    assigned_to=assigned_user
+                    complete_later=complete_later,
+                    is_active=not bool(parent_chore),
+                    is_pool=(assignment_type == 'pool' or bool(parent_chore)),
+                    assigned_to=assigned_user if not parent_chore else None
                 )
 
-                # If directly assigned, assign the instance
-                if assigned_user:
+                if parent_chore:
+                    from chores.models import ChoreDependency
+                    ChoreDependency.objects.create(
+                        chore=chore,
+                        depends_on=parent_chore
+                    )
+                    # Now activate it. The signal will see created=False and skip instance creation.
+                    chore.is_active = True
+                    chore.save(update_fields=['is_active'])
+
+                    ActionLog.objects.create(
+                        action_type=ActionLog.ACTION_ADMIN,
+                        user=request.user,
+                        description=f"Created one-time task: {chore.name} (spawns after {parent_chore.name})",
+                        metadata={'chore_id': chore.id, 'depends_on_id': parent_chore.id}
+                    )
+                elif assigned_user:
+                    # If directly assigned, assign the instance
                     instance = ChoreInstance.objects.filter(chore=chore).first()
                     if instance:
                         instance.status = ChoreInstance.ASSIGNED
