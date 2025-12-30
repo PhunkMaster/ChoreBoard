@@ -51,9 +51,9 @@ class AssignmentService:
                 chore, eligible_users, instance
             )
         else:
-            # Regular chore - select user with least assigned today
+            # Regular chore - select user with least assigned today and fewest completions
             selected_user = AssignmentService._select_by_fairness(
-                eligible_users, chore.is_difficult
+                eligible_users, chore, chore.is_difficult
             )
 
         if selected_user is None:
@@ -64,10 +64,10 @@ class AssignmentService:
 
         # Check difficult chore constraint
         if chore.is_difficult and not force_assign:
-            # Check if user already has a difficult chore assigned today
+            # Check if user already has a difficult chore assigned or completed today
             has_difficult = ChoreInstance.objects.filter(
                 assigned_to=selected_user,
-                status=ChoreInstance.ASSIGNED,
+                status__in=[ChoreInstance.ASSIGNED, ChoreInstance.COMPLETED],
                 chore__is_difficult=True,
                 due_at__date=timezone.localdate()
             ).exclude(id=instance.id).exists()
@@ -208,37 +208,54 @@ class AssignmentService:
         return selected_user
 
     @staticmethod
-    def _select_by_fairness(eligible_users, is_difficult=False):
+    def _select_by_fairness(eligible_users, chore, is_difficult=False):
         """
-        Select user by fairness - least assigned chores today.
+        Select user by fairness - least assigned chores today and fewest completions of this chore.
 
         Args:
             eligible_users: QuerySet of eligible users
+            chore: The Chore being assigned
             is_difficult: If True, consider difficult chore constraint
 
         Returns:
             User or None
         """
         today = timezone.localdate()
-        logger.info(f"Fairness selection: is_difficult={is_difficult}, eligible_users_count={eligible_users.count()}")
+        logger.info(
+            f"Fairness selection for {chore.name}: "
+            f"is_difficult={is_difficult}, eligible_users_count={eligible_users.count()}"
+        )
 
-        # Annotate users with count of assigned chores today
+        # Annotate users with:
+        # 1. Count of assigned chores today (daily load)
+        #    Excludes statically assigned chores (REASON_FIXED), only pool or undesirable chores count.
+        # 2. Total completions of THIS specific chore (historical fairness)
         users_with_counts = eligible_users.annotate(
             assigned_today=Count(
                 'assigned_instances',
                 filter=Q(
-                    assigned_instances__status=ChoreInstance.ASSIGNED,
+                    assigned_instances__status__in=[ChoreInstance.ASSIGNED, ChoreInstance.COMPLETED],
                     assigned_instances__due_at__date=today
+                ) & (
+                    Q(assigned_instances__chore__is_pool=True) |
+                    Q(assigned_instances__chore__is_undesirable=True)
+                )
+            ),
+            total_completions=Count(
+                'completions',
+                filter=Q(
+                    completions__chore_instance__chore=chore,
+                    completions__is_undone=False
                 )
             )
-        ).order_by('assigned_today', '?')  # Secondary random for tiebreak
+        ).order_by('assigned_today', 'total_completions', '?')  # Random as final tiebreak
 
         if is_difficult:
-            # Exclude users with difficult chores already assigned
+            # Exclude users with difficult chores already assigned or completed today
             before_filter_count = users_with_counts.count()
             users_with_counts = users_with_counts.exclude(
                 assigned_instances__chore__is_difficult=True,
-                assigned_instances__status=ChoreInstance.ASSIGNED,
+                assigned_instances__status__in=[ChoreInstance.ASSIGNED, ChoreInstance.COMPLETED],
                 assigned_instances__due_at__date=today
             )
             after_filter_count = users_with_counts.count()
@@ -252,7 +269,8 @@ class AssignmentService:
         if selected:
             logger.info(
                 f"Fairness selected {selected.username} "
-                f"({selected.assigned_today} chores assigned today)"
+                f"({selected.assigned_today} chores assigned today, "
+                f"{selected.total_completions} total completions of this chore)"
             )
 
         return selected

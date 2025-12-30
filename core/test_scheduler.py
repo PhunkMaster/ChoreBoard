@@ -720,6 +720,13 @@ class DistributionCheckTests(TestCase):
             eligible_for_points=True
         )
 
+        # Create a successful evaluation log to satisfy the watchdog
+        EvaluationLog.objects.create(
+            success=True,
+            chores_created=0,
+            chores_marked_overdue=0
+        )
+
         self.chore = Chore.objects.create(
             name='Test Chore',
             points=Decimal('10.00'),
@@ -752,13 +759,15 @@ class DistributionCheckTests(TestCase):
     def test_distribution_check_respects_fairness(self):
         """Test that distribution check assigns to user with fewest chores."""
         # Give user2 an existing assignment
+        # Use a fixed time today to avoid rollover issues at night
+        today_noon = timezone.make_aware(datetime.combine(timezone.localdate(), time(12, 0)))
         ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user2,
             points_value=self.chore.points,
-            due_at=timezone.now() + timedelta(hours=6),
-            distribution_at=timezone.now()
+            due_at=today_noon,
+            distribution_at=today_noon - timedelta(hours=6)
         )
 
         run_distribution_check()
