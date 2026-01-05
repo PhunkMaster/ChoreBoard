@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("chores", "0014_add_bonus_percentage_to_arcade_completion"),
+        ("chores", "0016_add_bonus_percentage_to_arcade_completion"),
     ]
 
     operations = [

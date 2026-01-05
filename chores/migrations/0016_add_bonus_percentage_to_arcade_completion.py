@@ -26,7 +26,7 @@ def reverse_populate_bonus_percentage(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("chores", "0013_add_chore_status_index"),
+        ("chores", "0014_alter_choreinstance_assignment_reason"),
     ]
 
     operations = [
