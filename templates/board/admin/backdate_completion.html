@@ -145,7 +145,7 @@
                             Complete with Backdated Date
                         </div>
                     </button>
-                    <a href="{% url 'admin_undo_completions' %}"
+                    <a href="{% url 'board:admin_undo_completions' %}"
                        class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition text-center">
                         Cancel
                     </a>
@@ -303,7 +303,7 @@
         });
 
         try {
-            const response = await fetch('{% url "admin_backdate_completion_action" %}', {
+            const response = await fetch('{% url "board:admin_backdate_completion_action" %}', {
                 method: 'POST',
                 body: formData,
                 headers: {
@@ -316,7 +316,7 @@
             if (response.ok) {
                 showToast(data.message, 'success');
                 closeConfirmDialog();
-                setTimeout(() => window.location.href = '{% url "admin_undo_completions" %}', 1500);
+                setTimeout(() => window.location.href = '{% url "board:admin_undo_completions" %}', 1500);
             } else {
                 showToast(data.error || 'Failed to backdate completion', 'error');
             }
