@@ -1668,7 +1668,6 @@ class ChoreLeaderboardAPITests(TestCase):
             user=self.user1,
             arcade_completion=arcade_comp1,
             time_seconds=45,
-            rank=1,
             achieved_at=now
         )
 
@@ -1677,7 +1676,6 @@ class ChoreLeaderboardAPITests(TestCase):
             user=self.user2,
             arcade_completion=arcade_comp2,
             time_seconds=52,
-            rank=2,
             achieved_at=now
         )
 
@@ -1686,7 +1684,6 @@ class ChoreLeaderboardAPITests(TestCase):
             user=self.user3,
             arcade_completion=arcade_comp3,
             time_seconds=58,
-            rank=3,
             achieved_at=now
         )
 
@@ -1723,7 +1720,6 @@ class ChoreLeaderboardAPITests(TestCase):
             user=self.user1,
             arcade_completion=arcade_comp4,
             time_seconds=60,
-            rank=1,
             achieved_at=now
         )
 

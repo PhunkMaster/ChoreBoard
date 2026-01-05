@@ -108,7 +108,6 @@ class InactiveChoreLeaderboardTests(TestCase):
             user=user,
             arcade_completion=completion,
             time_seconds=time_seconds,
-            rank=1,
             achieved_at=timezone.now()
         )
 
@@ -224,7 +223,7 @@ class InactiveChoreLeaderboardTests(TestCase):
 
         self.assertIsNotNone(high_score)
         self.assertEqual(high_score.time_seconds, 120)
-        self.assertEqual(high_score.rank, 1)
+        # Note: rank is now calculated dynamically via Window function
 
         # But it shouldn't appear in leaderboard queries
         response = self.client.get(reverse('board:arcade_leaderboard'))

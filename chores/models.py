@@ -625,6 +625,12 @@ class ArcadeCompletion(models.Model):
     base_points = models.DecimalField(max_digits=5, decimal_places=2)
     bonus_points = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     total_points = models.DecimalField(max_digits=5, decimal_places=2)
+    bonus_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="Bonus percentage applied at approval time (0.00, 0.25, or 0.50)"
+    )
 
     # High score status at time of completion
     is_high_score = models.BooleanField(default=False)
@@ -658,34 +664,25 @@ class ArcadeCompletion(models.Model):
 
 
 class ArcadeHighScore(models.Model):
-    """Maintains top 3 high scores per chore."""
-
-    RANK_CHOICES = [
-        (1, '1st Place'),
-        (2, '2nd Place'),
-        (3, '3rd Place'),
-    ]
+    """Stores all arcade completions with fastest times. Rank is calculated dynamically."""
 
     chore = models.ForeignKey(Chore, on_delete=models.CASCADE, related_name='high_scores')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='high_scores')
     arcade_completion = models.ForeignKey(ArcadeCompletion, on_delete=models.CASCADE, related_name='high_score_entry')
 
     time_seconds = models.IntegerField()
-    rank = models.IntegerField(choices=RANK_CHOICES)
     achieved_at = models.DateTimeField()
 
     class Meta:
         db_table = 'arcade_high_scores'
-        unique_together = ['chore', 'rank']  # Only one record per rank per chore
         indexes = [
-            models.Index(fields=['chore', 'rank']),
+            models.Index(fields=['chore', 'time_seconds']),
             models.Index(fields=['user']),
         ]
-        ordering = ['chore', 'rank']
+        ordering = ['chore', 'time_seconds']
 
     def __str__(self):
-        rank_emoji = {1: '🥇', 2: '🥈', 3: '🥉'}
-        return f"{rank_emoji[self.rank]} {self.chore.name} - {self.user.username} - {self.format_time()}"
+        return f"{self.chore.name} - {self.user.username} - {self.format_time()}"
 
     def format_time(self):
         """Format time as HH:MM:SS or MM:SS."""

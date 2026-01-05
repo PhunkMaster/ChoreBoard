@@ -2,7 +2,7 @@
 Service layer for Arcade Mode logic.
 """
 from decimal import Decimal
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.utils import timezone
 from django.db.models import Q
 import logging
@@ -134,150 +134,165 @@ class ArcadeService:
         if judge == arcade_session.user:
             return False, "You cannot judge your own arcade completion", None
 
-        # Update session status
-        arcade_session.status = ArcadeSession.STATUS_APPROVED
-        arcade_session.save()
-
-        # Create arcade completion record
-        base_points = arcade_session.chore_instance.points_value
-
-        # Create completion record
-        arcade_completion = ArcadeCompletion.objects.create(
-            user=arcade_session.user,
-            chore=arcade_session.chore,
-            arcade_session=arcade_session,
-            chore_instance=arcade_session.chore_instance,
-            completion_time_seconds=arcade_session.elapsed_seconds,
-            judge=judge,
-            approved=True,
-            judge_notes=notes,
-            base_points=base_points,
-            bonus_points=Decimal('0.00'),  # Will be calculated by update_high_scores
-            total_points=base_points  # Will be updated after bonus calculation
-        )
-
-        # Update high scores and calculate bonus
-        ArcadeService.update_high_scores(arcade_completion)
-
-        # Award points to user
-        arcade_completion.refresh_from_db()  # Get updated bonus_points
-        user = arcade_session.user
-        user.add_points(arcade_completion.total_points, weekly=True, all_time=True)
-        user.save()
-
-        # Create points ledger entry
-        PointsLedger.objects.create(
-            user=user,
-            transaction_type=PointsLedger.TYPE_COMPLETION,
-            points_change=arcade_completion.total_points,
-            balance_after=user.all_time_points,
-            description=f"Arcade completion: {arcade_session.chore.name} ({arcade_completion.format_time()})",
-            created_by=judge
-        )
-
-        # Mark chore instance as completed
-        chore_instance = arcade_session.chore_instance
-        completion_time = timezone.now()
-        chore_instance.status = ChoreInstance.COMPLETED
-        chore_instance.completed_at = completion_time
-        chore_instance.save()
-
-        # Create or reuse standard Completion record (for compatibility with existing system)
         try:
-            completion = Completion.objects.get(chore_instance=chore_instance)
-            if completion.is_undone:
-                # Reuse the undone completion record
-                completion.completed_by = user
-                completion.completed_at = completion_time
-                completion.was_late = chore_instance.is_overdue
-                completion.is_undone = False
-                completion.undone_at = None
-                completion.undone_by = None
-                completion.save()
-                # Delete old shares (will create new ones below)
-                completion.shares.all().delete()
-                logger.info(f"Reused undone completion record {completion.id} for arcade approval")
-            else:
-                # Completion already exists and is not undone - this is an edge case where
-                # the chore was completed while an arcade session was active.
-                # Replace the existing completion with the arcade completion.
-                logger.warning(
-                    f"Overwriting existing completion {completion.id} with arcade approval. "
-                    f"Original completed by {completion.completed_by.username}, "
-                    f"arcade by {user.username}"
+            # Update session status
+            arcade_session.status = ArcadeSession.STATUS_APPROVED
+            arcade_session.save()
+
+            # Create arcade completion record
+            base_points = arcade_session.chore_instance.points_value
+
+            # Create completion record
+            arcade_completion = ArcadeCompletion.objects.create(
+                user=arcade_session.user,
+                chore=arcade_session.chore,
+                arcade_session=arcade_session,
+                chore_instance=arcade_session.chore_instance,
+                completion_time_seconds=arcade_session.elapsed_seconds,
+                judge=judge,
+                approved=True,
+                judge_notes=notes,
+                base_points=base_points,
+                bonus_points=Decimal('0.00'),  # Will be calculated by update_high_scores
+                total_points=base_points  # Will be updated after bonus calculation
+            )
+
+            # Update high scores and calculate bonus
+            is_high_score, rank, is_new_record = ArcadeService.update_high_scores(arcade_completion)
+
+            # Award points to user
+            arcade_completion.refresh_from_db()  # Get updated bonus_points
+            user = arcade_session.user
+            user.add_points(arcade_completion.total_points, weekly=True, all_time=True)
+            user.save()
+
+            # Create points ledger entry
+            PointsLedger.objects.create(
+                user=user,
+                transaction_type=PointsLedger.TYPE_COMPLETION,
+                points_change=arcade_completion.total_points,
+                balance_after=user.all_time_points,
+                description=f"Arcade completion: {arcade_session.chore.name} ({arcade_completion.format_time()})",
+                created_by=judge
+            )
+
+            # Mark chore instance as completed
+            chore_instance = arcade_session.chore_instance
+            completion_time = timezone.now()
+            chore_instance.status = ChoreInstance.COMPLETED
+            chore_instance.completed_at = completion_time
+            chore_instance.save()
+
+            # Create or reuse standard Completion record (for compatibility with existing system)
+            try:
+                completion = Completion.objects.get(chore_instance=chore_instance)
+                if completion.is_undone:
+                    # Reuse the undone completion record
+                    completion.completed_by = user
+                    completion.completed_at = completion_time
+                    completion.was_late = chore_instance.is_overdue
+                    completion.is_undone = False
+                    completion.undone_at = None
+                    completion.undone_by = None
+                    completion.save()
+                    # Delete old shares (will create new ones below)
+                    completion.shares.all().delete()
+                    logger.info(f"Reused undone completion record {completion.id} for arcade approval")
+                else:
+                    # Completion already exists and is not undone - this is an edge case where
+                    # the chore was completed while an arcade session was active.
+                    # Replace the existing completion with the arcade completion.
+                    logger.warning(
+                        f"Overwriting existing completion {completion.id} with arcade approval. "
+                        f"Original completed by {completion.completed_by.username}, "
+                        f"arcade by {user.username}"
+                    )
+
+                    # Reverse the points from the original completion
+                    old_shares = completion.shares.all()
+                    for share in old_shares:
+                        share.user.add_points(-share.points_awarded, weekly=True, all_time=True)
+                        share.user.save()
+                        logger.info(f"Reversed {share.points_awarded} points from {share.user.username}")
+
+                    # Delete old shares
+                    old_shares.delete()
+
+                    # Update the completion record for arcade
+                    completion.completed_by = user
+                    completion.completed_at = completion_time
+                    completion.was_late = chore_instance.is_overdue
+                    completion.save()
+
+                    logger.info(f"Replaced completion {completion.id} with arcade completion")
+            except Completion.DoesNotExist:
+                # No existing completion, create new one
+                completion = Completion.objects.create(
+                    chore_instance=chore_instance,
+                    completed_by=user,
+                    was_late=chore_instance.is_overdue
                 )
 
-                # Reverse the points from the original completion
-                old_shares = completion.shares.all()
-                for share in old_shares:
-                    share.user.add_points(-share.points_awarded, weekly=True, all_time=True)
-                    share.user.save()
-                    logger.info(f"Reversed {share.points_awarded} points from {share.user.username}")
+            # Spawn dependent chores (if any)
+            from chores.services import DependencyService, AssignmentService
+            spawned_children = DependencyService.spawn_dependent_chores(chore_instance, completion_time)
 
-                # Delete old shares
-                old_shares.delete()
+            # Update rotation state for undesirable chores
+            AssignmentService.update_rotation_state(arcade_session.chore, user)
 
-                # Update the completion record for arcade
-                completion.completed_by = user
-                completion.completed_at = completion_time
-                completion.was_late = chore_instance.is_overdue
-                completion.save()
-
-                logger.info(f"Replaced completion {completion.id} with arcade completion")
-        except Completion.DoesNotExist:
-            # No existing completion, create new one
-            completion = Completion.objects.create(
-                chore_instance=chore_instance,
-                completed_by=user,
-                was_late=chore_instance.is_overdue
-            )
-
-        # Spawn dependent chores (if any)
-        from chores.services import DependencyService, AssignmentService
-        spawned_children = DependencyService.spawn_dependent_chores(chore_instance, completion_time)
-
-        # Update rotation state for undesirable chores
-        AssignmentService.update_rotation_state(arcade_session.chore, user)
-
-        # Create completion share (no helpers in arcade mode)
-        CompletionShare.objects.create(
-            completion=completion,
-            user=user,
-            points_awarded=arcade_completion.total_points
-        )
-
-        # Log action
-        ActionLog.objects.create(
-            action_type=ActionLog.ACTION_ADMIN,
-            user=judge,
-            target_user=user,
-            description=f"Approved arcade completion for '{arcade_session.chore.name}' - {arcade_completion.format_time()}",
-            metadata={
-                'session_id': arcade_session.id,
-                'completion_id': arcade_completion.id,
-                'time': arcade_completion.completion_time_seconds,
-                'points': str(arcade_completion.total_points),
-                'is_high_score': arcade_completion.is_high_score,
-                'rank': arcade_completion.rank_at_completion,
-                'spawned_children': len(spawned_children),
-            }
-        )
-
-        # Send Home Assistant webhook if this is a new record
-        if arcade_completion.rank_at_completion == 1:
-            NotificationService.send_arcade_new_record(
+            # Create completion share (no helpers in arcade mode)
+            CompletionShare.objects.create(
+                completion=completion,
                 user=user,
-                chore_name=arcade_session.chore.name,
-                time_seconds=arcade_completion.completion_time_seconds,
-                points=arcade_completion.total_points
+                points_awarded=arcade_completion.total_points
             )
 
-        logger.info(
-            f"Judge {judge.username} approved arcade for {user.username} - "
-            f"{arcade_session.chore.name} in {arcade_completion.format_time()}"
-        )
+            # Log action
+            ActionLog.objects.create(
+                action_type=ActionLog.ACTION_ADMIN,
+                user=judge,
+                target_user=user,
+                description=f"Approved arcade completion for '{arcade_session.chore.name}' - {arcade_completion.format_time()}",
+                metadata={
+                    'session_id': arcade_session.id,
+                    'completion_id': arcade_completion.id,
+                    'time': arcade_completion.completion_time_seconds,
+                    'points': str(arcade_completion.total_points),
+                    'is_high_score': arcade_completion.is_high_score,
+                    'rank': arcade_completion.rank_at_completion,
+                    'spawned_children': len(spawned_children),
+                }
+            )
 
-        return True, f"Approved! +{arcade_completion.total_points} points awarded.", arcade_completion
+            # Send Home Assistant webhook if this is a new record
+            if is_new_record:
+                NotificationService.send_arcade_new_record(
+                    user=user,
+                    chore_name=arcade_session.chore.name,
+                    time_seconds=arcade_completion.completion_time_seconds,
+                    points=arcade_completion.total_points
+                )
+
+            logger.info(
+                f"Judge {judge.username} approved arcade for {user.username} - "
+                f"{arcade_session.chore.name} in {arcade_completion.format_time()}"
+            )
+
+            return True, f"Approved! +{arcade_completion.total_points} points awarded.", arcade_completion
+
+        except IntegrityError as e:
+            logger.error(
+                f"Database constraint error during arcade approval for session {arcade_session.id}: {e}",
+                exc_info=True
+            )
+            return False, "An error occurred while processing the approval. Please try again.", None
+
+        except Exception as e:
+            logger.error(
+                f"Unexpected error during arcade approval for session {arcade_session.id}: {e}",
+                exc_info=True
+            )
+            return False, "An unexpected error occurred. Please contact support.", None
 
     @staticmethod
     @transaction.atomic
@@ -406,105 +421,88 @@ class ArcadeService:
     @transaction.atomic
     def update_high_scores(arcade_completion):
         """
-        Update leaderboard after new completion.
-        Calculates bonus points and updates high score rankings.
+        Store arcade completion in high scores table and calculate bonus.
+        Now stores ALL scores, not just top 3. Rank is calculated dynamically.
 
         Args:
             arcade_completion: ArcadeCompletion to process
+
+        Returns:
+            tuple: (is_high_score: bool, rank: int, is_new_record: bool)
         """
-        chore = arcade_completion.chore
-        time_seconds = arcade_completion.completion_time_seconds
+        try:
+            chore = arcade_completion.chore
+            time_seconds = arcade_completion.completion_time_seconds
 
-        # Get current top 3 high scores
-        existing_scores = list(
-            ArcadeHighScore.objects.filter(chore=chore).order_by('rank')
-        )
+            # Get all existing scores for this chore, ordered by time (fastest first)
+            existing_scores = ArcadeHighScore.objects.filter(
+                chore=chore
+            ).order_by('time_seconds')
 
-        # Determine if this beats any existing scores
-        new_rank = None
-        is_new_record = False
+            # Determine rank and if this is a high score (top 3)
+            rank = None
+            is_new_record = False
+            is_high_score = False
 
-        if not existing_scores:
-            # First score for this chore
-            new_rank = 1
-            is_new_record = True
-        else:
-            # Check if faster than existing scores
-            for score in existing_scores:
-                if time_seconds < score.time_seconds:
-                    new_rank = score.rank
-                    is_new_record = (new_rank == 1)
-                    break
+            if not existing_scores.exists():
+                # First score for this chore
+                rank = 1
+                is_new_record = True
+                is_high_score = True
+            else:
+                # Calculate where this time would rank
+                faster_scores = existing_scores.filter(time_seconds__lt=time_seconds).count()
+                rank = faster_scores + 1
 
-            # If not faster than any existing, check if we have room for more
-            if new_rank is None and len(existing_scores) < 3:
-                new_rank = len(existing_scores) + 1
+                # Is high score if in top 3
+                is_high_score = (rank <= 3)
 
-        # Calculate bonus points
-        bonus_points = ArcadeService.calculate_bonus_points(
-            arcade_completion.base_points,
-            new_rank,
-            is_new_record
-        )
+                # Is new record if faster than current #1
+                current_best = existing_scores.first()
+                is_new_record = (time_seconds < current_best.time_seconds)
 
-        # Update completion record
-        arcade_completion.bonus_points = bonus_points
-        arcade_completion.total_points = arcade_completion.base_points + bonus_points
-        arcade_completion.is_high_score = (new_rank is not None)
-        arcade_completion.rank_at_completion = new_rank
-        arcade_completion.save()
+            # Calculate bonus percentage
+            if is_new_record:
+                bonus_percentage = Decimal('0.50')  # 50% bonus
+            elif rank <= 3:
+                bonus_percentage = Decimal('0.25')  # 25% bonus
+            else:
+                bonus_percentage = Decimal('0.00')  # No bonus
 
-        # Update high scores table if needed
-        if new_rank is not None:
-            # Shift existing ranks down
-            for score in existing_scores:
-                if score.rank >= new_rank:
-                    if score.rank < 3:
-                        score.rank += 1
-                        score.save()
-                    else:
-                        # 3rd place being displaced - delete it
-                        score.delete()
+            # Calculate actual bonus points
+            bonus_points = arcade_completion.base_points * bonus_percentage
 
-            # Create new high score entry
+            # Update arcade completion record
+            arcade_completion.bonus_points = bonus_points
+            arcade_completion.bonus_percentage = bonus_percentage
+            arcade_completion.total_points = arcade_completion.base_points + bonus_points
+            arcade_completion.is_high_score = is_high_score
+            arcade_completion.rank_at_completion = rank if is_high_score else None
+            arcade_completion.save()
+
+            # Create high score entry (for ALL completions, not just top 3)
             ArcadeHighScore.objects.create(
                 chore=chore,
                 user=arcade_completion.user,
                 arcade_completion=arcade_completion,
                 time_seconds=time_seconds,
-                rank=new_rank,
                 achieved_at=arcade_completion.completed_at
             )
 
             logger.info(
-                f"New high score! {arcade_completion.user.username} ranked #{new_rank} "
-                f"for {chore.name} with {arcade_completion.format_time()}"
+                f"Arcade score recorded: {arcade_completion.user.username} - "
+                f"{chore.name} - Rank #{rank} - {arcade_completion.format_time()} - "
+                f"Bonus: {int(bonus_percentage * 100)}% - High Score: {is_high_score}"
             )
 
-    @staticmethod
-    def calculate_bonus_points(base_points, rank, is_new_record):
-        """
-        Calculate bonus points based on ranking.
+            return is_high_score, rank, is_new_record
 
-        Args:
-            base_points: Base points for the chore
-            rank: Ranking achieved (1, 2, 3, or None)
-            is_new_record: Whether this beats the current #1
-
-        Returns:
-            Decimal: Bonus points
-        """
-        if rank is None:
-            return Decimal('0.00')
-
-        if is_new_record:
-            # +50% bonus for new record
-            return base_points * Decimal('0.50')
-        elif rank in [1, 2, 3]:
-            # +25% bonus for top 3
-            return base_points * Decimal('0.25')
-
-        return Decimal('0.00')
+        except Exception as e:
+            logger.error(
+                f"Error updating high scores for arcade completion {arcade_completion.id}: {e}",
+                exc_info=True
+            )
+            raise
 
     @staticmethod
     def get_active_session(user):
@@ -526,7 +524,7 @@ class ArcadeService:
     @staticmethod
     def get_high_score(chore):
         """
-        Get the #1 high score for a chore.
+        Get the #1 high score (fastest time) for a chore.
 
         Args:
             chore: Chore to get high score for
@@ -535,24 +533,35 @@ class ArcadeService:
             ArcadeHighScore or None
         """
         return ArcadeHighScore.objects.filter(
-            chore=chore,
-            rank=1
-        ).select_related('user').first()
+            chore=chore
+        ).select_related('user').order_by('time_seconds').first()
 
     @staticmethod
-    def get_top_scores(chore):
+    def get_top_scores(chore, limit=3):
         """
-        Get top 3 high scores for a chore.
+        Get top N high scores for a chore (default top 3).
+        Rank is calculated dynamically based on time_seconds ordering.
 
         Args:
             chore: Chore to get scores for
+            limit: Number of top scores to return (default 3)
 
         Returns:
-            QuerySet of ArcadeHighScore
+            QuerySet of ArcadeHighScore with dynamic rank annotation
         """
+        from django.db.models import Window, F
+        from django.db.models.functions import RowNumber
+
         return ArcadeHighScore.objects.filter(
             chore=chore
-        ).select_related('user', 'arcade_completion').order_by('rank')
+        ).select_related('user', 'arcade_completion').order_by(
+            'time_seconds'
+        ).annotate(
+            rank=Window(
+                expression=RowNumber(),
+                order_by=F('time_seconds').asc()
+            )
+        )[:limit]
 
     @staticmethod
     def get_user_stats(user):

@@ -494,7 +494,7 @@ def user_profile(request, username):
     personal_bests = ArcadeHighScore.objects.filter(
         user=user,
         chore__is_active=True
-    ).select_related('chore', 'arcade_completion').order_by('rank', 'chore__name')
+    ).select_related('chore', 'arcade_completion').order_by('time_seconds', 'chore__name')
 
     # Get recent arcade history - only for active chores
     recent_completions = ArcadeCompletion.objects.filter(
