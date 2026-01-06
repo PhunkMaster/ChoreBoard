@@ -9,3 +9,93 @@
 - Always ask questions if an instruction is unclear or ambiguous
 - Always use semver branches
 - Do not work on other projects, only create implementation documentation in those projects.
+
+## Distribution Troubleshooting
+
+When a chore fails to distribute at its expected time, use the diagnostic tool to identify the root cause:
+
+### Running the Diagnostic Tool
+
+```bash
+python manage.py diagnose_distribution "chore name" [--date YYYY-MM-DD]
+```
+
+**Examples:**
+```bash
+# Check why a chore failed to distribute today
+python manage.py diagnose_distribution "unload dishwasher"
+
+# Check a specific date
+python manage.py diagnose_distribution "take out trash" --date 2026-01-06
+```
+
+### Common Distribution Issues
+
+1. **Orphaned Open Instances**
+   - **Symptom**: Chore instance not created at midnight
+   - **Cause**: Open instance from previous day blocks new creation (lines 455-463 in `core/jobs.py`)
+   - **Fix**: Complete or skip the orphaned instance via admin or shell:
+     ```python
+     from chores.models import ChoreInstance
+     instance = ChoreInstance.objects.get(id=INSTANCE_ID)
+     instance.status = 'skipped'
+     instance.save()
+     ```
+
+2. **Missing ChoreEligibility Records**
+   - **Symptom**: Undesirable chore stays in POOL with `assignment_reason="no_eligible_users"`
+   - **Cause**: No ChoreEligibility records exist for the chore
+   - **Fix**: Add ChoreEligibility records in admin for users who should be eligible
+
+3. **All Users Excluded from Auto-Assignment**
+   - **Symptom**: Instance stays in POOL with `assignment_reason="no_eligible_users"`
+   - **Cause**: All users have `exclude_from_auto_assignment=True` or `can_be_assigned=False`
+   - **Fix**: Update user flags in admin to enable at least one user for auto-assignment
+
+4. **Rotation Blocking (Purple State)**
+   - **Symptom**: Instance stays in POOL with `assignment_reason="all_completed_yesterday"`
+   - **Cause**: All eligible users completed the chore yesterday (rotation protection)
+   - **Fix**: This is expected behavior - wait until tomorrow when rotation allows reassignment
+
+5. **Distribution Time Not Reached**
+   - **Symptom**: Instance in POOL but not assigned
+   - **Cause**: Current time is before `distribution_at` time
+   - **Fix**: Wait for distribution time or manually assign in admin
+
+6. **Chore Rescheduled**
+   - **Symptom**: No instance created at midnight
+   - **Cause**: Chore has `rescheduled_date` set to a different date
+   - **Fix**: Clear `rescheduled_date` in admin or wait until the rescheduled date
+
+7. **Chore Inactive**
+   - **Symptom**: No instance created at midnight
+   - **Cause**: Chore has `is_active=False`
+   - **Fix**: Set `is_active=True` in admin
+
+### Enhanced Logging
+
+The system now logs detailed information about distribution failures:
+
+- **Instance Creation**: Logs when instances are skipped and why (debug level)
+- **Orphaned Instances**: Warns when existing open instances block creation (warning level)
+- **Eligibility Filtering**: Logs ChoreEligibility counts and eligible user counts (debug level)
+- **Rotation Blocking**: Warns when all users completed yesterday (warning level)
+
+Check application logs for these messages to quickly identify distribution issues.
+
+### Testing Distribution Logic
+
+Run the comprehensive distribution failure test suite:
+
+```bash
+python manage.py test chores.test_distribution_failures --keepdb
+```
+
+This suite tests:
+- Orphaned instance blocking
+- User exclusion scenarios
+- Rotation blocking
+- Missing eligibility records
+- Distribution timing
+- Rescheduled chores
+- Inactive chores

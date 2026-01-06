@@ -45,6 +45,34 @@ class AssignmentService:
             logger.warning(f"No eligible users for chore: {chore.name}")
             return False, "No eligible users for this chore", None
 
+        # For difficult chores, try multiple users if needed
+        if chore.is_difficult and not force_assign:
+            # Get list of users who don't have difficult chores today
+            users_without_difficult = []
+            for user in eligible_users:
+                has_difficult = ChoreInstance.objects.filter(
+                    assigned_to=user,
+                    status__in=[ChoreInstance.ASSIGNED, ChoreInstance.COMPLETED],
+                    chore__is_difficult=True,
+                    due_at__date=timezone.localdate()
+                ).exclude(id=instance.id).exists()
+
+                if not has_difficult:
+                    users_without_difficult.append(user)
+
+            if not users_without_difficult:
+                # All eligible users have difficult chore limit reached
+                instance.assignment_reason = ChoreInstance.REASON_DIFFICULT_CHORE_LIMIT
+                instance.save()
+                logger.warning(
+                    f"All {eligible_users.count()} eligible users have reached difficult chore limit for: {chore.name}"
+                )
+                return False, "All eligible users have difficult chore limit reached", None
+
+            # Filter eligible_users to only those without difficult chores
+            eligible_user_ids = [u.id for u in users_without_difficult]
+            eligible_users = eligible_users.filter(id__in=eligible_user_ids)
+
         # Check if chore is undesirable - use rotation
         if chore.is_undesirable:
             selected_user = AssignmentService._select_via_rotation(
@@ -61,25 +89,6 @@ class AssignmentService:
             instance.assignment_reason = ChoreInstance.REASON_ALL_COMPLETED_YESTERDAY
             instance.save()
             return False, "All eligible users completed this chore yesterday", None
-
-        # Check difficult chore constraint
-        if chore.is_difficult and not force_assign:
-            # Check if user already has a difficult chore assigned or completed today
-            has_difficult = ChoreInstance.objects.filter(
-                assigned_to=selected_user,
-                status__in=[ChoreInstance.ASSIGNED, ChoreInstance.COMPLETED],
-                chore__is_difficult=True,
-                due_at__date=timezone.localdate()
-            ).exclude(id=instance.id).exists()
-
-            if has_difficult:
-                logger.info(
-                    f"User {selected_user.username} already has difficult chore, "
-                    f"cannot assign {chore.name}"
-                )
-                instance.assignment_reason = ChoreInstance.REASON_NO_ELIGIBLE
-                instance.save()
-                return False, "User already has a difficult chore assigned", None
 
         # Perform assignment
         instance.status = ChoreInstance.ASSIGNED
@@ -125,11 +134,18 @@ class AssignmentService:
 
         # If chore is undesirable, filter by explicit eligibility
         if chore.is_undesirable:
+            eligibility_count = ChoreEligibility.objects.filter(chore=chore).count()
             eligible_user_ids = ChoreEligibility.objects.filter(
                 chore=chore
             ).values_list('user_id', flat=True)
 
             eligible = eligible.filter(id__in=eligible_user_ids)
+
+            logger.debug(
+                f"Eligibility check for '{chore.name}': "
+                f"{eligibility_count} ChoreEligibility records, "
+                f"{eligible.count()} users eligible after filters"
+            )
 
         return eligible
 
@@ -187,6 +203,10 @@ class AssignmentService:
 
         if not available_users:
             # All users completed yesterday - purple state
+            logger.warning(
+                f"Rotation blocked for '{chore.name}': "
+                f"All {len(eligible_users)} eligible users completed yesterday"
+            )
             return None
 
         # Sort by: 1) fewest completions, 2) last_completed_date (None first, then oldest)

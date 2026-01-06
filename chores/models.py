@@ -349,6 +349,7 @@ class ChoreInstance(models.Model):
     REASON_FIXED = "fixed"
     REASON_NO_ELIGIBLE = "no_eligible_users"
     REASON_ALL_COMPLETED_YESTERDAY = "all_completed_yesterday"
+    REASON_DIFFICULT_CHORE_LIMIT = "difficult_chore_limit"
     REASON_PARENT_COMPLETION = "parent_completion"
     ASSIGNMENT_REASON_CHOICES = [
         (REASON_CLAIMED, "User claimed"),
@@ -357,6 +358,7 @@ class ChoreInstance(models.Model):
         (REASON_FIXED, "Fixed assignment"),
         (REASON_NO_ELIGIBLE, "No eligible users"),
         (REASON_ALL_COMPLETED_YESTERDAY, "All eligible users completed yesterday"),
+        (REASON_DIFFICULT_CHORE_LIMIT, "All users have difficult chore limit reached"),
         (REASON_PARENT_COMPLETION, "Spawned from parent chore completion"),
     ]
 

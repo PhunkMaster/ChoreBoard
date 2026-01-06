@@ -3,6 +3,7 @@ Scheduled job implementations for ChoreBoard.
 """
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import Q
 from decimal import Decimal
 from datetime import datetime, timedelta
 import logging
@@ -156,6 +157,28 @@ def midnight_evaluation():
                                 logger.warning(
                                     f"Could not assign undesirable chore '{chore.name}': {message}"
                                 )
+                    else:
+                        # Instance was not created - log why
+                        logger.debug(
+                            f"Skipped creating instance for '{chore.name}': "
+                            f"schedule_type={chore.schedule_type}, "
+                            f"is_undesirable={chore.is_undesirable}, "
+                            f"rescheduled_date={chore.rescheduled_date}"
+                        )
+
+                        # Check if blocked by existing open instance
+                        open_instance = ChoreInstance.objects.filter(
+                            chore=chore
+                        ).filter(
+                            ~Q(status__in=[ChoreInstance.COMPLETED, ChoreInstance.SKIPPED])
+                        ).first()
+
+                        if open_instance:
+                            logger.warning(
+                                f"'{chore.name}' blocked by existing open instance "
+                                f"(ID: {open_instance.id}, Status: {open_instance.status}, "
+                                f"Due: {open_instance.due_at.strftime('%Y-%m-%d')})"
+                            )
 
                 except Exception as e:
                     error_msg = f"Error creating instance for chore {chore.name}: {str(e)}"
