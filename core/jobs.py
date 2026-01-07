@@ -465,6 +465,42 @@ def should_create_instance_today(chore, today):
     Returns:
         bool: True if instance should be created
     """
+    # Check for rescheduled date FIRST (must happen before instance check)
+    # This ensures reschedule is cleared even if instance already exists
+    if chore.rescheduled_date:
+        if chore.rescheduled_date == today:
+            # Check if instance already exists for the rescheduled date
+            today_start = datetime.combine(today, datetime.min.time())
+            today_end = datetime.combine(today, datetime.max.time())
+
+            existing_for_today = ChoreInstance.objects.filter(
+                chore=chore,
+                due_at__range=(today_start, today_end)
+            ).exists()
+
+            if existing_for_today:
+                # Instance already created for rescheduled date - clear reschedule but don't create again
+                logger.info(f"Chore '{chore.name}' already has instance for rescheduled date {today}, clearing reschedule")
+                chore.rescheduled_date = None
+                chore.reschedule_reason = ""
+                chore.rescheduled_by = None
+                chore.rescheduled_at = None
+                chore.save()
+                return False
+            else:
+                # Clear reschedule and create instance today
+                chore.rescheduled_date = None
+                chore.reschedule_reason = ""
+                chore.rescheduled_by = None
+                chore.rescheduled_at = None
+                chore.save()
+                logger.info(f"Chore '{chore.name}' rescheduled date reached, cleared reschedule and creating instance")
+                return True
+        else:
+            # Skip normal schedule - chore is rescheduled for a different day
+            logger.debug(f"Chore '{chore.name}' is rescheduled to {chore.rescheduled_date}, skipping today")
+            return False
+
     # Check if instance already exists for today OR if there's any open instance
     # This prevents creating duplicates when:
     # 1. An instance for today already exists
@@ -484,22 +520,6 @@ def should_create_instance_today(chore, today):
 
     if existing:
         return False
-
-    # Check for rescheduled date (overrides normal schedule)
-    if chore.rescheduled_date:
-        if chore.rescheduled_date == today:
-            # Clear reschedule and create instance today
-            chore.rescheduled_date = None
-            chore.reschedule_reason = ""
-            chore.rescheduled_by = None
-            chore.rescheduled_at = None
-            chore.save()
-            logger.info(f"Chore '{chore.name}' rescheduled date reached, cleared reschedule and creating instance")
-            return True
-        else:
-            # Skip normal schedule - chore is rescheduled for a different day
-            logger.debug(f"Chore '{chore.name}' is rescheduled to {chore.rescheduled_date}, skipping today")
-            return False
 
     # ONE_TIME chores are created immediately via signal, not by midnight evaluation
     if chore.schedule_type == Chore.ONE_TIME:
