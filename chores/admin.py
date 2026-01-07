@@ -53,12 +53,13 @@ class ChoreDependencyAsParentInline(admin.TabularInline):
 @admin.register(Chore)
 class ChoreAdmin(admin.ModelAdmin):
     """Admin interface for Chore model."""
-    list_display = ["name", "points", "colored_status", "assigned_to", "schedule_type", "has_dependencies", "is_difficult"]
+    list_display = ["name", "points", "colored_status", "assigned_to", "schedule_type", "last_instance_created_display", "has_dependencies", "is_difficult"]
     list_filter = ["is_active", "is_pool", "is_difficult", "is_undesirable", "is_late_chore", "complete_later", "schedule_type"]
     search_fields = ["name", "description"]
     readonly_fields = ["created_at", "updated_at", "dependency_info", "eligible_users_display"]
     list_editable = ["points"]
     list_per_page = 50
+    change_form_template = 'admin/chores/chore_change_form.html'
     inlines = [ChoreEligibilityInline, ChoreDependencyAsParentInline, ChoreDependencyAsChildInline]
 
     actions = ['activate_chores', 'deactivate_chores', 'mark_as_pool', 'mark_as_difficult']
@@ -90,6 +91,19 @@ class ChoreAdmin(admin.ModelAdmin):
         }),
     )
 
+    def get_urls(self):
+        """Add custom URL for creating instance."""
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<int:chore_id>/create-instance-now/',
+                self.admin_site.admin_view(self.create_instance_now_view),
+                name='create_chore_instance_now',
+            ),
+        ]
+        return custom_urls + urls
+
     def colored_status(self, obj):
         """Display status with color coding."""
         if not obj.is_active:
@@ -112,6 +126,58 @@ class ChoreAdmin(admin.ModelAdmin):
             return format_html('<span title="Has child chore(s)">⬇️ Parent</span>')
         return "-"
     has_dependencies.short_description = "Dependencies"
+
+    def last_instance_created_display(self, obj):
+        """Display the most recently created instance for this chore."""
+        instance = ChoreInstance.objects.filter(
+            chore=obj
+        ).order_by('-created_at').first()
+
+        if not instance:
+            return format_html('<span style="color: #999;">Never</span>')
+
+        # Calculate time since creation
+        from django.utils import timezone
+        time_ago = timezone.now() - instance.created_at
+
+        # Format time ago
+        if time_ago.days > 0:
+            time_str = f'{time_ago.days}d ago'
+        elif time_ago.seconds >= 3600:
+            hours = time_ago.seconds // 3600
+            time_str = f'{hours}h ago'
+        elif time_ago.seconds >= 60:
+            minutes = time_ago.seconds // 60
+            time_str = f'{minutes}m ago'
+        else:
+            time_str = 'Just now'
+
+        # Link to the instance in admin
+        url = reverse('admin:chores_choreinstance_change', args=[instance.id])
+
+        # Color code based on status
+        if instance.status == ChoreInstance.COMPLETED:
+            color = '#28a745'  # Green
+        elif instance.status == ChoreInstance.SKIPPED:
+            color = '#6c757d'  # Gray
+        elif instance.status == ChoreInstance.ASSIGNED:
+            color = '#007bff'  # Blue
+        else:  # POOL
+            color = '#ffc107'  # Amber
+
+        return format_html(
+            '<a href="{}" style="text-decoration: none;">'
+            '<span style="font-weight: 500;">{}</span><br>'
+            '<span style="color: #666; font-size: 0.85em;">{} • <span style="color: {};">{}</span></span>'
+            '</a>',
+            url,
+            instance.created_at.strftime('%b %d, %Y %H:%M'),
+            time_str,
+            color,
+            instance.get_status_display()
+        )
+    last_instance_created_display.short_description = "Last Instance Created"
+    last_instance_created_display.admin_order_field = '-instances__created_at'
 
     def dependency_info(self, obj):
         """Display dependency relationships."""
@@ -187,6 +253,134 @@ class ChoreAdmin(admin.ModelAdmin):
         html.append('</div></div>')
         return mark_safe("".join(html))
     eligible_users_display.short_description = "Currently Eligible Users"
+
+    def create_instance_now_view(self, request, chore_id):
+        """Handle manual instance creation for a chore."""
+        from django.shortcuts import redirect
+        from django.contrib import messages
+        from django.utils import timezone
+        from datetime import datetime
+        from django.db.models import Q
+        from core.models import ActionLog
+        from chores.services import AssignmentService
+
+        # Get the chore
+        try:
+            chore = Chore.objects.get(pk=chore_id)
+        except Chore.DoesNotExist:
+            messages.error(request, "Chore not found.")
+            return redirect('admin:chores_chore_changelist')
+
+        # Check if chore is active
+        if not chore.is_active:
+            messages.warning(
+                request,
+                f"Cannot create instance for inactive chore: {chore.name}"
+            )
+            return redirect('admin:chores_chore_change', chore_id)
+
+        # Calculate times
+        now = timezone.now()
+        today = timezone.localdate(now)
+        today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+        today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+
+        # Check for existing instances today OR any open instances
+        existing_instance = ChoreInstance.objects.filter(chore=chore).filter(
+            Q(due_at__range=(today_start, today_end)) |
+            ~Q(status__in=[ChoreInstance.COMPLETED, ChoreInstance.SKIPPED])
+        ).first()
+
+        if existing_instance:
+            if existing_instance.due_at.date() == today:
+                messages.warning(
+                    request,
+                    f"Instance already exists for {chore.name} today "
+                    f"(Status: {existing_instance.get_status_display()}, "
+                    f"ID: {existing_instance.id})"
+                )
+            else:
+                messages.warning(
+                    request,
+                    f"Open instance from {existing_instance.due_at.strftime('%Y-%m-%d')} exists "
+                    f"(Status: {existing_instance.get_status_display()}, ID: {existing_instance.id}). "
+                    f"Please complete or skip it before creating a new instance."
+                )
+            return redirect('admin:chores_chore_change', chore_id)
+
+        # Determine status and assignment
+        if chore.is_pool or chore.is_undesirable:
+            status = ChoreInstance.POOL
+            assigned_to = None
+            assignment_reason = ""
+        else:
+            status = ChoreInstance.ASSIGNED
+            assigned_to = chore.assigned_to
+            assignment_reason = ChoreInstance.REASON_MANUAL
+
+            # Validate that assigned chores have a user
+            if not assigned_to:
+                messages.error(
+                    request,
+                    f"Cannot create instance for '{chore.name}': "
+                    f"Chore is not a pool chore but has no assigned user."
+                )
+                return redirect('admin:chores_chore_change', chore_id)
+
+        # Create the instance
+        try:
+            instance = ChoreInstance.objects.create(
+                chore=chore,
+                status=status,
+                assigned_to=assigned_to,
+                points_value=chore.points,
+                due_at=today_end,  # Due at end of today
+                distribution_at=now,  # Distribute immediately
+                assignment_reason=assignment_reason
+            )
+
+            # Log the action
+            ActionLog.objects.create(
+                action_type=ActionLog.ACTION_CHORE_CREATED,
+                user=request.user,
+                description=f"Manually created instance for: {chore.name}",
+                metadata={
+                    'chore_id': chore.id,
+                    'instance_id': instance.id,
+                    'created_by': 'manual_create_button'
+                }
+            )
+
+            # If undesirable pool chore, auto-assign immediately
+            if chore.is_undesirable and status == ChoreInstance.POOL:
+                success, message, assigned_user = AssignmentService.assign_chore(instance)
+                if success:
+                    messages.success(
+                        request,
+                        f"✓ Created instance for '{chore.name}' (ID: {instance.id}) "
+                        f"and assigned to {assigned_user.username}"
+                    )
+                else:
+                    messages.warning(
+                        request,
+                        f"✓ Created instance for '{chore.name}' (ID: {instance.id}) "
+                        f"but could not auto-assign: {message}"
+                    )
+            else:
+                status_msg = f"assigned to {assigned_to.username}" if assigned_to else "in pool"
+                messages.success(
+                    request,
+                    f"✓ Successfully created instance for '{chore.name}' "
+                    f"(ID: {instance.id}, {status_msg})"
+                )
+
+        except Exception as e:
+            messages.error(
+                request,
+                f"Error creating instance for '{chore.name}': {str(e)}"
+            )
+
+        return redirect('admin:chores_chore_change', chore_id)
 
     @admin.action(description="✅ Activate selected chores")
     def activate_chores(self, request, queryset):
