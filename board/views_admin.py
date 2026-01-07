@@ -150,6 +150,11 @@ def admin_chores(request):
     """
     chores = Chore.objects.all().order_by('-is_active', 'name')
 
+    # Add last instance data for each chore
+    for chore in chores:
+        last_instance = ChoreInstance.objects.filter(chore=chore).order_by('-created_at').first()
+        chore.last_instance = last_instance
+
     context = {
         'chores': chores,
     }
@@ -185,6 +190,113 @@ def admin_chore_history(request, chore_id):
     }
 
     return render(request, 'board/admin/chore_history.html', context)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_POST
+def admin_chore_create_instance(request, chore_id):
+    """
+    Manually create a chore instance immediately (admin action).
+    """
+    from chores.services import AssignmentService
+
+    try:
+        chore = get_object_or_404(Chore, id=chore_id)
+
+        # Check if chore is active
+        if not chore.is_active:
+            return JsonResponse({
+                'error': f'Cannot create instance for inactive chore: {chore.name}'
+            }, status=400)
+
+        # Calculate times
+        now = timezone.now()
+        today = timezone.localdate(now)
+        today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+        today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+
+        # Check for existing instances today OR any open instances
+        existing_instance = ChoreInstance.objects.filter(chore=chore).filter(
+            Q(due_at__range=(today_start, today_end)) |
+            ~Q(status__in=[ChoreInstance.COMPLETED, ChoreInstance.SKIPPED])
+        ).first()
+
+        if existing_instance:
+            if existing_instance.due_at.date() == today:
+                return JsonResponse({
+                    'error': f'Instance already exists for {chore.name} today (Status: {existing_instance.get_status_display()}, ID: {existing_instance.id})'
+                }, status=400)
+            else:
+                return JsonResponse({
+                    'error': f'Open instance from {existing_instance.due_at.strftime("%Y-%m-%d")} exists (Status: {existing_instance.get_status_display()}, ID: {existing_instance.id}). Please complete or skip it first.'
+                }, status=400)
+
+        # Determine status and assignment
+        if chore.is_pool or chore.is_undesirable:
+            status = ChoreInstance.POOL
+            assigned_to = None
+            assignment_reason = ""
+        else:
+            status = ChoreInstance.ASSIGNED
+            assigned_to = chore.assigned_to
+            assignment_reason = ChoreInstance.REASON_MANUAL
+
+            # Validate that assigned chores have a user
+            if not assigned_to:
+                return JsonResponse({
+                    'error': f'Cannot create instance for "{chore.name}": Chore is not a pool chore but has no assigned user.'
+                }, status=400)
+
+        # Create the instance
+        instance = ChoreInstance.objects.create(
+            chore=chore,
+            status=status,
+            assigned_to=assigned_to,
+            points_value=chore.points,
+            due_at=today_end,  # Due at end of today
+            distribution_at=now,  # Distribute immediately
+            assignment_reason=assignment_reason
+        )
+
+        # Log the action
+        ActionLog.objects.create(
+            action_type=ActionLog.ACTION_CHORE_CREATED,
+            user=request.user,
+            description=f"Manually created instance for: {chore.name}",
+            metadata={
+                'chore_id': chore.id,
+                'instance_id': instance.id,
+                'created_by': 'manual_create_button'
+            }
+        )
+
+        # If undesirable pool chore, auto-assign immediately
+        if chore.is_undesirable and status == ChoreInstance.POOL:
+            success, message, assigned_user = AssignmentService.assign_chore(instance)
+            if success:
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Created instance for "{chore.name}" (ID: {instance.id}) and assigned to {assigned_user.username}'
+                })
+            else:
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Created instance for "{chore.name}" (ID: {instance.id}) but could not auto-assign: {message}',
+                    'warning': True
+                })
+        else:
+            status_msg = f"assigned to {assigned_to.username}" if assigned_to else "in pool"
+            return JsonResponse({
+                'success': True,
+                'message': f'Successfully created instance for "{chore.name}" (ID: {instance.id}, {status_msg})'
+            })
+
+    except Exception as e:
+        logger.error(f"Error creating instance for chore {chore_id}: {str(e)}")
+        return JsonResponse({
+            'error': f'Error creating instance: {str(e)}'
+        }, status=500)
 
 
 @login_required

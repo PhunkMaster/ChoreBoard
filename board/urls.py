@@ -78,6 +78,7 @@ urlpatterns = [
     path('admin-panel/chore/toggle/<int:chore_id>/', views_admin.admin_chore_toggle_active, name='admin_chore_toggle'),
     path('admin-panel/chore/delete/<int:chore_id>/', views_admin.admin_chore_delete, name='admin_chore_delete'),
     path('admin-panel/chore/history/<int:chore_id>/', views_admin.admin_chore_history, name='admin_chore_history'),
+    path('admin-panel/chore/create-instance/<int:chore_id>/', views_admin.admin_chore_create_instance, name='admin_chore_create_instance'),
     # Skip/Unskip Chore
     path('admin-panel/skip-chores/', views_admin.admin_skip_chores, name='admin_skip_chores'),
     path('admin-panel/chore/skip/<int:instance_id>/', views_admin.admin_skip_chore, name='admin_chore_skip'),
