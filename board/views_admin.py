@@ -802,13 +802,13 @@ def admin_backdate_completion_action(request):
 
             # Check if we need to spawn a new instance for today (for daily chores)
             # If the chore is daily and backdated to yesterday, spawn today's instance
-            if instance.chore.schedule_type == Chore.SCHEDULE_DAILY:
+            if instance.chore.schedule_type == Chore.DAILY:
                 # Check if completion_date was yesterday
                 yesterday = today - timedelta(days=1)
                 if completion_date == yesterday:
                     # Spawn a new instance for today
                     today_due_at = timezone.make_aware(
-                        datetime.combine(today, instance.chore.due_time)
+                        datetime.combine(today, instance.chore.distribution_time)
                     )
                     today_distribution_at = timezone.make_aware(
                         datetime.combine(today, instance.chore.distribution_time)

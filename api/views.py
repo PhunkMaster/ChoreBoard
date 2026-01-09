@@ -608,7 +608,7 @@ def quick_add_task(request):
                 name=data['name'],
                 description=data.get('description', ''),
                 points=data.get('points', Decimal('1.0')),
-                schedule_type=Chore.SCHEDULE_ONCE,
+                schedule_type=Chore.ONE_TIME,
                 is_pool=data.get('assign_to_user_id') is None,
                 is_active=True
             )
