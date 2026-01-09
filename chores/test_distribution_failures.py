@@ -73,6 +73,11 @@ class DistributionFailureTests(TestCase):
             distribution_time=time(17, 30)
         )
 
+        # Clean up any auto-created instances from signals to start tests fresh
+        # The post_save signal automatically creates instances for active chores when created
+        ChoreInstance.objects.filter(chore=self.undesirable_chore).delete()
+        ChoreInstance.objects.filter(chore=self.regular_chore).delete()
+
     def test_orphaned_instance_blocks_creation(self):
         """Test: Open instance from previous day prevents new creation."""
         # Create instance from yesterday that's still open
