@@ -190,6 +190,7 @@ class ArcadeHighScoreSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     chore_name = serializers.CharField(source='chore.name', read_only=True)
     time_formatted = serializers.CharField(source='format_time', read_only=True)
+    rank = serializers.SerializerMethodField()
 
     class Meta:
         model = ArcadeHighScore
@@ -198,3 +199,27 @@ class ArcadeHighScoreSerializer(serializers.ModelSerializer):
             'rank', 'achieved_at'
         ]
         read_only_fields = ['id']
+
+    def get_rank(self, obj):
+        """Calculate rank dynamically based on time_seconds ordering."""
+        # Get all high scores for this chore ordered by time
+        scores = ArcadeHighScore.objects.filter(
+            chore=obj.chore
+        ).order_by('time_seconds')
+
+        # Find position of this score (1-indexed)
+        for rank, score in enumerate(scores, start=1):
+            if score.id == obj.id:
+                return rank
+        return None
+
+
+class QuickAddTaskSerializer(serializers.Serializer):
+    """Serializer for quick-add task creation."""
+
+    name = serializers.CharField(max_length=200)
+    description = serializers.CharField(required=False, allow_blank=True, default='')
+    points = serializers.DecimalField(max_digits=6, decimal_places=2, default=1.0)
+    assign_to_user_id = serializers.IntegerField(required=False, allow_null=True)
+    due_at = serializers.DateTimeField(required=False, allow_null=True)
+    spawn_after_chore_id = serializers.IntegerField(required=False, allow_null=True)

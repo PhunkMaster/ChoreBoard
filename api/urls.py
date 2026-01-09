@@ -15,8 +15,10 @@ urlpatterns = [
 
     # Chore operations
     path('claim/', views.claim_chore, name='claim_chore'),
+    path('unclaim/', views.unclaim_chore, name='unclaim_chore'),
     path('complete/', views.complete_chore, name='complete_chore'),
     path('undo/', views.undo_completion, name='undo_completion'),
+    path('quick-add-task/', views.quick_add_task, name='quick_add_task'),
 
     # Chore queries
     path('late-chores/', views.late_chores, name='late_chores'),

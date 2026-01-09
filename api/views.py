@@ -18,7 +18,8 @@ from api.auth import HMACAuthentication
 from api.serializers import (
     ChoreInstanceSerializer, CompletionSerializer, LeaderboardEntrySerializer,
     ClaimChoreSerializer, CompleteChoreSerializer, UndoCompletionSerializer,
-    UserSerializer, ArcadeHighScoreSerializer, SiteSettingsSerializer
+    UserSerializer, ArcadeHighScoreSerializer, SiteSettingsSerializer,
+    QuickAddTaskSerializer
 )
 from chores.models import ChoreInstance, Completion, CompletionShare, PointsLedger, Chore, ArcadeHighScore
 from chores.services import AssignmentService, DependencyService
@@ -141,6 +142,64 @@ def claim_chore(request):
         return Response(
             {'error': 'Failed to claim chore'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@extend_schema(
+    summary="Unclaim a chore",
+    description="Unclaim a chore and return it to the pool. Requires HMAC authentication.",
+    request={
+        'application/json': {
+            'type': 'object',
+            'properties': {
+                'instance_id': {'type': 'integer', 'description': 'ChoreInstance ID to unclaim'}
+            },
+            'required': ['instance_id']
+        }
+    },
+    responses={
+        200: ChoreInstanceSerializer,
+        400: OpenApiTypes.OBJECT,
+        404: OpenApiTypes.OBJECT,
+    },
+    tags=['Actions']
+)
+@api_view(['POST'])
+@authentication_classes([HMACAuthentication])
+@permission_classes([IsAuthenticated])
+def unclaim_chore(request):
+    """
+    Unclaim a chore and return it to the pool.
+
+    Request body:
+        {
+            "instance_id": 123
+        }
+
+    Returns:
+        200: Chore unclaimed successfully
+        400: Chore not claimed or validation error
+        404: Chore instance not found
+    """
+    instance_id = request.data.get('instance_id')
+    if not instance_id:
+        return Response(
+            {'error': 'Missing instance_id'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    from chores.services import UnclaimService
+    success, message, instance = UnclaimService.unclaim_chore(instance_id)
+
+    if success:
+        return Response({
+            'message': message,
+            'instance': ChoreInstanceSerializer(instance).data
+        })
+    else:
+        return Response(
+            {'error': message},
+            status=status.HTTP_400_BAD_REQUEST
         )
 
 
@@ -506,6 +565,115 @@ def undo_completion(request):
 
 
 @extend_schema(
+    summary="Create quick task",
+    description="Create a one-time task. Available to any authenticated user.",
+    request=QuickAddTaskSerializer,
+    responses={
+        201: ChoreInstanceSerializer,
+        400: OpenApiTypes.OBJECT,
+    },
+    tags=['Actions']
+)
+@api_view(['POST'])
+@authentication_classes([HMACAuthentication])
+@permission_classes([IsAuthenticated])
+def quick_add_task(request):
+    """
+    Create a one-time task.
+
+    Request body:
+        {
+            "name": "Task name",
+            "description": "Optional description",
+            "points": 5.0,
+            "assign_to_user_id": 1,  // Optional
+            "due_at": "2025-01-15T18:00:00Z",  // Optional
+            "spawn_after_chore_id": 5  // Optional - spawn after this chore completes
+        }
+
+    Returns:
+        201: Task created successfully
+        400: Validation error
+    """
+    serializer = QuickAddTaskSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    data = serializer.validated_data
+
+    try:
+        with transaction.atomic():
+            # Create the one-time chore
+            chore = Chore.objects.create(
+                name=data['name'],
+                description=data.get('description', ''),
+                points=data.get('points', Decimal('1.0')),
+                schedule_type=Chore.SCHEDULE_ONCE,
+                is_pool=data.get('assign_to_user_id') is None,
+                is_active=True
+            )
+
+            # Determine due date
+            due_at = data.get('due_at')
+            if not due_at:
+                # Default to end of today
+                due_at = timezone.now().replace(hour=23, minute=59, second=59)
+
+            # Create the instance
+            assign_to = None
+            if data.get('assign_to_user_id'):
+                try:
+                    assign_to = User.objects.get(id=data['assign_to_user_id'])
+                except User.DoesNotExist:
+                    return Response(
+                        {'error': 'User not found'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+
+            instance = ChoreInstance.objects.create(
+                chore=chore,
+                assigned_to=assign_to,
+                status=ChoreInstance.ASSIGNED if assign_to else ChoreInstance.POOL,
+                assignment_reason=ChoreInstance.REASON_MANUAL if assign_to else None,
+                due_at=due_at,
+                points_value=chore.points
+            )
+
+            # Handle spawn-after dependency if specified
+            if data.get('spawn_after_chore_id'):
+                try:
+                    from chores.models import ChoreDependency
+                    parent_chore = Chore.objects.get(id=data['spawn_after_chore_id'])
+                    ChoreDependency.objects.create(
+                        parent_chore=parent_chore,
+                        child_chore=chore,
+                        spawn_type=ChoreDependency.SPAWN_COMPLETION
+                    )
+                except Chore.DoesNotExist:
+                    pass  # Ignore invalid parent chore
+
+            # Log action
+            ActionLog.objects.create(
+                action_type=ActionLog.ACTION_CREATE,
+                user=request.user,
+                description=f"Created one-time task: {chore.name}",
+                metadata={'chore_id': chore.id, 'instance_id': instance.id}
+            )
+
+            return Response({
+                'message': 'Task created successfully',
+                'instance': ChoreInstanceSerializer(instance).data
+            }, status=status.HTTP_201_CREATED)
+
+    except Exception as e:
+        logger.error(f"Error creating quick task: {str(e)}")
+        return Response(
+            {'error': f'Failed to create task: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@extend_schema(
     summary="Get late (overdue) chores",
     description="Returns all chores that are overdue. Authentication is optional but supported.",
     responses={200: ChoreInstanceSerializer(many=True)},
@@ -812,7 +980,7 @@ def chore_leaderboard(request, chore_id):
 
     high_scores = ArcadeHighScore.objects.filter(
         chore=chore
-    ).select_related('user').order_by('rank')
+    ).select_related('user').order_by('time_seconds')
 
     serializer = ArcadeHighScoreSerializer(high_scores, many=True)
     return Response(serializer.data)
@@ -834,16 +1002,24 @@ def all_chore_leaderboards(request):
     Authentication is optional but supported.
 
     Returns:
-        200: Dictionary of chore_id -> list of high scores
+        200: List of chore leaderboards
         Format:
-        {
-            "1": [
-                {"rank": 1, "user": {...}, "time_seconds": 45, ...},
-                {"rank": 2, "user": {...}, "time_seconds": 52, ...},
-                {"rank": 3, "user": {...}, "time_seconds": 58, ...}
-            ],
-            "2": [...]
-        }
+        [
+            {
+                "chore_id": 1,
+                "chore_name": "Dishes",
+                "high_scores": [
+                    {"rank": 1, "user": {...}, "time_seconds": 45, ...},
+                    {"rank": 2, "user": {...}, "time_seconds": 52, ...},
+                    {"rank": 3, "user": {...}, "time_seconds": 58, ...}
+                ]
+            },
+            {
+                "chore_id": 2,
+                "chore_name": "Laundry",
+                "high_scores": [...]
+            }
+        ]
     """
     # Get all chores that have high scores
     chores_with_scores = Chore.objects.filter(
@@ -851,16 +1027,20 @@ def all_chore_leaderboards(request):
         is_active=True
     ).distinct()
 
-    leaderboards = {}
+    leaderboards = []
 
     for chore in chores_with_scores:
         high_scores = ArcadeHighScore.objects.filter(
             chore=chore
-        ).select_related('user').order_by('rank')
+        ).select_related('user').order_by('time_seconds')
 
         if high_scores.exists():
-            leaderboards[str(chore.id)] = ArcadeHighScoreSerializer(
-                high_scores, many=True
-            ).data
+            leaderboards.append({
+                'chore_id': chore.id,
+                'chore_name': chore.name,
+                'high_scores': ArcadeHighScoreSerializer(
+                    high_scores, many=True
+                ).data
+            })
 
     return Response(leaderboards)

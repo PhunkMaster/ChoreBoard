@@ -230,6 +230,90 @@ class ClaimChoreAPITests(TestCase):
         self.assertEqual(response.status_code, 404)
 
 
+class UnclaimChoreAPITests(TestCase):
+    """Test the unclaim chore API endpoint."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='alice',
+            password='test123',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        self.chore = Chore.objects.create(
+            name='Test Chore',
+            points=Decimal('10.00'),
+            is_pool=True,
+            schedule_type=Chore.DAILY
+        )
+
+        now = timezone.now()
+        self.instance = ChoreInstance.objects.create(
+            chore=self.chore,
+            status=ChoreInstance.ASSIGNED,
+            assigned_to=self.user,
+            assignment_reason=ChoreInstance.REASON_CLAIMED,
+            points_value=self.chore.points,
+            due_at=now + timedelta(hours=6),
+            distribution_at=now
+        )
+
+        self.client = APIClient()
+        self.token = HMACAuthentication.generate_token('alice')
+
+    def test_unclaim_chore_success(self):
+        """Test successfully unclaiming a claimed chore."""
+        response = self.client.post(
+            '/api/unclaim/',
+            {'instance_id': self.instance.id},
+            HTTP_AUTHORIZATION=f'Bearer {self.token}'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('message', response.data)
+
+        # Verify it's back in pool
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.status, ChoreInstance.POOL)
+        self.assertIsNone(self.instance.assigned_to)
+
+    def test_unclaim_pool_chore_fails(self):
+        """Test that unclaiming a pool chore fails."""
+        # Set to pool status
+        self.instance.status = ChoreInstance.POOL
+        self.instance.assigned_to = None
+        self.instance.save()
+
+        response = self.client.post(
+            '/api/unclaim/',
+            {'instance_id': self.instance.id},
+            HTTP_AUTHORIZATION=f'Bearer {self.token}'
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_unclaim_without_authentication_fails(self):
+        """Test that unclaiming without auth token fails."""
+        response = self.client.post(
+            '/api/unclaim/',
+            {'instance_id': self.instance.id}
+        )
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_unclaim_missing_instance_id_fails(self):
+        """Test that unclaiming without instance_id fails."""
+        response = self.client.post(
+            '/api/unclaim/',
+            {},
+            HTTP_AUTHORIZATION=f'Bearer {self.token}'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('instance_id', str(response.data).lower())
+
+
 class CompleteChoreAPITests(TestCase):
     """Test the complete chore API endpoint."""
 
@@ -1774,23 +1858,35 @@ class ChoreLeaderboardAPITests(TestCase):
         """Test getting all chore leaderboards."""
         response = self.client.get('/api/chore-leaderboards/')
         self.assertEqual(response.status_code, 200)
-        self.assertIsInstance(response.data, dict)
+        self.assertIsInstance(response.data, list)
 
         # Should have 2 chores with scores
         self.assertEqual(len(response.data), 2)
 
-        # Check chore1 has 3 scores
-        self.assertIn(str(self.chore1.id), response.data)
-        chore1_scores = response.data[str(self.chore1.id)]
-        self.assertEqual(len(chore1_scores), 3)
+        # Find chore1 in the list
+        chore1_leaderboard = None
+        chore2_leaderboard = None
+        for leaderboard in response.data:
+            if leaderboard['chore_id'] == self.chore1.id:
+                chore1_leaderboard = leaderboard
+            elif leaderboard['chore_id'] == self.chore2.id:
+                chore2_leaderboard = leaderboard
 
-        # Check chore2 has 1 score
-        self.assertIn(str(self.chore2.id), response.data)
-        chore2_scores = response.data[str(self.chore2.id)]
-        self.assertEqual(len(chore2_scores), 1)
+        # Check chore1 has correct structure and 3 scores
+        self.assertIsNotNone(chore1_leaderboard)
+        self.assertEqual(chore1_leaderboard['chore_name'], self.chore1.name)
+        self.assertIn('high_scores', chore1_leaderboard)
+        self.assertEqual(len(chore1_leaderboard['high_scores']), 3)
+
+        # Check chore2 has correct structure and 1 score
+        self.assertIsNotNone(chore2_leaderboard)
+        self.assertEqual(chore2_leaderboard['chore_name'], self.chore2.name)
+        self.assertIn('high_scores', chore2_leaderboard)
+        self.assertEqual(len(chore2_leaderboard['high_scores']), 1)
 
         # Chore without scores should not appear
-        self.assertNotIn(str(self.chore_no_scores.id), response.data)
+        chore_ids = [lb['chore_id'] for lb in response.data]
+        self.assertNotIn(self.chore_no_scores.id, chore_ids)
 
     def test_chore_leaderboard_without_auth(self):
         """Test that chore leaderboard works without authentication."""
@@ -1802,7 +1898,14 @@ class ChoreLeaderboardAPITests(TestCase):
         """Test that all chore leaderboards works without authentication."""
         response = self.client.get('/api/chore-leaderboards/')
         self.assertEqual(response.status_code, 200)
-        self.assertIsInstance(response.data, dict)
+        self.assertIsInstance(response.data, list)
+        # Verify structure if there are results
+        if len(response.data) > 0:
+            leaderboard = response.data[0]
+            self.assertIn('chore_id', leaderboard)
+            self.assertIn('chore_name', leaderboard)
+            self.assertIn('high_scores', leaderboard)
+            self.assertIsInstance(leaderboard['high_scores'], list)
 
 
 class CompleteLaterFieldTests(TestCase):
