@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Pending Spawns - Admin - ChoreBoard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Pending Dependent Chores</h1>
+            <p class="text-gray-400 mt-1">Child chores waiting to spawn after parent completion</p>
+        </div>
+    </div>
+
+    {% include "board/admin/_nav.html" with active_page='pending_spawns' %}
+
+    <!-- Pending Spawns -->
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-xl font-semibold text-white">Pending Dependent Chores</h2>
+            <p class="text-gray-400 text-sm mt-1">Child chores that will spawn later when their time delay is reached</p>
+        </div>
+
+        <div id="pending-spawns-container">
+            <!-- Will be populated by JavaScript -->
+            <div class="p-12 text-center">
+                <div class="animate-pulse">
+                    <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p class="text-gray-500">Loading pending spawns...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Spawn Confirmation Modal -->
+<div id="spawn-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50" onclick="if(event.target === this) closeSpawnModal()">
+    <div class="bg-dark-surface rounded-lg p-6 max-w-md w-full mx-4 border border-dark-border shadow-2xl" onclick="event.stopPropagation()">
+        <h3 class="text-xl font-bold text-white mb-4">Force Spawn Chore</h3>
+        <p class="text-gray-300 mb-2">Are you sure you want to spawn this chore immediately?</p>
+        <p class="text-gray-400 text-sm mb-6" id="spawn-chore-name"></p>
+
+        <div class="flex space-x-3">
+            <button onclick="closeSpawnModal()"
+                    class="flex-1 bg-dark-card hover:bg-dark-border text-gray-300 font-semibold px-4 py-2 rounded-lg transition border border-dark-border">
+                Cancel
+            </button>
+            <button onclick="confirmSpawn()"
+                    class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-lg transition">
+                Spawn Now
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Success Toast -->
+<div id="success-toast" class="fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg hidden z-50">
+    <p id="toast-message"></p>
+</div>
+
+<!-- Error Toast -->
+<div id="error-toast" class="fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg hidden z-50">
+    <p id="error-message"></p>
+</div>
+
+<script>
+let selectedSpawn = null;
+
+function loadPendingSpawns() {
+    fetch('{% url "board:admin_pending_spawns" %}', {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('pending-spawns-container');
+
+            if (data.pending_spawns && data.pending_spawns.length > 0) {
+                let html = '<div class="divide-y divide-dark-border">';
+
+                data.pending_spawns.forEach(spawn => {
+                    html += `
+                        <div class="p-6" id="spawn-${spawn.dependency_id}">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-2">
+                                        <h3 class="text-white font-semibold text-lg">${escapeHtml(spawn.child_chore_name)}</h3>
+                                        <span class="px-2 py-1 text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded">
+                                            Pending
+                                        </span>
+                                    </div>
+                                    <p class="text-gray-400 text-sm mt-2">
+                                        <strong>Parent:</strong> ${escapeHtml(spawn.parent_chore_name)}
+                                    </p>
+                                    <p class="text-gray-400 text-sm mt-1">
+                                        <strong>Completed By:</strong> ${escapeHtml(spawn.completed_by)} at ${spawn.parent_completed_at}
+                                    </p>
+                                    <p class="text-gray-300 text-sm mt-2">
+                                        <strong>Will Spawn:</strong> ${spawn.spawn_time_absolute} <span class="text-blue-400">(${spawn.spawn_time_relative})</span>
+                                    </p>
+                                    <p class="text-gray-500 text-xs mt-1">
+                                        Offset: ${spawn.offset_hours} hours after parent completion
+                                    </p>
+                                </div>
+
+                                <div class="ml-6">
+                                    <button onclick="showSpawnModal(${spawn.child_chore_id}, ${spawn.completion_id}, '${escapeHtml(spawn.child_chore_name)}')"
+                                            class="bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center space-x-2">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                        </svg>
+                                        <span>Spawn Now</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += '</div>';
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = `
+                    <div class="p-12 text-center">
+                        <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <h3 class="text-xl font-semibold text-gray-300 mb-2">No Pending Spawns</h3>
+                        <p class="text-gray-500">No dependent chores are waiting to spawn.</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading pending spawns:', error);
+            showError('Failed to load pending spawns');
+        });
+}
+
+function showSpawnModal(childChoreId, completionId, choreName) {
+    selectedSpawn = { childChoreId, completionId };
+    document.getElementById('spawn-chore-name').textContent = `Chore: ${choreName}`;
+    document.getElementById('spawn-modal').classList.remove('hidden');
+    document.getElementById('spawn-modal').classList.add('flex');
+}
+
+function closeSpawnModal() {
+    document.getElementById('spawn-modal').classList.add('hidden');
+    document.getElementById('spawn-modal').classList.remove('flex');
+    selectedSpawn = null;
+}
+
+function confirmSpawn() {
+    if (!selectedSpawn) return;
+
+    const formData = new FormData();
+    formData.append('child_chore_id', selectedSpawn.childChoreId);
+    formData.append('completion_id', selectedSpawn.completionId);
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+    fetch('{% url "board:admin_force_spawn" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showError(data.error);
+        } else {
+            showSuccess(data.message || 'Chore spawned successfully');
+            closeSpawnModal();
+            // Reload the list after a short delay
+            setTimeout(loadPendingSpawns, 500);
+        }
+    })
+    .catch(error => {
+        console.error('Error spawning chore:', error);
+        showError('Failed to spawn chore');
+    });
+}
+
+function showSuccess(message) {
+    const toast = document.getElementById('success-toast');
+    document.getElementById('toast-message').textContent = message;
+    toast.classList.remove('hidden');
+    setTimeout(() => {
+        toast.classList.add('hidden');
+    }, 3000);
+}
+
+function showError(message) {
+    const toast = document.getElementById('error-toast');
+    document.getElementById('error-message').textContent = message;
+    toast.classList.remove('hidden');
+    setTimeout(() => {
+        toast.classList.add('hidden');
+    }, 3000);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Load pending spawns on page load
+document.addEventListener('DOMContentLoaded', loadPendingSpawns);
+
+// Auto-refresh every 30 seconds
+setInterval(loadPendingSpawns, 30000);
+</script>
+{% endblock %}

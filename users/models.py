@@ -135,3 +135,43 @@ class User(AbstractUser):
         """Reset weekly points to 0 (called during weekly convert & reset)."""
         self.weekly_points = 0
         self.save(update_fields=["weekly_points"])
+
+
+class UserPreferences(models.Model):
+    """
+    User preferences for admin dashboard customization.
+    """
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='preferences',
+        primary_key=True
+    )
+
+    # Quick Actions - stores list of action keys user wants to see
+    # Available options: chores, settings, skip_chores, reschedule, undo_completions,
+    #                    force_assign, pending_spawns, streaks, adjust_points, backups, logs
+    quick_actions = models.JSONField(
+        default=list,
+        help_text="List of quick action keys to display on admin dashboard"
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "user_preferences"
+        verbose_name = "User Preference"
+        verbose_name_plural = "User Preferences"
+
+    def __str__(self):
+        return f"Preferences for {self.user.username}"
+
+    def get_quick_actions_or_default(self):
+        """
+        Get user's quick actions or return default set if none configured.
+        """
+        if not self.quick_actions or len(self.quick_actions) == 0:
+            return ['chores', 'settings', 'skip_chores', 'reschedule', 'undo_completions']
+        return self.quick_actions

@@ -308,15 +308,21 @@ class DependencyAutoAssignmentTests(TestCase):
         # Spawn dependent chores
         spawned = DependencyService.spawn_dependent_chores(parent_instance, completion_time)
 
-        # Verify child1 has offset of 1 hour
+        # Verify child1 has offset of 1 hour (due at end of day)
         child1_instance = ChoreInstance.objects.filter(chore=self.child_chore1).order_by('-created_at').first()
-        expected_due_1 = completion_time + timezone.timedelta(hours=1)
-        self.assertEqual(child1_instance.due_at, expected_due_1)
+        expected_due_1_date = timezone.localdate(completion_time + timezone.timedelta(hours=1))
+        self.assertEqual(timezone.localdate(child1_instance.due_at), expected_due_1_date)
+        local_due_1 = timezone.localtime(child1_instance.due_at)
+        self.assertEqual(local_due_1.hour, 23)
+        self.assertEqual(local_due_1.minute, 59)
 
-        # Verify child2 has offset of 2 hours
+        # Verify child2 has offset of 2 hours (due at end of day)
         child2_instance = ChoreInstance.objects.filter(chore=self.child_chore2).order_by('-created_at').first()
-        expected_due_2 = completion_time + timezone.timedelta(hours=2)
-        self.assertEqual(child2_instance.due_at, expected_due_2)
+        expected_due_2_date = timezone.localdate(completion_time + timezone.timedelta(hours=2))
+        self.assertEqual(timezone.localdate(child2_instance.due_at), expected_due_2_date)
+        local_due_2 = timezone.localtime(child2_instance.due_at)
+        self.assertEqual(local_due_2.hour, 23)
+        self.assertEqual(local_due_2.minute, 59)
 
     def test_web_completion_spawns_children(self):
         """Test that completing a chore via web interface spawns children."""

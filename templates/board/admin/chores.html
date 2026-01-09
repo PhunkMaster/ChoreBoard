@@ -38,6 +38,7 @@
                         <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Type</th>
                         <th class="px-6 py-4 text-center text-sm font-semibold text-gray-300">Points</th>
                         <th class="px-6 py-4 text-center text-sm font-semibold text-gray-300">Schedule</th>
+                        <th class="px-6 py-4 text-center text-sm font-semibold text-gray-300">Last Instance</th>
                         <th class="px-6 py-4 text-center text-sm font-semibold text-gray-300">Status</th>
                         <th class="px-6 py-4 text-center text-sm font-semibold text-gray-300">Actions</th>
                     </tr>
@@ -47,7 +48,12 @@
                     <tr class="hover:bg-dark-card/50 transition">
                         <td class="px-6 py-4">
                             <div>
-                                <p class="text-white font-medium">{{ chore.name }}</p>
+                                <p class="text-white font-medium">
+                                    {{ chore.name }}
+                                    {% if chore.complete_later %}
+                                    <span class="ml-2 text-yellow-400" title="Complete Later">🕐</span>
+                                    {% endif %}
+                                </p>
                                 {% if chore.description %}
                                 <p class="text-gray-400 text-sm mt-1">{{ chore.description|truncatewords:15 }}</p>
                                 {% endif %}
@@ -78,6 +84,28 @@
                             </span>
                         </td>
                         <td class="px-6 py-4 text-center">
+                            {% if chore.last_instance %}
+                                <div class="text-sm">
+                                    <div class="text-gray-300 font-medium">{{ chore.last_instance.created_at|date:"M d, Y H:i" }}</div>
+                                    <div class="text-xs mt-1">
+                                        <span class="text-gray-400">{{ chore.last_instance.created_at|timesince }} ago</span>
+                                        <span class="mx-1">•</span>
+                                        {% if chore.last_instance.status == 'completed' %}
+                                            <span class="text-green-400">Completed</span>
+                                        {% elif chore.last_instance.status == 'assigned' %}
+                                            <span class="text-blue-400">Assigned</span>
+                                        {% elif chore.last_instance.status == 'pool' %}
+                                            <span class="text-amber-400">Pool</span>
+                                        {% elif chore.last_instance.status == 'skipped' %}
+                                            <span class="text-gray-400">Skipped</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% else %}
+                                <span class="text-gray-500 text-sm">Never</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-center">
                             {% if chore.is_active %}
                             <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
                                 Active
@@ -95,10 +123,30 @@
                                     Edit
                                 </button>
                                 <span class="text-gray-600">|</span>
+                                <a href="{% url 'board:admin_chore_history' chore.id %}"
+                                   class="text-blue-400 hover:text-blue-300 font-medium text-sm transition">
+                                    History
+                                </a>
+                                {% if chore.is_active %}
+                                <span class="text-gray-600">|</span>
+                                <button onclick="createInstanceNow({{ chore.id }}, '{{ chore.name|escapejs }}')"
+                                        class="text-green-400 hover:text-green-300 font-medium text-sm transition"
+                                        title="Create an instance of this chore immediately">
+                                    Create Now
+                                </button>
+                                {% endif %}
+                                <span class="text-gray-600">|</span>
                                 <button onclick="toggleChoreActive({{ chore.id }})"
                                         class="text-amber-400 hover:text-amber-300 font-medium text-sm transition">
                                     {% if chore.is_active %}Deactivate{% else %}Activate{% endif %}
                                 </button>
+                                {% if not chore.is_active %}
+                                <span class="text-gray-600">|</span>
+                                <button onclick="deleteChore({{ chore.id }}, '{{ chore.name|escapejs }}')"
+                                        class="text-red-400 hover:text-red-300 font-medium text-sm transition">
+                                    Delete
+                                </button>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -143,10 +191,17 @@
                 <label for="template-selector" class="block text-primary-400 mb-2 font-medium">
                     📋 Load from Template
                 </label>
-                <select id="template-selector" onchange="loadTemplate(this.value)"
-                        class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
-                    <option value="">-- Select a template (optional) --</option>
-                </select>
+                <div class="flex space-x-2">
+                    <select id="template-selector" onchange="loadTemplate(this.value)"
+                            class="flex-1 bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                        <option value="">-- Select a template (optional) --</option>
+                    </select>
+                    <button type="button" onclick="deleteTemplate()" id="btn-delete-template"
+                            class="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded-lg transition"
+                            title="Delete selected template">
+                        <i class="fas fa-trash-alt"></i> 🗑️
+                    </button>
+                </div>
                 <p class="text-gray-400 text-sm mt-2">Load a saved template to quickly fill in the form fields</p>
             </div>
 
@@ -226,6 +281,15 @@
                     <input type="checkbox" id="chore-is-difficult" name="is_difficult"
                            class="w-4 h-4 text-primary-600 bg-dark-card border-dark-border rounded focus:ring-primary-500">
                     <span class="ml-2 text-gray-300">Difficult (Requires extra effort)</span>
+                </label>
+            </div>
+
+            <!-- Complete Later -->
+            <div>
+                <label class="flex items-center">
+                    <input type="checkbox" id="chore-complete-later" name="complete_later"
+                           class="w-4 h-4 text-primary-600 bg-dark-card border-dark-border rounded focus:ring-primary-500">
+                    <span class="ml-2 text-gray-300">Complete Later (Can be done later in the day, not immediately)</span>
                 </label>
             </div>
 
@@ -601,6 +665,41 @@ async function loadTemplate(templateId) {
     }
 }
 
+// Delete selected template
+async function deleteTemplate() {
+    const selector = document.getElementById('template-selector');
+    const templateId = selector.value;
+    const templateName = selector.options[selector.selectedIndex].text;
+
+    if (!templateId) {
+        showToast('Please select a template to delete', 'error');
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to delete template "${templateName}"?`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/admin-panel/template/delete/${templateId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            }
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message, 'success');
+            loadTemplatesList(); // Refresh the list
+        } else {
+            showToast(data.error || 'Failed to delete template', 'error');
+        }
+    } catch (error) {
+        showToast('Network error. Please try again.', 'error');
+    }
+}
+
 // Save current form data as template
 async function saveAsTemplate() {
     // Prompt for template name
@@ -681,6 +780,7 @@ async function editChore(choreId) {
 
             document.getElementById('chore-undesirable').checked = data.is_undesirable;
             document.getElementById('chore-is-difficult').checked = data.is_difficult || false;
+            document.getElementById('chore-complete-later').checked = data.complete_later || false;
             document.getElementById('chore-distribution-time').value = data.distribution_time;
             document.getElementById('chore-schedule-type').value = data.schedule_type;
 
@@ -989,24 +1089,24 @@ function toggleEligibleUsers() {
 }
 
 // Populate eligible users multi-select
-function populateEligibleUsers() {
-    fetch('/admin-panel/users/list/')
-        .then(response => response.json())
-        .then(data => {
-            const select = document.getElementById('chore-eligible-users');
-            select.innerHTML = ''; // Clear existing options
+async function populateEligibleUsers() {
+    try {
+        const response = await fetch('/admin-panel/users/list/');
+        const data = await response.json();
 
-            data.users.forEach(user => {
-                const option = document.createElement('option');
-                option.value = user.id;
-                option.textContent = user.display_name || user.first_name || user.username;
-                select.appendChild(option);
-            });
-        })
-        .catch(error => {
-            console.error('Error fetching users:', error);
-            showToast('Failed to load eligible users', 'error');
+        const select = document.getElementById('chore-eligible-users');
+        select.innerHTML = ''; // Clear existing options
+
+        data.users.forEach(user => {
+            const option = document.createElement('option');
+            option.value = user.id;
+            option.textContent = user.display_name || user.first_name || user.username;
+            select.appendChild(option);
         });
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        showToast('Failed to load eligible users', 'error');
+    }
 }
 
 function loadRRuleFromJSON(jsonString) {
@@ -1118,6 +1218,32 @@ async function toggleChoreActive(choreId) {
     }
 }
 
+// Delete chore permanently
+async function deleteChore(choreId, choreName) {
+    if (!confirm(`Are you sure you want to PERMANENTLY delete chore "${choreName}"?\n\nThis action cannot be undone and will delete all related history/instances.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/admin-panel/chore/delete/${choreId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            }
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message, 'success');
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showToast(data.error || 'Failed to delete chore', 'error');
+        }
+    } catch (error) {
+        showToast('Network error. Please try again.', 'error');
+    }
+}
+
 // Handle form submission
 document.getElementById('chore-form').addEventListener('submit', async function(e) {
     e.preventDefault();
@@ -1136,6 +1262,7 @@ document.getElementById('chore-form').addEventListener('submit', async function(
     formData.set('is_pool', isPool ? 'true' : 'false');
     formData.set('is_undesirable', document.getElementById('chore-undesirable').checked ? 'true' : 'false');
     formData.set('is_difficult', document.getElementById('chore-is-difficult').checked ? 'true' : 'false');
+    formData.set('complete_later', document.getElementById('chore-complete-later').checked ? 'true' : 'false');
 
     // Add eligible users for undesirable chores
     if (document.getElementById('chore-undesirable').checked) {
@@ -1186,5 +1313,37 @@ document.getElementById('chore-dialog').addEventListener('click', function(e) {
         closeChoreDialog();
     }
 });
+
+// Create chore instance immediately
+async function createInstanceNow(choreId, choreName) {
+    if (!confirm(`Create an instance of "${choreName}" immediately?\n\nThe instance will be due at 23:59:59 today.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/admin-panel/chore/create-instance/${choreId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            }
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            if (data.warning) {
+                showToast(data.message, 'warning');
+            } else {
+                showToast(data.message, 'success');
+            }
+            // Reload page after 1.5 seconds to show the new instance in "Last Instance" column
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showToast(data.error || 'Failed to create instance', 'error');
+        }
+    } catch (error) {
+        showToast('Network error. Please try again.', 'error');
+        console.error('Error creating instance:', error);
+    }
+}
 </script>
 {% endblock %}

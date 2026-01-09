@@ -45,15 +45,43 @@ class AssignmentService:
             logger.warning(f"No eligible users for chore: {chore.name}")
             return False, "No eligible users for this chore", None
 
+        # For difficult chores, try multiple users if needed
+        if chore.is_difficult and not force_assign:
+            # Get list of users who don't have difficult chores today
+            users_without_difficult = []
+            for user in eligible_users:
+                has_difficult = ChoreInstance.objects.filter(
+                    assigned_to=user,
+                    status__in=[ChoreInstance.ASSIGNED, ChoreInstance.COMPLETED],
+                    chore__is_difficult=True,
+                    due_at__date=timezone.localdate()
+                ).exclude(id=instance.id).exists()
+
+                if not has_difficult:
+                    users_without_difficult.append(user)
+
+            if not users_without_difficult:
+                # All eligible users have difficult chore limit reached
+                instance.assignment_reason = ChoreInstance.REASON_DIFFICULT_CHORE_LIMIT
+                instance.save()
+                logger.warning(
+                    f"All {eligible_users.count()} eligible users have reached difficult chore limit for: {chore.name}"
+                )
+                return False, "All eligible users have difficult chore limit reached", None
+
+            # Filter eligible_users to only those without difficult chores
+            eligible_user_ids = [u.id for u in users_without_difficult]
+            eligible_users = eligible_users.filter(id__in=eligible_user_ids)
+
         # Check if chore is undesirable - use rotation
         if chore.is_undesirable:
             selected_user = AssignmentService._select_via_rotation(
                 chore, eligible_users, instance
             )
         else:
-            # Regular chore - select user with least assigned today
+            # Regular chore - select user with least assigned today and fewest completions
             selected_user = AssignmentService._select_by_fairness(
-                eligible_users, chore.is_difficult
+                eligible_users, chore, chore.is_difficult
             )
 
         if selected_user is None:
@@ -61,25 +89,6 @@ class AssignmentService:
             instance.assignment_reason = ChoreInstance.REASON_ALL_COMPLETED_YESTERDAY
             instance.save()
             return False, "All eligible users completed this chore yesterday", None
-
-        # Check difficult chore constraint
-        if chore.is_difficult and not force_assign:
-            # Check if user already has a difficult chore assigned today
-            has_difficult = ChoreInstance.objects.filter(
-                assigned_to=selected_user,
-                status=ChoreInstance.ASSIGNED,
-                chore__is_difficult=True,
-                due_at__date=timezone.now().date()
-            ).exclude(id=instance.id).exists()
-
-            if has_difficult:
-                logger.info(
-                    f"User {selected_user.username} already has difficult chore, "
-                    f"cannot assign {chore.name}"
-                )
-                instance.assignment_reason = ChoreInstance.REASON_NO_ELIGIBLE
-                instance.save()
-                return False, "User already has a difficult chore assigned", None
 
         # Perform assignment
         instance.status = ChoreInstance.ASSIGNED
@@ -125,11 +134,18 @@ class AssignmentService:
 
         # If chore is undesirable, filter by explicit eligibility
         if chore.is_undesirable:
+            eligibility_count = ChoreEligibility.objects.filter(chore=chore).count()
             eligible_user_ids = ChoreEligibility.objects.filter(
                 chore=chore
             ).values_list('user_id', flat=True)
 
             eligible = eligible.filter(id__in=eligible_user_ids)
+
+            logger.debug(
+                f"Eligibility check for '{chore.name}': "
+                f"{eligibility_count} ChoreEligibility records, "
+                f"{eligible.count()} users eligible after filters"
+            )
 
         return eligible
 
@@ -140,8 +156,9 @@ class AssignmentService:
 
         Algorithm:
         1. Exclude users who completed this chore yesterday (purple state)
-        2. Select user with oldest last_completed_date (or never completed)
-        3. Update RotationState when assigned
+        2. Count total completions of this chore for each user
+        3. Select user with fewest total completions
+        4. Use last_completed_date as tiebreaker (oldest first)
 
         Args:
             chore: Chore instance
@@ -151,7 +168,9 @@ class AssignmentService:
         Returns:
             User or None
         """
-        yesterday = timezone.now().date() - timedelta(days=1)
+        from chores.models import Completion
+
+        yesterday = timezone.localdate() - timedelta(days=1)
 
         # Get rotation state for all eligible users
         rotation_states = RotationState.objects.filter(
@@ -165,61 +184,98 @@ class AssignmentService:
             for state in rotation_states
         }
 
+        # Count total completions of this specific chore for each user
+        completion_counts = {}
+        for user in eligible_users:
+            count = Completion.objects.filter(
+                completed_by=user,
+                chore_instance__chore=chore
+            ).count()
+            completion_counts[user.id] = count
+
         # Filter out users who completed yesterday
         available_users = []
         for user in eligible_users:
             last_date = state_map.get(user.id)
             if last_date is None or last_date != yesterday:
-                available_users.append((user, last_date))
+                completion_count = completion_counts.get(user.id, 0)
+                available_users.append((user, completion_count, last_date))
 
         if not available_users:
             # All users completed yesterday - purple state
+            logger.warning(
+                f"Rotation blocked for '{chore.name}': "
+                f"All {len(eligible_users)} eligible users completed yesterday"
+            )
             return None
 
-        # Sort by last_completed_date (None first, then oldest)
-        available_users.sort(key=lambda x: (x[1] is not None, x[1] or timezone.now().date()))
+        # Sort by: 1) fewest completions, 2) last_completed_date (None first, then oldest)
+        available_users.sort(key=lambda x: (
+            x[1],  # Completion count (fewest first)
+            x[2] is not None,  # Never completed first (None = False = first)
+            x[2] or timezone.localdate()  # Then oldest completion date
+        ))
 
         selected_user = available_users[0][0]
+        selected_count = available_users[0][1]
 
         logger.info(
             f"Rotation selected {selected_user.username} for {chore.name} "
-            f"(last completed: {state_map.get(selected_user.id, 'never')})"
+            f"(total completions: {selected_count}, "
+            f"last completed: {state_map.get(selected_user.id, 'never')})"
         )
 
         return selected_user
 
     @staticmethod
-    def _select_by_fairness(eligible_users, is_difficult=False):
+    def _select_by_fairness(eligible_users, chore, is_difficult=False):
         """
-        Select user by fairness - least assigned chores today.
+        Select user by fairness - least assigned chores today and fewest completions of this chore.
 
         Args:
             eligible_users: QuerySet of eligible users
+            chore: The Chore being assigned
             is_difficult: If True, consider difficult chore constraint
 
         Returns:
             User or None
         """
-        today = timezone.now().date()
-        logger.info(f"Fairness selection: is_difficult={is_difficult}, eligible_users_count={eligible_users.count()}")
+        today = timezone.localdate()
+        logger.info(
+            f"Fairness selection for {chore.name}: "
+            f"is_difficult={is_difficult}, eligible_users_count={eligible_users.count()}"
+        )
 
-        # Annotate users with count of assigned chores today
+        # Annotate users with:
+        # 1. Count of assigned chores today (daily load)
+        #    Excludes statically assigned chores (REASON_FIXED), only pool or undesirable chores count.
+        # 2. Total completions of THIS specific chore (historical fairness)
         users_with_counts = eligible_users.annotate(
             assigned_today=Count(
                 'assigned_instances',
                 filter=Q(
-                    assigned_instances__status=ChoreInstance.ASSIGNED,
+                    assigned_instances__status__in=[ChoreInstance.ASSIGNED, ChoreInstance.COMPLETED],
                     assigned_instances__due_at__date=today
+                ) & (
+                    Q(assigned_instances__chore__is_pool=True) |
+                    Q(assigned_instances__chore__is_undesirable=True)
+                )
+            ),
+            total_completions=Count(
+                'completions',
+                filter=Q(
+                    completions__chore_instance__chore=chore,
+                    completions__is_undone=False
                 )
             )
-        ).order_by('assigned_today', '?')  # Secondary random for tiebreak
+        ).order_by('assigned_today', 'total_completions', '?')  # Random as final tiebreak
 
         if is_difficult:
-            # Exclude users with difficult chores already assigned
+            # Exclude users with difficult chores already assigned or completed today
             before_filter_count = users_with_counts.count()
             users_with_counts = users_with_counts.exclude(
                 assigned_instances__chore__is_difficult=True,
-                assigned_instances__status=ChoreInstance.ASSIGNED,
+                assigned_instances__status__in=[ChoreInstance.ASSIGNED, ChoreInstance.COMPLETED],
                 assigned_instances__due_at__date=today
             )
             after_filter_count = users_with_counts.count()
@@ -233,7 +289,8 @@ class AssignmentService:
         if selected:
             logger.info(
                 f"Fairness selected {selected.username} "
-                f"({selected.assigned_today} chores assigned today)"
+                f"({selected.assigned_today} chores assigned today, "
+                f"{selected.total_completions} total completions of this chore)"
             )
 
         return selected
@@ -250,7 +307,8 @@ class AssignmentService:
         if not chore.is_undesirable:
             return
 
-        today = timezone.now().date()
+        # Use local timezone, not UTC
+        today = timezone.localdate()
 
         RotationState.objects.update_or_create(
             chore=chore,
@@ -307,14 +365,13 @@ class DependencyService:
                 logger.info(f"Skipping inactive dependent chore: {child_chore.name}")
                 continue
 
-            # Calculate due time with offset
-            due_at = completion_time + timedelta(hours=dep.offset_hours)
+            # Calculate due time with offset - chores are generally due at the end of the day
+            due_at_base = completion_time + timedelta(hours=dep.offset_hours)
+            due_date = timezone.localdate(due_at_base)
+            due_at = timezone.make_aware(timezone.datetime.combine(due_date, timezone.datetime.max.time()))
 
             # Calculate distribution time (use child's distribution time on due date)
-            due_date = due_at.date()
-            distribution_at = timezone.make_aware(
-                timezone.datetime.combine(due_date, child_chore.distribution_time)
-            )
+            distribution_at = timezone.make_aware(timezone.datetime.combine(due_date, child_chore.distribution_time))
 
             # Create child instance - ALWAYS assign to user who completed parent
             # This overrides the child_chore's is_pool or assigned_to settings
@@ -551,7 +608,7 @@ class RescheduleService:
             return False, "Chore not found or is inactive", None
 
         # Validate date is in the future
-        today = timezone.now().date()
+        today = timezone.localdate()
         if new_date < today:
             return False, "Cannot reschedule to a past date", None
 

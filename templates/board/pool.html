@@ -15,16 +15,30 @@
     {% if pool_chores %}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {% for instance in pool_chores %}
-        <div class="chore-card bg-dark-surface rounded-lg p-6 border-2 border-green-500/50 hover:border-green-500"
+        <div class="chore-card bg-dark-surface rounded-lg p-6 border-2 {% if instance.is_overdue %}border-red-500/50 hover:border-red-500{% else %}border-green-500/50 hover:border-green-500{% endif %}"
              data-instance-id="{{ instance.id }}">
             <div class="flex justify-between items-start mb-4">
                 <div class="flex-1">
-                    <h3 class="text-lg font-semibold text-white">{{ instance.chore.name }}</h3>
+                    <h3 class="text-lg font-semibold text-white">
+                        {{ instance.chore.name }}
+                        {% if instance.chore.complete_later %}
+                        <span class="ml-2 text-yellow-400" title="Complete Later">🕐</span>
+                        {% endif %}
+                        {% if not instance.chore.is_active %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30 ml-2">
+                            Inactive
+                        </span>
+                        {% endif %}
+                    </h3>
                     {% if instance.chore.description %}
                     <p class="text-gray-400 text-sm mt-1">{{ instance.chore.description }}</p>
                     {% endif %}
                 </div>
+                {% if instance.is_overdue %}
+                <span class="status-badge badge-overdue ml-2">Late</span>
+                {% else %}
                 <span class="status-badge badge-pool ml-2">Pool</span>
+                {% endif %}
             </div>
 
             <div class="flex justify-between items-center text-sm mb-4">
@@ -42,6 +56,36 @@
                     {{ instance.points_value }} {{ POINTS_LABEL_SHORT }}
                 </div>
             </div>
+
+            <!-- Last Completion Info -->
+            {% with last_completion=instance.chore.get_last_completion %}
+            {% if last_completion %}
+            <div class="mb-4 p-3 bg-dark-card rounded-lg border border-dark-border">
+                <p class="text-xs text-gray-400 mb-2">Last completed:</p>
+                <div class="flex items-center text-sm mb-1">
+                    <svg class="w-4 h-4 text-green-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    <span class="text-white font-medium">{{ last_completion.completed_by.get_display_name }}</span>
+                </div>
+                {% if last_completion.shares.count > 1 %}
+                <div class="mt-2">
+                    <p class="text-xs text-gray-500 mb-1">Helpers:</p>
+                    <div class="flex flex-wrap gap-1">
+                        {% for share in last_completion.shares.all %}
+                        {% if share.user != last_completion.completed_by %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-dark-bg text-gray-300 border border-dark-border">
+                            {{ share.user.get_display_name }}
+                        </span>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                <p class="text-xs text-gray-500 mt-2">{{ last_completion.completed_at|date:"M j, g:i A" }}</p>
+            </div>
+            {% endif %}
+            {% endwith %}
 
             <!-- Primary Action Buttons -->
             <div class="flex space-x-2">

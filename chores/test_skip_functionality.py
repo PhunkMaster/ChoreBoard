@@ -11,7 +11,7 @@ from chores.models import Chore, ChoreInstance
 from chores.services import SkipService
 from core.models import Settings, ActionLog
 from decimal import Decimal
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 User = get_user_model()
 
@@ -43,11 +43,13 @@ class SkipServiceTests(TestCase):
         )
 
         now = timezone.now()
+        today = now.date()  # Use local timezone
+        due_at = datetime.combine(today, datetime.max.time())
         self.pool_instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.POOL,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=self.chore.points
         )
 
@@ -56,7 +58,7 @@ class SkipServiceTests(TestCase):
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.regular_user,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=self.chore.points
         )
 
@@ -226,11 +228,13 @@ class SkipAdminViewTests(TestCase):
         )
 
         now = timezone.now()
+        today = now.date()  # Use local timezone
+        due_at = datetime.combine(today, datetime.max.time())
         self.instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.POOL,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=self.chore.points
         )
 
@@ -387,12 +391,14 @@ class SkipIntegrationTests(TestCase):
         )
 
         now = timezone.now()
+        today = now.date()  # Use local timezone
+        due_at = datetime.combine(today, datetime.max.time())
         self.instance = ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user1,
             distribution_at=now,
-            due_at=now.replace(hour=23, minute=59, second=59, microsecond=0),
+            due_at=due_at,
             points_value=self.chore.points
         )
 

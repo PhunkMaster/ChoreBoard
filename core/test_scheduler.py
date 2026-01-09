@@ -8,6 +8,7 @@ from decimal import Decimal
 from django.test import TestCase
 from django.utils import timezone
 from datetime import timedelta, date, time, datetime
+from unittest.mock import patch
 
 from users.models import User
 from chores.models import Chore, ChoreInstance, Completion, CompletionShare
@@ -40,6 +41,7 @@ class MidnightEvaluationTests(TestCase):
         )
 
         # Create weekly chore (today's weekday)
+        # Use local timezone to match midnight_evaluation logic
         today_weekday = timezone.now().weekday()
         self.weekly_chore = Chore.objects.create(
             name='Weekly Chore',
@@ -132,9 +134,7 @@ class MidnightEvaluationTests(TestCase):
         """Test that chores due 'yesterday' are marked overdue at midnight."""
         # Create instance due at start of today (which means it was due "yesterday")
         today = timezone.now().date()
-        due_at = timezone.make_aware(
-            datetime.combine(today, datetime.min.time())
-        )
+        due_at = datetime.combine(today, datetime.min.time())
 
         past_instance = ChoreInstance.objects.create(
             chore=self.daily_chore,
@@ -161,8 +161,7 @@ class MidnightEvaluationTests(TestCase):
         day_after_tomorrow = today + timedelta(days=2)
 
         # Create chore due tomorrow (start of day after tomorrow)
-        due_at = timezone.make_aware(
-            datetime.combine(day_after_tomorrow, datetime.min.time())
+        due_at = datetime.combine(day_after_tomorrow, datetime.min.time()
         )
 
         future_instance = ChoreInstance.objects.create(
@@ -267,6 +266,7 @@ class MidnightEvaluationTests(TestCase):
     def test_midnight_evaluation_creates_rrule_weekly_instances(self):
         """Test that midnight evaluation creates instances for RRULE WEEKLY chores on correct day."""
         # Create RRULE chore with weekly frequency on today's weekday
+        # Use local timezone to match midnight_evaluation logic
         today_weekday = timezone.now().weekday()
         rrule_chore = Chore.objects.create(
             name='RRULE Weekly Chore',
@@ -290,6 +290,7 @@ class MidnightEvaluationTests(TestCase):
     def test_midnight_evaluation_skips_rrule_wrong_weekday(self):
         """Test that RRULE weekly chores not due today are skipped."""
         # Create RRULE chore for different weekday
+        # Use local timezone to match midnight_evaluation logic
         wrong_day = (timezone.now().weekday() + 1) % 7
         rrule_chore = Chore.objects.create(
             name='RRULE Wrong Day Chore',
@@ -358,6 +359,7 @@ class MidnightEvaluationTests(TestCase):
     def test_midnight_evaluation_creates_rrule_weekday_specific(self):
         """Test that RRULE with specific weekdays works correctly."""
         # Create RRULE for weekdays only (Monday-Friday)
+        # Use local timezone to match midnight_evaluation logic
         today_weekday = timezone.now().weekday()
         is_weekday = today_weekday < 5  # 0-4 are Monday-Friday
 
@@ -498,6 +500,7 @@ class MidnightEvaluationTests(TestCase):
 
     def test_midnight_evaluation_skips_cron_specific_day(self):
         """Test that CRON chores only fire on specified days."""
+        # Use local timezone to match midnight_evaluation logic
         today_weekday = timezone.now().weekday()
         is_monday = today_weekday == 0
 
@@ -548,6 +551,157 @@ class MidnightEvaluationTests(TestCase):
         self.assertGreaterEqual(instances.count(), 0)
 
 
+class WatchdogTests(TestCase):
+    """Test the watchdog mechanism that catches missed midnight evaluations."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='alice',
+            password='test123',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        self.daily_chore = Chore.objects.create(
+            name='Daily Chore',
+            points=Decimal('10.00'),
+            is_pool=True,
+            schedule_type=Chore.DAILY,
+            distribution_time=time(17, 30)
+        )
+
+    @patch('core.jobs.midnight_evaluation')
+    def test_watchdog_does_not_trigger_during_grace_period(self, mock_midnight):
+        """Test that watchdog doesn't trigger during 5-minute grace period after midnight."""
+        # 00:01 AM local time
+        now = timezone.make_aware(datetime.combine(timezone.localdate(), time(0, 1)))
+        
+        with patch('django.utils.timezone.now', return_value=now):
+            run_distribution_check()
+            
+        self.assertFalse(mock_midnight.called, "Watchdog should NOT trigger during grace period")
+
+    @patch('core.jobs.midnight_evaluation')
+    def test_watchdog_triggers_after_grace_period(self, mock_midnight):
+        """Test that watchdog triggers after 5-minute grace period (e.g., 00:06)."""
+        # 00:06 AM local time
+        now = timezone.make_aware(datetime.combine(timezone.localdate(), time(0, 6)))
+        
+        with patch('django.utils.timezone.now', return_value=now):
+            run_distribution_check()
+            
+        self.assertTrue(mock_midnight.called, "Watchdog SHOULD trigger after grace period if no log exists")
+
+    @patch('core.jobs.midnight_evaluation')
+    def test_watchdog_triggers_during_day(self, mock_midnight):
+        """Test that watchdog triggers anytime during the day if no log exists."""
+        test_times = [
+            time(2, 0),    # After old window
+            time(10, 0),   # Morning
+            time(15, 30),  # Afternoon
+            time(20, 30),  # Evening (previously excluded by window)
+        ]
+        
+        for t in test_times:
+            mock_midnight.reset_mock()
+            now = timezone.make_aware(datetime.combine(timezone.localdate(), t))
+            
+            with patch('django.utils.timezone.now', return_value=now):
+                run_distribution_check()
+                
+            self.assertTrue(mock_midnight.called, f"Watchdog SHOULD trigger at {t} if no log exists")
+
+    @patch('core.jobs.midnight_evaluation')
+    def test_watchdog_does_not_trigger_if_log_exists(self, mock_midnight):
+        """Test that watchdog does NOT trigger if a successful log already exists for today."""
+        # Create successful log for today
+        EvaluationLog.objects.create(
+            started_at=timezone.now(),
+            success=True
+        )
+        
+        # 10:00 AM local time
+        now = timezone.make_aware(datetime.combine(timezone.localdate(), time(10, 0)))
+        
+        with patch('django.utils.timezone.now', return_value=now):
+            run_distribution_check()
+            
+        self.assertFalse(mock_midnight.called, "Watchdog should NOT trigger if successful log exists")
+
+    @patch('core.jobs.midnight_evaluation')
+    def test_watchdog_retries_on_failure(self, mock_midnight):
+        """Test that watchdog retries if previous attempts today failed (up to 3)."""
+        # Create 1 failed log for today
+        EvaluationLog.objects.create(
+            started_at=timezone.now(),
+            success=False
+        )
+        
+        # 10:00 AM local time
+        now = timezone.make_aware(datetime.combine(timezone.localdate(), time(10, 0)))
+        
+        with patch('django.utils.timezone.now', return_value=now):
+            run_distribution_check()
+            
+        self.assertTrue(mock_midnight.called, "Watchdog SHOULD retry if only failed logs exist")
+
+    @patch('core.jobs.midnight_evaluation')
+    def test_watchdog_stops_after_3_attempts(self, mock_midnight):
+        """Test that watchdog stops trying after 3 attempts today."""
+        # Create 3 failed logs for today
+        for _ in range(3):
+            EvaluationLog.objects.create(
+                started_at=timezone.now(),
+                success=False
+            )
+            
+        # 10:00 AM local time
+        now = timezone.make_aware(datetime.combine(timezone.localdate(), time(10, 0)))
+        
+        with patch('django.utils.timezone.now', return_value=now):
+            run_distribution_check()
+            
+        self.assertFalse(mock_midnight.called, "Watchdog should STOP after 3 attempts")
+
+
+class LocalDateTests(TestCase):
+    """Test that midnight evaluation uses local date, not UTC date."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='alice',
+            password='test123',
+            can_be_assigned=True,
+            eligible_for_points=True
+        )
+
+        self.daily_chore = Chore.objects.create(
+            name='Daily Chore',
+            points=Decimal('10.00'),
+            is_pool=True,
+            schedule_type=Chore.DAILY,
+            distribution_time=time(17, 30)
+        )
+
+    def test_midnight_evaluation_creates_chores_for_correct_date(self):
+        """Test that midnight evaluation creates chores with due dates matching local date."""
+        # Run midnight evaluation
+        run_midnight_evaluation()
+
+        # Get created instance
+        instance = ChoreInstance.objects.filter(chore=self.daily_chore).first()
+        self.assertIsNotNone(instance)
+
+        # Verify due date is for today
+        today = timezone.localdate()
+
+        self.assertEqual(
+            timezone.localtime(instance.due_at).date(),
+            today,
+            f"Chore due date should be {today}, not based on UTC date"
+        )
+
+
 class DistributionCheckTests(TestCase):
     """Test the distribution check (auto-assignment) scheduled job."""
 
@@ -564,6 +718,13 @@ class DistributionCheckTests(TestCase):
             password='test123',
             can_be_assigned=True,
             eligible_for_points=True
+        )
+
+        # Create a successful evaluation log to satisfy the watchdog
+        EvaluationLog.objects.create(
+            success=True,
+            chores_created=0,
+            chores_marked_overdue=0
         )
 
         self.chore = Chore.objects.create(
@@ -598,13 +759,15 @@ class DistributionCheckTests(TestCase):
     def test_distribution_check_respects_fairness(self):
         """Test that distribution check assigns to user with fewest chores."""
         # Give user2 an existing assignment
+        # Use a fixed time today to avoid rollover issues at night
+        today_noon = timezone.make_aware(datetime.combine(timezone.localdate(), time(12, 0)))
         ChoreInstance.objects.create(
             chore=self.chore,
             status=ChoreInstance.ASSIGNED,
             assigned_to=self.user2,
             points_value=self.chore.points,
-            due_at=timezone.now() + timedelta(hours=6),
-            distribution_at=timezone.now()
+            due_at=today_noon,
+            distribution_at=today_noon - timedelta(hours=6)
         )
 
         run_distribution_check()

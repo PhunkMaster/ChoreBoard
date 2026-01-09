@@ -26,7 +26,16 @@
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                     </svg>
-                    Create Manual Backup
+                    Create Full Backup
+                </div>
+            </button>
+            <button onclick="showCreateSelectiveBackupDialog()"
+                    class="bg-amber-500 hover:bg-amber-600 text-white font-semibold px-6 py-3 rounded-lg transition focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <div class="flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Create Selective Backup
                 </div>
             </button>
         </div>
@@ -77,6 +86,16 @@
                                 Automatic
                             </span>
                             {% endif %}
+                            {% if backup.is_selective %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                Selective
+                            </span>
+                            {% endif %}
+                            {% if backup.is_pre_restore %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                                Pre-Restore
+                            </span>
+                            {% endif %}
                         </div>
 
                         <div class="space-y-1 text-sm">
@@ -118,6 +137,13 @@
                             </svg>
                             Restore
                         </button>
+                        <button onclick="showDeleteDialog({{ backup.id }}, '{{ backup.filename }}')"
+                                class="inline-flex items-center px-4 py-2 rounded-lg text-sm font-semibold bg-red-600 hover:bg-red-700 text-white transition focus:outline-none focus:ring-2 focus:ring-red-500">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Delete
+                        </button>
                         <span class="inline-flex items-center px-3 py-1 rounded text-xs bg-green-500/20 text-green-400 border border-green-500/30">
                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -141,12 +167,12 @@
     </div>
 </div>
 
-<!-- Create Backup Dialog -->
+<!-- Create Full Backup Dialog -->
 <div id="create-backup-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeCreateBackupDialog(event)">
     <div class="bg-dark-surface rounded-lg p-8 max-w-md w-full mx-4 border border-dark-border" onclick="event.stopPropagation()">
-        <h2 class="text-2xl font-bold text-white mb-4">Create Manual Backup</h2>
+        <h2 class="text-2xl font-bold text-white mb-4">Create Full Backup</h2>
         <p class="text-gray-300 mb-6">
-            This will create a backup of the current database. The backup will be stored in the backups directory.
+            This will create a complete backup of the current database. The backup will include all data (users, chores, instances, completions, points, history).
         </p>
 
         <div class="mb-6">
@@ -171,12 +197,58 @@
     </div>
 </div>
 
+<!-- Create Selective Backup Dialog -->
+<div id="create-selective-backup-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeCreateSelectiveBackupDialog(event)">
+    <div class="bg-dark-surface rounded-lg p-8 max-w-lg w-full mx-4 border border-dark-border" onclick="event.stopPropagation()">
+        <h2 class="text-2xl font-bold text-white mb-4">Create Selective Backup</h2>
+
+        <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 mb-4">
+            <p class="text-amber-400 font-semibold mb-2">Clean Database Backup</p>
+            <p class="text-amber-300 text-sm">
+                This creates a clean SQLite database with your configuration but NO invalid chore instances or completion history.
+            </p>
+        </div>
+
+        <div class="mb-4">
+            <p class="text-gray-300 text-sm mb-2"><strong>What will be included:</strong></p>
+            <ul class="text-gray-400 text-sm space-y-1 ml-4">
+                <li>✅ User accounts (passwords intact)</li>
+                <li>✅ Chore definitions and dependencies</li>
+                <li>✅ Settings and configuration</li>
+                <li>✅ High scores</li>
+            </ul>
+        </div>
+
+        <div class="mb-6">
+            <p class="text-gray-300 text-sm mb-2"><strong>What will be excluded:</strong></p>
+            <ul class="text-gray-400 text-sm space-y-1 ml-4">
+                <li>❌ All chore instances (valid and invalid)</li>
+                <li>❌ All completions and points history</li>
+                <li>❌ Historical snapshots and streaks</li>
+            </ul>
+            <p class="text-amber-300 text-sm mt-3"><strong>Note:</strong> All user points will be reset to zero.</p>
+        </div>
+
+        <div class="flex space-x-4">
+            <button onclick="executeSelectiveBackup()"
+                    class="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                Create Selective Backup
+            </button>
+            <button onclick="closeCreateSelectiveBackupDialog()"
+                    class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Upload Backup Dialog -->
 <div id="upload-backup-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeUploadBackupDialog(event)">
     <div class="bg-dark-surface rounded-lg p-8 max-w-md w-full mx-4 border border-dark-border" onclick="event.stopPropagation()">
         <h2 class="text-2xl font-bold text-white mb-4">Upload Backup</h2>
         <p class="text-gray-300 mb-6">
-            Upload a ChoreBoard SQLite backup file. The file will be validated before uploading.
+            Upload a ChoreBoard SQLite backup file (.sqlite3). Supports both full backups and selective backups (clean databases with no chore instances).
+            The file will be validated before uploading.
         </p>
 
         <div class="mb-6">
@@ -262,6 +334,41 @@
         </div>
     </div>
 </div>
+
+<!-- Delete Backup Dialog -->
+<div id="delete-backup-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeDeleteDialog(event)">
+    <div class="bg-dark-surface rounded-lg p-8 max-w-md w-full mx-4 border border-dark-border" onclick="event.stopPropagation()">
+        <h2 class="text-2xl font-bold text-white mb-4">Delete Backup</h2>
+
+        <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6">
+            <p class="text-red-400 font-semibold mb-2">Warning: This action cannot be undone!</p>
+            <p class="text-red-300 text-sm">
+                The backup file will be permanently deleted from the server.
+            </p>
+        </div>
+
+        <div class="mb-6">
+            <p class="text-gray-300 mb-4">
+                <span class="text-gray-500">Backup to delete:</span><br>
+                <span id="delete-filename" class="text-white font-semibold"></span>
+            </p>
+        </div>
+
+        <input type="hidden" id="delete-backup-id">
+
+        <div class="flex space-x-4">
+            <button onclick="executeDelete()"
+                    class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                Delete Backup
+            </button>
+            <button onclick="closeDeleteDialog()"
+                    class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_scripts %}
@@ -405,10 +512,83 @@
         }
     }
 
+    // Delete backup dialog functions
+    function showDeleteDialog(backupId, filename) {
+        document.getElementById('delete-backup-dialog').classList.remove('hidden');
+        document.getElementById('delete-backup-id').value = backupId;
+        document.getElementById('delete-filename').textContent = filename;
+    }
+
+    function closeDeleteDialog(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('delete-backup-dialog').classList.add('hidden');
+    }
+
+    async function executeDelete() {
+        const backupId = document.getElementById('delete-backup-id').value;
+
+        try {
+            const response = await fetch(`/admin-panel/backup/delete/${backupId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message || 'Backup deleted successfully', 'success');
+                closeDeleteDialog();
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showToast(data.error || 'Failed to delete backup', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    // Selective backup dialog functions
+    function showCreateSelectiveBackupDialog() {
+        document.getElementById('create-selective-backup-dialog').classList.remove('hidden');
+    }
+
+    function closeCreateSelectiveBackupDialog(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('create-selective-backup-dialog').classList.add('hidden');
+    }
+
+    async function executeSelectiveBackup() {
+        try {
+            showToast('Creating selective backup (this may take a moment)...', 'info');
+
+            const response = await fetch('{% url "board:admin_backup_create_selective" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message, 'success');
+                closeCreateSelectiveBackupDialog();
+                setTimeout(() => window.location.reload(), 2000);
+            } else {
+                showToast(data.error || 'Failed to create selective backup', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
     // Close all dialogs with Escape key
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             closeCreateBackupDialog();
+            closeCreateSelectiveBackupDialog();
             closeUploadBackupDialog();
             closeRestoreDialog();
         }

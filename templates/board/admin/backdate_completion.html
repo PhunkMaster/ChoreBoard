@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+
+{% block title %}Backdate Completion - Admin - ChoreBoard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Backdate Completion</h1>
+            <p class="text-gray-400 mt-1">Complete a chore for a user with a past date</p>
+        </div>
+    </div>
+
+    {% include "board/admin/_nav.html" with active_page='undo_completions' %}
+
+    <!-- Info Box -->
+    <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+        <div class="flex items-start">
+            <svg class="w-6 h-6 text-blue-400 mr-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+                <p class="text-blue-400 font-semibold">About Backdating</p>
+                <p class="text-blue-300 text-sm mt-1">
+                    This feature allows you to complete a chore for a user as if they completed it on a past date.
+                    Points will be awarded to the correct week, child chores will spawn immediately, and all
+                    systems will act as if the completion happened on the specified date.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backdate Completion Form -->
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-xl font-semibold text-white">Complete Chore with Past Date</h2>
+            <p class="text-gray-400 text-sm mt-1">Select a chore instance, user, and date to backdate the completion</p>
+        </div>
+
+        <div class="p-6">
+            <form id="backdate-form" class="space-y-6">
+                <!-- Chore Instance Selection -->
+                <div>
+                    <label for="instance_id" class="block text-sm font-medium text-gray-300 mb-2">
+                        Chore Instance <span class="text-red-400">*</span>
+                    </label>
+                    <select id="instance_id" name="instance_id" required
+                            class="w-full bg-dark-card border border-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="">Select a chore...</option>
+                        {% for instance in instances %}
+                        <option value="{{ instance.id }}"
+                                data-chore-name="{{ instance.chore.name }}"
+                                data-points="{{ instance.points_value }}"
+                                data-due="{{ instance.due_at|date:'M j, Y' }}"
+                                data-status="{{ instance.status }}"
+                                data-assigned="{{ instance.assigned_to.get_display_name|default:'Unassigned' }}">
+                            {{ instance.chore.name }} - Due: {{ instance.due_at|date:"M j, Y g:i A" }}
+                            {% if instance.status == 'pool' %}(Pool)
+                            {% elif instance.status == 'assigned' %}(Assigned to {{ instance.assigned_to.get_display_name }})
+                            {% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-gray-500 text-xs mt-1">Select the chore instance you want to mark as completed</p>
+                </div>
+
+                <!-- Selected Chore Info -->
+                <div id="chore-info" class="hidden bg-dark-card border border-dark-border rounded-lg p-4 space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400 text-sm">Chore:</span>
+                        <span id="info-chore-name" class="text-white font-semibold"></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400 text-sm">Points:</span>
+                        <span id="info-points" class="text-primary-400 font-semibold"></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400 text-sm">Original Due:</span>
+                        <span id="info-due" class="text-gray-300"></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400 text-sm">Status:</span>
+                        <span id="info-status" class="text-gray-300"></span>
+                    </div>
+                </div>
+
+                <!-- User Selection -->
+                <div>
+                    <label for="user_id" class="block text-sm font-medium text-gray-300 mb-2">
+                        Completed By <span class="text-red-400">*</span>
+                    </label>
+                    <select id="user_id" name="user_id" required
+                            class="w-full bg-dark-card border border-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="">Select user who completed the chore...</option>
+                        {% for user in users %}
+                        <option value="{{ user.id }}">{{ user.get_display_name }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-gray-500 text-xs mt-1">Who should receive credit for completing this chore?</p>
+                </div>
+
+                <!-- Completion Date -->
+                <div>
+                    <label for="completion_date" class="block text-sm font-medium text-gray-300 mb-2">
+                        Completion Date <span class="text-red-400">*</span>
+                    </label>
+                    <input type="date" id="completion_date" name="completion_date" required
+                           max="{{ today|date:'Y-m-d' }}"
+                           class="w-full bg-dark-card border border-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    <p class="text-gray-500 text-xs mt-1">The date when the chore was actually completed (must be in the past)</p>
+                </div>
+
+                <!-- Week Info Display -->
+                <div id="week-info" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+                    <p class="text-amber-400 text-sm font-semibold mb-1">Week Information:</p>
+                    <p id="week-info-text" class="text-amber-300 text-sm"></p>
+                </div>
+
+                <!-- Helpers Selection (Optional) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">
+                        Helpers (Optional)
+                    </label>
+                    <div class="bg-dark-card border border-dark-border rounded-lg p-4 max-h-48 overflow-y-auto space-y-2">
+                        {% for user in users %}
+                        <label class="flex items-center hover:bg-dark-surface/50 p-2 rounded cursor-pointer">
+                            <input type="checkbox" name="helper_ids" value="{{ user.id }}"
+                                   class="mr-3 w-4 h-4 rounded border-gray-600 text-primary-600 focus:ring-primary-500 focus:ring-offset-dark-bg">
+                            <span class="text-gray-300">{{ user.get_display_name }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    <p class="text-gray-500 text-xs mt-1">Select additional users who helped with this chore (points will be split equally)</p>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="flex space-x-4">
+                    <button type="submit"
+                            class="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                        <div class="flex items-center justify-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Complete with Backdated Date
+                        </div>
+                    </button>
+                    <a href="{% url 'board:admin_undo_completions' %}"
+                       class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition text-center">
+                        Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Dialog -->
+<div id="confirm-dialog" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeConfirmDialog(event)">
+    <div class="bg-dark-surface rounded-lg p-8 max-w-md w-full mx-4 border border-dark-border" onclick="event.stopPropagation()">
+        <h2 class="text-2xl font-bold text-white mb-4">Confirm Backdated Completion</h2>
+        <div class="space-y-3 mb-6">
+            <p class="text-gray-300">
+                You are about to complete <strong id="confirm-chore-name" class="text-white"></strong>
+                for <strong id="confirm-user-name" class="text-white"></strong> with the date
+                <strong id="confirm-date" class="text-primary-400"></strong>.
+            </p>
+            <div class="bg-blue-500/20 border border-blue-500/50 rounded-lg p-4">
+                <p class="text-blue-400 font-semibold">This will:</p>
+                <ul class="text-gray-300 text-sm mt-2 space-y-1 list-disc list-inside">
+                    <li>Award <span id="confirm-points" class="text-primary-400 font-semibold"></span> points to the correct week</li>
+                    <li>Mark the chore instance as completed</li>
+                    <li>Spawn any child chores immediately</li>
+                    <li>Update rotation state with backdated date</li>
+                    <li id="confirm-helpers-line" class="hidden">Split points with <span id="confirm-helpers-count"></span> helper(s)</li>
+                </ul>
+            </div>
+        </div>
+        <div class="flex space-x-4">
+            <button onclick="executeBackdate()"
+                    class="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                Confirm
+            </button>
+            <button onclick="closeConfirmDialog()"
+                    class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-dark-bg transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Update chore info when instance is selected
+    document.getElementById('instance_id').addEventListener('change', function() {
+        const option = this.options[this.selectedIndex];
+        const infoDiv = document.getElementById('chore-info');
+
+        if (option.value) {
+            document.getElementById('info-chore-name').textContent = option.dataset.choreName;
+            document.getElementById('info-points').textContent = parseFloat(option.dataset.points).toFixed(2) + ' pts';
+            document.getElementById('info-due').textContent = option.dataset.due;
+            document.getElementById('info-status').textContent = option.dataset.status === 'pool' ? 'Pool' : 'Assigned to ' + option.dataset.assigned;
+            infoDiv.classList.remove('hidden');
+        } else {
+            infoDiv.classList.add('hidden');
+        }
+    });
+
+    // Calculate and display week info when date changes
+    document.getElementById('completion_date').addEventListener('change', function() {
+        const dateValue = this.value;
+        if (!dateValue) return;
+
+        const date = new Date(dateValue + 'T00:00:00');
+        const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+
+        // Calculate days until Sunday
+        const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+        const weekEnding = new Date(date);
+        weekEnding.setDate(weekEnding.getDate() + daysUntilSunday);
+
+        // Calculate Monday of that week
+        const weekStart = new Date(weekEnding);
+        weekStart.setDate(weekStart.getDate() - 6);
+
+        // Format dates
+        const formatDate = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+        // Check if it's current week
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayDayOfWeek = today.getDay();
+        const currentWeekMonday = new Date(today);
+        currentWeekMonday.setDate(currentWeekMonday.getDate() - (todayDayOfWeek === 0 ? 6 : todayDayOfWeek - 1));
+        const currentWeekSunday = new Date(currentWeekMonday);
+        currentWeekSunday.setDate(currentWeekSunday.getDate() + 6);
+
+        const isCurrentWeek = date >= currentWeekMonday && date <= currentWeekSunday;
+
+        const weekInfoDiv = document.getElementById('week-info');
+        const weekInfoText = document.getElementById('week-info-text');
+
+        if (isCurrentWeek) {
+            weekInfoText.textContent = `This date is in the CURRENT WEEK (${formatDate(weekStart)} - ${formatDate(weekEnding)}). Points will be added to weekly points.`;
+        } else {
+            weekInfoText.textContent = `This date is in a PAST WEEK (${formatDate(weekStart)} - ${formatDate(weekEnding)}). Points will be added to the snapshot for that week.`;
+        }
+        weekInfoDiv.classList.remove('hidden');
+    });
+
+    // Handle form submission
+    document.getElementById('backdate-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const instanceId = document.getElementById('instance_id').value;
+        const userId = document.getElementById('user_id').value;
+        const completionDate = document.getElementById('completion_date').value;
+
+        if (!instanceId || !userId || !completionDate) {
+            showToast('Please fill in all required fields', 'error');
+            return;
+        }
+
+        // Get selected data for confirmation
+        const instanceOption = document.getElementById('instance_id').options[document.getElementById('instance_id').selectedIndex];
+        const userOption = document.getElementById('user_id').options[document.getElementById('user_id').selectedIndex];
+        const helperCheckboxes = document.querySelectorAll('input[name="helper_ids"]:checked');
+
+        document.getElementById('confirm-chore-name').textContent = instanceOption.dataset.choreName;
+        document.getElementById('confirm-user-name').textContent = userOption.textContent;
+        document.getElementById('confirm-date').textContent = new Date(completionDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        document.getElementById('confirm-points').textContent = parseFloat(instanceOption.dataset.points).toFixed(2);
+
+        // Show/hide helpers line
+        const helpersLine = document.getElementById('confirm-helpers-line');
+        if (helperCheckboxes.length > 0) {
+            document.getElementById('confirm-helpers-count').textContent = helperCheckboxes.length;
+            helpersLine.classList.remove('hidden');
+        } else {
+            helpersLine.classList.add('hidden');
+        }
+
+        // Show confirmation dialog
+        document.getElementById('confirm-dialog').classList.remove('hidden');
+    });
+
+    function closeConfirmDialog(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('confirm-dialog').classList.add('hidden');
+    }
+
+    async function executeBackdate() {
+        const formData = new FormData();
+        formData.append('instance_id', document.getElementById('instance_id').value);
+        formData.append('user_id', document.getElementById('user_id').value);
+        formData.append('completion_date', document.getElementById('completion_date').value);
+
+        // Add helper IDs
+        document.querySelectorAll('input[name="helper_ids"]:checked').forEach(checkbox => {
+            formData.append('helper_ids[]', checkbox.value);
+        });
+
+        try {
+            const response = await fetch('{% url "board:admin_backdate_completion_action" %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message, 'success');
+                closeConfirmDialog();
+                setTimeout(() => window.location.href = '{% url "board:admin_undo_completions" %}', 1500);
+            } else {
+                showToast(data.error || 'Failed to backdate completion', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    // Close dialog with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeConfirmDialog();
+        }
+    });
+
+    // Set max date to today
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('completion_date').max = today;
+</script>
+{% endblock %}

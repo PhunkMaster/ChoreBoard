@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}Unassign Chores - Admin - ChoreBoard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Unassign Force-Assigned Chores</h1>
+            <p class="text-gray-400 mt-1">Return manually assigned chores back to the pool</p>
+        </div>
+    </div>
+
+    {% include "board/admin/_nav.html" with active_page='unassign' %}
+
+    <!-- Manually Assigned Chores List -->
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-xl font-semibold text-white">Force-Assigned Chores</h2>
+            <p class="text-gray-400 text-sm mt-1">Chores that were force-assigned (by staff or system) and can be returned to the pool</p>
+        </div>
+
+        {% if manually_assigned %}
+        <div class="divide-y divide-dark-border">
+            {% for instance in manually_assigned %}
+            <div class="p-6">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-white font-semibold text-lg">{{ instance.chore.name }}</h3>
+                            {% if instance.assignment_reason == 'manual_assign' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                Manually Assigned
+                            </span>
+                            {% elif instance.assignment_reason == 'force_assigned' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                                System Force-Assigned
+                            </span>
+                            {% elif instance.assignment_reason == 'fixed' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                                Fixed Assignment
+                            </span>
+                            {% endif %}
+
+                            {% if instance.chore.is_undesirable %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+                                Undesirable
+                            </span>
+                            {% endif %}
+                        </div>
+                        <div class="mt-2 space-y-1">
+                            <p class="text-gray-400 text-sm">
+                                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                Assigned to: <span class="text-white font-medium">{{ instance.assigned_to.get_display_name }}</span>
+                            </p>
+                            <p class="text-gray-400 text-sm">
+                                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Due: {{ instance.due_at|date:"M j, Y g:i A" }}
+                            </p>
+                            <p class="text-gray-400 text-sm">
+                                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Points: {{ instance.points_value|floatformat:2 }}
+                            </p>
+                            {% if instance.is_overdue %}
+                            <p class="text-red-400 text-sm font-medium mt-1">
+                                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                OVERDUE
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="ml-6 flex items-center gap-3">
+                        <button onclick="showReassignModal({{ instance.id }}, '{{ instance.chore.name|escapejs }}', '{{ instance.assigned_to.get_display_name|escapejs }}')"
+                                class="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                            </svg>
+                            Reassign
+                        </button>
+                        <button onclick="unassignChore({{ instance.id }}, '{{ instance.chore.name|escapejs }}', '{{ instance.assigned_to.get_display_name|escapejs }}')"
+                                class="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                            </svg>
+                            Return to Pool
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 class="text-xl font-semibold text-gray-300 mb-2">No Force-Assigned Chores</h3>
+            <p class="text-gray-500">There are no force-assigned chores that can be returned to the pool.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Reassign Modal -->
+<div id="reassignModal" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-900 bg-opacity-75 transition-opacity" aria-hidden="true" onclick="hideReassignModal()"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-dark-surface rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-dark-border">
+            <div class="bg-dark-surface px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div class="sm:flex sm:items-start">
+                    <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-500/20 sm:mx-0 sm:h-10 sm:w-10">
+                        <svg class="h-6 w-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                        </svg>
+                    </div>
+                    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left flex-1">
+                        <h3 class="text-lg leading-6 font-medium text-white" id="modal-title">
+                            Reassign Chore
+                        </h3>
+                        <div class="mt-4">
+                            <p class="text-sm text-gray-400 mb-4">
+                                Reassigning: <span id="reassignChoreName" class="text-white font-semibold"></span>
+                            </p>
+                            <p class="text-sm text-gray-400 mb-4">
+                                Currently assigned to: <span id="reassignCurrentUser" class="text-white font-semibold"></span>
+                            </p>
+                            <div class="mt-2">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">
+                                    Reassign to:
+                                </label>
+                                <select id="reassignUserSelect"
+                                        class="w-full px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="">Select user...</option>
+                                    {% for user in users %}
+                                    <option value="{{ user.id }}">{{ user.get_display_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-dark-card px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
+                <button type="button" onclick="executeReassign()"
+                        class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-blue-500 text-base font-medium text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm">
+                    Reassign
+                </button>
+                <button type="button" onclick="hideReassignModal()"
+                        class="mt-3 w-full inline-flex justify-center rounded-lg border border-dark-border shadow-sm px-4 py-2 bg-dark-surface text-base font-medium text-gray-300 hover:bg-dark-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 sm:mt-0 sm:w-auto sm:text-sm">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let currentReassignInstanceId = null;
+
+    function showReassignModal(instanceId, choreName, currentUser) {
+        currentReassignInstanceId = instanceId;
+        document.getElementById('reassignChoreName').textContent = choreName;
+        document.getElementById('reassignCurrentUser').textContent = currentUser;
+        document.getElementById('reassignUserSelect').value = '';
+        document.getElementById('reassignModal').classList.remove('hidden');
+    }
+
+    function hideReassignModal() {
+        document.getElementById('reassignModal').classList.add('hidden');
+        currentReassignInstanceId = null;
+    }
+
+    async function executeReassign() {
+        const userId = document.getElementById('reassignUserSelect').value;
+
+        if (!userId) {
+            showToast('Please select a user', 'error');
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('user_id', userId);
+
+            const response = await fetch(`/admin-panel/reassign/${currentReassignInstanceId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message, 'success');
+                hideReassignModal();
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(data.error || 'Failed to reassign chore', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    async function unassignChore(instanceId, choreName, userName) {
+        if (!confirm(`Are you sure you want to return "${choreName}" to the pool?\n\nIt will be unassigned from ${userName} and become available for anyone to claim.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/admin-panel/unassign/${instanceId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast(data.message, 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(data.error || 'Failed to unassign chore', 'error');
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+</script>
+{% endblock %}

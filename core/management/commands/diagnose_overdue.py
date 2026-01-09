@@ -14,7 +14,6 @@ class Command(BaseCommand):
         now = timezone.now()
         self.stdout.write(self.style.SUCCESS(f"Current time: {now}"))
         self.stdout.write(f"Timezone: {timezone.get_current_timezone()}")
-        self.stdout.write(f"UTC offset: {now.strftime('%z')}")
         self.stdout.write("")
 
         # Find instances that should be overdue but aren't
@@ -34,7 +33,6 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING(f"⚠ {instance.chore.name}"))
                 self.stdout.write(f"    Status: {instance.status}")
                 self.stdout.write(f"    Due at: {instance.due_at}")
-                self.stdout.write(f"    Due at (UTC): {instance.due_at.astimezone(timezone.utc)}")
                 self.stdout.write(f"    Time past due: {now - instance.due_at}")
                 self.stdout.write("")
 

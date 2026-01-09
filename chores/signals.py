@@ -30,7 +30,7 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
             return
 
         now = timezone.now()
-        today = now.date()
+        today = timezone.localdate(now)
         should_create_today = False
 
         if instance.schedule_type == Chore.DAILY:
@@ -48,46 +48,45 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
 
         if should_create_today:
             # Calculate due_at based on schedule type
-            tomorrow = today + timedelta(days=1)
-
             if instance.schedule_type == Chore.ONE_TIME:
                 # ONE_TIME: use one_time_due_date or sentinel far-future date
                 if instance.one_time_due_date:
-                    # Due at start of day after due_date (consistent with existing logic)
-                    due_day = instance.one_time_due_date + timedelta(days=1)
-                    due_at = timezone.make_aware(
-                        datetime.combine(due_day, datetime.min.time())
-                    )
+                    # Due at start of the day after the specified due_date (per docs and tests)
+                    due_at = timezone.make_aware(datetime.combine(instance.one_time_due_date + timedelta(days=1), datetime.min.time()))
                 else:
                     # No due date = use sentinel far-future date (never overdue)
+                    from datetime import date
                     far_future = date(9999, 12, 31)
-                    due_at = timezone.make_aware(
-                        datetime.combine(far_future, datetime.min.time())
-                    )
+                    due_at = timezone.make_aware(datetime.combine(far_future, datetime.min.time()))
             else:
-                # Regular recurring chores: due at start of tomorrow
-                due_at = timezone.make_aware(
-                    datetime.combine(tomorrow, datetime.min.time())
-                )
+                # Regular recurring chores: due at end of today
+                due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
             # Check if instance already exists (prevent duplicates)
-            # Note: For ONE_TIME, we check ANY due date since there should only ever be one instance
+            # For ONE_TIME chores: check if ANY instance exists
+            # For recurring chores: check if instance due today exists OR any open instance exists
+            from django.db.models import Q
+
             if instance.schedule_type == Chore.ONE_TIME:
                 existing = ChoreInstance.objects.filter(chore=instance).exists()
             else:
-                # Regular chores: check for instance with due_at = tomorrow
+                # Regular chores: check for instance due today OR any open instance
+                # Use date range for timezone-aware comparison
+                today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+                today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+
                 existing = ChoreInstance.objects.filter(
-                    chore=instance,
-                    due_at__date=tomorrow
+                    chore=instance
+                ).filter(
+                    Q(due_at__range=(today_start, today_end)) |  # Instance due today
+                    ~Q(status__in=['completed', 'skipped'])  # OR any open instance
                 ).exists()
 
             if existing:
                 logger.info(f"Instance already exists for chore {instance.name}")
                 return
 
-            distribution_at = timezone.make_aware(
-                datetime.combine(today, instance.distribution_time)
-            )
+            distribution_at = timezone.make_aware(datetime.combine(today, instance.distribution_time))
 
             # Determine status and assignment based on chore type
             if instance.is_undesirable:
@@ -103,6 +102,22 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
                 )
                 logger.info(f"Created undesirable instance {new_instance.id} for {instance.name} (will be assigned after ChoreEligibility records are created)")
 
+                # Log chore creation to ActionLog
+                from core.models import ActionLog
+                ActionLog.objects.create(
+                    action_type=ActionLog.ACTION_CHORE_CREATED,
+                    user=None,
+                    description=f"Created instance: {new_instance.chore.name}",
+                    metadata={
+                        'chore_id': new_instance.chore.id,
+                        'instance_id': new_instance.id,
+                        'points': float(new_instance.points_value),
+                        'status': new_instance.status,
+                        'created_by': 'signal',
+                        'schedule_type': new_instance.chore.schedule_type
+                    }
+                )
+
             elif instance.is_pool:
                 # Regular pool chore: create as POOL, users can claim it
                 new_instance = ChoreInstance.objects.create(
@@ -113,6 +128,22 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
                     distribution_at=distribution_at
                 )
                 logger.info(f"Created pool instance {new_instance.id} for chore {instance.name}")
+
+                # Log chore creation to ActionLog
+                from core.models import ActionLog
+                ActionLog.objects.create(
+                    action_type=ActionLog.ACTION_CHORE_CREATED,
+                    user=None,
+                    description=f"Created instance: {new_instance.chore.name}",
+                    metadata={
+                        'chore_id': new_instance.chore.id,
+                        'instance_id': new_instance.id,
+                        'points': float(new_instance.points_value),
+                        'status': new_instance.status,
+                        'created_by': 'signal',
+                        'schedule_type': new_instance.chore.schedule_type
+                    }
+                )
 
             else:
                 # Pre-assigned chore: create with assignment
@@ -125,6 +156,22 @@ def create_chore_instance_on_creation(sender, instance, created, **kwargs):
                     distribution_at=distribution_at
                 )
                 logger.info(f"Created pre-assigned instance {new_instance.id} for {instance.name}")
+
+                # Log chore creation to ActionLog
+                from core.models import ActionLog
+                ActionLog.objects.create(
+                    action_type=ActionLog.ACTION_CHORE_CREATED,
+                    user=None,
+                    description=f"Created instance: {new_instance.chore.name}",
+                    metadata={
+                        'chore_id': new_instance.chore.id,
+                        'instance_id': new_instance.id,
+                        'points': float(new_instance.points_value),
+                        'status': new_instance.status,
+                        'created_by': 'signal',
+                        'schedule_type': new_instance.chore.schedule_type
+                    }
+                )
     except Exception as e:
         logger.error(f"Error in chore signal for {instance.name}: {e}", exc_info=True)
 

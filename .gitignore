@@ -11,11 +11,10 @@ env/
 
 # Django
 *.log
-db.sqlite3
 db.sqlite3-journal
 /staticfiles/
 /media/
-data/backups/**
+data/**
 
 # IDE
 .idea/
@@ -47,4 +46,4 @@ debug_*.html
 verify_*.py
 check_*.py
 test_output.*
-test_iframe.*
+test_iframe.*!/debug/verify_exclude_auto_assignment.py

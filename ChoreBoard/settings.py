@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # Third party apps
     "rest_framework",
+    "drf_spectacular",  # OpenAPI 3.0 schema generation
     "django_apscheduler",
     # ChoreBoard apps
     "core",
@@ -156,7 +157,13 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+# Use manifestation only in production; use standard storage for tests to avoid manifest errors
+import sys
+if 'test' in sys.argv or os.getenv('TESTING', 'False') == 'True':
+    STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+else:
+    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
@@ -174,6 +181,25 @@ REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
     ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# drf-spectacular settings for API documentation
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'ChoreBoard API',
+    'DESCRIPTION': 'API for managing chores, completions, and leaderboards',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SCHEMA_PATH_PREFIX': '/api/',
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayOperationId': True,
+    },
+    'SWAGGER_UI_DIST': 'SIDECAR',  # Use bundled Swagger UI
+    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+    'REDOC_DIST': 'SIDECAR',  # Use bundled ReDoc
 }
 
 # CSRF Configuration
@@ -204,6 +230,31 @@ if not DEBUG:
 # APScheduler Configuration
 APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
 APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Seconds
+
+# Celery Configuration
+from celery.schedules import crontab
+
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = False
+CELERY_BEAT_SCHEDULE = {
+    'midnight-evaluation': {
+        'task': 'core.tasks.midnight_evaluation_task',
+        'schedule': crontab(minute='*') if os.getenv('MIDNIGHT_TEST_MODE', 'false').lower() == 'true' else crontab(hour=0, minute=0),
+    },
+    'distribution-check': {
+        'task': 'core.tasks.distribution_check_task',
+        'schedule': crontab(minute='*/5'),
+    },
+    'weekly-snapshot': {
+        'task': 'core.tasks.weekly_snapshot_task',
+        'schedule': crontab(hour=0, minute=0, day_of_week='sun'),
+    },
+}
 
 # Iframe embedding is controlled by including/excluding XFrameOptionsMiddleware
 # See MIDDLEWARE configuration above

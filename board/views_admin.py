@@ -4,14 +4,15 @@ Admin panel views for ChoreBoard.
 import os
 import logging
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
+from django.http import JsonResponse, Http404
+from django.contrib import messages
+from django.views.decorators.http import require_http_methods, require_POST
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import transaction
 from django.utils import timezone
 from django.db.models import Sum, Count, Q
 from django.conf import settings
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from users.models import User
@@ -37,10 +38,14 @@ def admin_dashboard(request):
     from django.db.models import Q
 
     now = timezone.now()
-    today = now.date()
+    today = timezone.localdate(now)  # Convert to local timezone before getting date
 
     # Use year > 3000 to avoid overflow errors with year >= 9999
     far_future = timezone.make_aware(datetime(3000, 1, 1))
+
+    # Create timezone-aware datetime range for "today" in local timezone
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
 
     # Key metrics
     active_chores = Chore.objects.filter(is_active=True).count()
@@ -52,8 +57,8 @@ def admin_dashboard(request):
         status=ChoreInstance.POOL,
         chore__is_active=True
     ).filter(
-        Q(due_at__date=today) |  # Due today
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__range=(today_start, today_end)) |  # Due today (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date)
     ).count()
 
@@ -64,8 +69,8 @@ def admin_dashboard(request):
         assigned_to__eligible_for_points=True,  # Only count eligible users
         assigned_to__isnull=False
     ).filter(
-        Q(due_at__date=today) |  # Due today
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(due_at__range=(today_start, today_end)) |  # Due today (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (sentinel date)
     ).count()
 
@@ -73,24 +78,27 @@ def admin_dashboard(request):
     completed_count = ChoreInstance.objects.filter(
         status=ChoreInstance.COMPLETED,
         chore__is_active=True,
-        due_at__date=today
+        due_at__range=(today_start, today_end)  # Due today (timezone-aware)
     ).count()
 
-    # Overdue chores (eligible users only)
+    # Overdue chores (assigned to eligible users OR in pool)
     overdue_count = ChoreInstance.objects.filter(
-        status=ChoreInstance.ASSIGNED,
+        status__in=[ChoreInstance.ASSIGNED, ChoreInstance.POOL],
         chore__is_active=True,
-        assigned_to__eligible_for_points=True,
-        assigned_to__isnull=False,
         is_overdue=True
     ).filter(
-        Q(due_at__date=today) |  # Due today but overdue
-        Q(due_at__lt=now) |  # Overdue from previous days
+        Q(assigned_to__isnull=True) | Q(assigned_to__eligible_for_points=True)
+    ).filter(
+        Q(due_at__range=(today_start, today_end)) |  # Due today but overdue (timezone-aware)
+        Q(due_at__lt=today_start) |  # Overdue from previous days
         Q(due_at__gte=far_future)  # No due date (can't be overdue but include for consistency)
     ).count()
 
     # Skipped chores count (today only is fine)
-    skipped_count = ChoreInstance.objects.filter(due_at__date=today, status=ChoreInstance.SKIPPED).count()
+    skipped_count = ChoreInstance.objects.filter(
+        due_at__range=(today_start, today_end),  # Due today (timezone-aware)
+        status=ChoreInstance.SKIPPED
+    ).count()
 
     # Points this week
     week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -110,6 +118,11 @@ def admin_dashboard(request):
     # Get settings
     settings = Settings.get_settings()
 
+    # Get or create user preferences
+    from users.models import UserPreferences
+    user_prefs, created = UserPreferences.objects.get_or_create(user=request.user)
+    quick_actions = user_prefs.get_quick_actions_or_default()
+
     context = {
         'active_chores': active_chores,
         'active_users': active_users,
@@ -123,6 +136,7 @@ def admin_dashboard(request):
         'weekly_cash_value': weekly_points * settings.points_to_dollar_rate,
         'recent_completions': recent_completions,
         'recent_actions': recent_actions,
+        'quick_actions': quick_actions,
     }
 
     return render(request, 'board/admin/dashboard.html', context)
@@ -136,11 +150,153 @@ def admin_chores(request):
     """
     chores = Chore.objects.all().order_by('-is_active', 'name')
 
+    # Add last instance data for each chore
+    for chore in chores:
+        last_instance = ChoreInstance.objects.filter(chore=chore).order_by('-created_at').first()
+        chore.last_instance = last_instance
+
     context = {
         'chores': chores,
     }
 
     return render(request, 'board/admin/chores.html', context)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+def admin_chore_history(request, chore_id):
+    """
+    View all spawned instances of a chore.
+    """
+    chore = get_object_or_404(Chore, id=chore_id)
+    instances = ChoreInstance.objects.filter(chore=chore).select_related(
+        'assigned_to',
+        'completion__completed_by',
+        'skipped_by'
+    ).order_by('-due_at', '-created_at')
+
+    # Calculate stats
+    stats = {
+        'total': instances.count(),
+        'completed': instances.filter(status=ChoreInstance.COMPLETED).count(),
+        'skipped': instances.filter(status=ChoreInstance.SKIPPED).count(),
+        'late': instances.filter(is_late_completion=True).count(),
+    }
+
+    context = {
+        'chore': chore,
+        'instances': instances,
+        'stats': stats,
+    }
+
+    return render(request, 'board/admin/chore_history.html', context)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_POST
+def admin_chore_create_instance(request, chore_id):
+    """
+    Manually create a chore instance immediately (admin action).
+    """
+    from chores.services import AssignmentService
+
+    try:
+        chore = get_object_or_404(Chore, id=chore_id)
+
+        # Check if chore is active
+        if not chore.is_active:
+            return JsonResponse({
+                'error': f'Cannot create instance for inactive chore: {chore.name}'
+            }, status=400)
+
+        # Calculate times
+        now = timezone.now()
+        today = timezone.localdate(now)
+        today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+        today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+
+        # Check for existing instances today OR any open instances
+        existing_instance = ChoreInstance.objects.filter(chore=chore).filter(
+            Q(due_at__range=(today_start, today_end)) |
+            ~Q(status__in=[ChoreInstance.COMPLETED, ChoreInstance.SKIPPED])
+        ).first()
+
+        if existing_instance:
+            if existing_instance.due_at.date() == today:
+                return JsonResponse({
+                    'error': f'Instance already exists for {chore.name} today (Status: {existing_instance.get_status_display()}, ID: {existing_instance.id})'
+                }, status=400)
+            else:
+                return JsonResponse({
+                    'error': f'Open instance from {existing_instance.due_at.strftime("%Y-%m-%d")} exists (Status: {existing_instance.get_status_display()}, ID: {existing_instance.id}). Please complete or skip it first.'
+                }, status=400)
+
+        # Determine status and assignment
+        if chore.is_pool or chore.is_undesirable:
+            status = ChoreInstance.POOL
+            assigned_to = None
+            assignment_reason = ""
+        else:
+            status = ChoreInstance.ASSIGNED
+            assigned_to = chore.assigned_to
+            assignment_reason = ChoreInstance.REASON_MANUAL
+
+            # Validate that assigned chores have a user
+            if not assigned_to:
+                return JsonResponse({
+                    'error': f'Cannot create instance for "{chore.name}": Chore is not a pool chore but has no assigned user.'
+                }, status=400)
+
+        # Create the instance
+        instance = ChoreInstance.objects.create(
+            chore=chore,
+            status=status,
+            assigned_to=assigned_to,
+            points_value=chore.points,
+            due_at=today_end,  # Due at end of today
+            distribution_at=now,  # Distribute immediately
+            assignment_reason=assignment_reason
+        )
+
+        # Log the action
+        ActionLog.objects.create(
+            action_type=ActionLog.ACTION_CHORE_CREATED,
+            user=request.user,
+            description=f"Manually created instance for: {chore.name}",
+            metadata={
+                'chore_id': chore.id,
+                'instance_id': instance.id,
+                'created_by': 'manual_create_button'
+            }
+        )
+
+        # If undesirable pool chore, auto-assign immediately
+        if chore.is_undesirable and status == ChoreInstance.POOL:
+            success, message, assigned_user = AssignmentService.assign_chore(instance)
+            if success:
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Created instance for "{chore.name}" (ID: {instance.id}) and assigned to {assigned_user.username}'
+                })
+            else:
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Created instance for "{chore.name}" (ID: {instance.id}) but could not auto-assign: {message}',
+                    'warning': True
+                })
+        else:
+            status_msg = f"assigned to {assigned_to.username}" if assigned_to else "in pool"
+            return JsonResponse({
+                'success': True,
+                'message': f'Successfully created instance for "{chore.name}" (ID: {instance.id}, {status_msg})'
+            })
+
+    except Exception as e:
+        logger.error(f"Error creating instance for chore {chore_id}: {str(e)}")
+        return JsonResponse({
+            'error': f'Error creating instance: {str(e)}'
+        }, status=500)
 
 
 @login_required
@@ -376,10 +532,14 @@ def admin_undo_completion(request, completion_id):
                 )
 
             # Reset instance status to assigned (or pool if it wasn't assigned)
-            if instance.assigned_to:
+            # If was forced/manual assignment, restore to assigned
+            # Otherwise restore to pool
+            if instance.assignment_reason in [ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED]:
                 instance.status = ChoreInstance.ASSIGNED
+                # Keep assigned_to as-is
             else:
                 instance.status = ChoreInstance.POOL
+                instance.assigned_to = None  # Pool chores can't have assigned_to
 
             instance.completed_at = None
             instance.is_late_completion = False
@@ -411,6 +571,314 @@ def admin_undo_completion(request, completion_id):
 
     except Exception as e:
         logger.error(f"Error undoing completion: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+def admin_backdate_completion(request):
+    """
+    Interface for staff to complete chores with a past date.
+    Shows all ChoreInstance objects that are not yet completed.
+    """
+    # Get all active chore instances (not completed or skipped)
+    active_instances = ChoreInstance.objects.filter(
+        Q(status=ChoreInstance.POOL) | Q(status=ChoreInstance.ASSIGNED)
+    ).select_related(
+        'chore',
+        'assigned_to'
+    ).order_by('due_at')
+
+    # Get all active users
+    users = User.objects.filter(
+        is_active=True
+    ).order_by('username')
+
+    context = {
+        'instances': active_instances,
+        'users': users,
+        'today': timezone.localtime(timezone.now()).date(),
+    }
+
+    return render(request, 'board/admin/backdate_completion.html', context)
+
+
+@require_http_methods(["POST"])
+@login_required
+@user_passes_test(is_staff_user)
+def admin_backdate_completion_action(request):
+    """
+    Complete a chore with a backdated completion date.
+
+    This makes the system act as if the user completed the chore on the specified past date.
+    Points are awarded to the week of the backdated date.
+    """
+    try:
+        instance_id = request.POST.get('instance_id')
+        user_id = request.POST.get('user_id')
+        completion_date_str = request.POST.get('completion_date')
+        helper_ids = request.POST.getlist('helper_ids[]')
+
+        if not instance_id or not user_id or not completion_date_str:
+            return JsonResponse({'error': 'Missing required fields'}, status=400)
+
+        # Parse completion date
+        try:
+            completion_date = datetime.strptime(completion_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return JsonResponse({'error': 'Invalid date format'}, status=400)
+
+        # Validate date is in the past
+        today = timezone.localtime(timezone.now()).date()
+        if completion_date > today:
+            return JsonResponse({'error': 'Completion date must be in the past or today'}, status=400)
+
+        with transaction.atomic():
+            # Get the instance and user
+            instance = ChoreInstance.objects.select_for_update().get(id=instance_id)
+            completing_user = User.objects.get(id=user_id)
+
+            # Allow completing any instance (pool, assigned, or even non-existent)
+            # Update instance status
+            instance.status = ChoreInstance.COMPLETED
+            instance.completed_at = timezone.make_aware(
+                datetime.combine(completion_date, datetime.min.time())
+            )
+            instance.is_late_completion = False  # Award full points, ignore overdue
+            instance.save()
+
+            # Create completion record with backdated date
+            completion = Completion.objects.create(
+                chore_instance=instance,
+                completed_by=completing_user,
+                was_late=False,  # Award full points
+                completed_at=instance.completed_at  # Use backdated date
+            )
+
+            # Determine who gets points
+            if helper_ids:
+                # Specified helpers split the points
+                helpers = User.objects.filter(id__in=helper_ids, eligible_for_points=True)
+                helpers_list = list(helpers)
+            else:
+                # If no helpers specified and chore is undesirable, distribute to all eligible
+                if instance.chore.is_undesirable:
+                    from chores.models import ChoreEligibility
+                    eligible_ids = ChoreEligibility.objects.filter(
+                        chore=instance.chore
+                    ).values_list('user_id', flat=True)
+                    helpers_list = list(User.objects.filter(
+                        id__in=eligible_ids,
+                        eligible_for_points=True
+                    ))
+                else:
+                    # Check if completing user is eligible for points
+                    if completing_user.eligible_for_points:
+                        helpers_list = [completing_user]
+                    else:
+                        # User is not eligible - redistribute to ALL eligible users
+                        helpers_list = list(User.objects.filter(
+                            eligible_for_points=True,
+                            can_be_assigned=True,
+                            is_active=True
+                        ))
+                        logger.info(
+                            f"User {completing_user.username} not eligible for points. "
+                            f"Redistributing {instance.points_value} pts to {len(helpers_list)} eligible users"
+                        )
+
+            # Calculate which week the backdated date falls into
+            # Week is Monday-Sunday, week_ending is the Sunday
+            days_until_sunday = 6 - completion_date.weekday()
+            week_ending = completion_date + timedelta(days=days_until_sunday)
+
+            # Determine if backdated date is in current week
+            current_week_monday = today - timedelta(days=today.weekday())
+            current_week_sunday = current_week_monday + timedelta(days=6)
+            is_current_week = current_week_monday <= completion_date <= current_week_sunday
+
+            # Split points among helpers
+            if helpers_list:
+                points_per_person = instance.points_value / len(helpers_list)
+                points_per_person = Decimal(str(round(float(points_per_person), 2)))
+
+                for helper in helpers_list:
+                    # Create share record
+                    CompletionShare.objects.create(
+                        completion=completion,
+                        user=helper,
+                        points_awarded=points_per_person
+                    )
+
+                    # Add points to correct week
+                    if is_current_week:
+                        # Backdated to current week: add to both weekly and all-time
+                        helper.add_points(points_per_person, weekly=True, all_time=True)
+                    else:
+                        # Backdated to past week: add to all-time only
+                        helper.add_points(points_per_person, weekly=False, all_time=True)
+
+                        # Update or create WeeklySnapshot for that past week
+                        snapshot, created = WeeklySnapshot.objects.get_or_create(
+                            user=helper,
+                            week_ending=week_ending,
+                            defaults={
+                                'points_earned': Decimal('0.00'),
+                                'cash_value': Decimal('0.00'),
+                                'perfect_week': False
+                            }
+                        )
+
+                        # Add points to the snapshot
+                        settings_obj = Settings.get_settings()
+                        snapshot.points_earned += points_per_person
+                        snapshot.cash_value = snapshot.points_earned * settings_obj.points_to_dollar_rate
+                        snapshot.save()
+
+                    # Create ledger entry with backdated date
+                    PointsLedger.objects.create(
+                        user=helper,
+                        transaction_type=PointsLedger.TYPE_COMPLETION,
+                        points_change=points_per_person,
+                        balance_after=helper.weekly_points if is_current_week else snapshot.points_earned,
+                        completion=completion,
+                        description=f"Backdated completion: {instance.chore.name}",
+                        created_by=request.user
+                    )
+
+            # Update rotation state if undesirable (use backdated date)
+            if instance.chore.is_undesirable and instance.assigned_to:
+                from core.models import RotationState
+                RotationState.objects.update_or_create(
+                    chore=instance.chore,
+                    user=completing_user,
+                    defaults={
+                        'last_completed_date': completion_date  # Use backdated date
+                    }
+                )
+
+            # Spawn child chores immediately with backdated dates
+            from chores.services import DependencyService
+            from chores.models import ChoreDependency
+
+            dependencies = ChoreDependency.objects.filter(
+                depends_on=instance.chore
+            ).select_related('chore')
+
+            spawned_children = []
+            for dep in dependencies:
+                child_chore = dep.chore
+
+                if not child_chore.is_active:
+                    continue
+
+                # Calculate due time with offset from backdated date
+                due_at = timezone.make_aware(
+                    datetime.combine(completion_date, datetime.min.time())
+                ) + timedelta(hours=dep.offset_hours)
+
+                # Calculate distribution time
+                due_date = due_at.date()
+                distribution_at = timezone.make_aware(
+                    datetime.combine(due_date, child_chore.distribution_time)
+                )
+
+                # Create child instance assigned to completing user
+                child_instance = ChoreInstance.objects.create(
+                    chore=child_chore,
+                    status=ChoreInstance.ASSIGNED,
+                    assigned_to=completing_user,
+                    points_value=child_chore.points,
+                    due_at=due_at,
+                    distribution_at=distribution_at,
+                    assignment_reason=ChoreInstance.REASON_PARENT_COMPLETION
+                )
+
+                spawned_children.append(child_instance)
+                logger.info(
+                    f"Spawned backdated child: {child_chore.name} "
+                    f"assigned to {completing_user.username} (due {due_at})"
+                )
+
+            # Check if we need to spawn a new instance for today (for daily chores)
+            # If the chore is daily and backdated to yesterday, spawn today's instance
+            if instance.chore.schedule_type == Chore.DAILY:
+                # Check if completion_date was yesterday
+                yesterday = today - timedelta(days=1)
+                if completion_date == yesterday:
+                    # Spawn a new instance for today
+                    today_due_at = timezone.make_aware(
+                        datetime.combine(today, instance.chore.distribution_time)
+                    )
+                    today_distribution_at = timezone.make_aware(
+                        datetime.combine(today, instance.chore.distribution_time)
+                    )
+
+                    # Create instance based on chore settings (pool or assigned)
+                    if instance.chore.is_pool:
+                        new_status = ChoreInstance.POOL
+                        new_assigned_to = None
+                    else:
+                        new_status = ChoreInstance.ASSIGNED
+                        new_assigned_to = instance.chore.assigned_to
+
+                    new_instance = ChoreInstance.objects.create(
+                        chore=instance.chore,
+                        status=new_status,
+                        assigned_to=new_assigned_to,
+                        points_value=instance.chore.points,
+                        due_at=today_due_at,
+                        distribution_at=today_distribution_at
+                    )
+
+                    logger.info(
+                        f"Spawned today's instance for daily chore: {instance.chore.name}"
+                    )
+
+            # TODO: Recalculate streaks and perfect weeks for affected weeks
+            # Note: Backdated completions are marked as was_late=False, so they won't
+            # negatively affect perfect week calculations. However, if a backdated completion
+            # makes a past week "perfect", we would need to recalculate streaks from that
+            # week forward. For now, admins can manually adjust streaks via the Streaks page.
+            # Future enhancement: Implement full historical streak recalculation.
+
+            # Log the backdated completion action
+            ActionLog.objects.create(
+                action_type=ActionLog.ACTION_COMPLETE,
+                user=request.user,  # Admin who performed the action
+                target_user=completing_user,
+                description=f"Backdated completion: {instance.chore.name} (completed by {completing_user.username} on {completion_date})",
+                metadata={
+                    'instance_id': instance.id,
+                    'backdated': True,
+                    'backdated_date': completion_date.isoformat(),
+                    'actual_completion_time': timezone.now().isoformat(),
+                    'completed_by': completing_user.id,
+                    'helpers': len(helpers_list),
+                    'spawned_children': len(spawned_children),
+                    'week_ending': week_ending.isoformat()
+                }
+            )
+
+            logger.info(
+                f"Admin {request.user.username} backdated completion of {instance.chore.name} "
+                f"to {completion_date} for user {completing_user.username}"
+            )
+
+            return JsonResponse({
+                'message': f'Chore completed successfully with backdated date {completion_date}',
+                'points_awarded': float(instance.points_value),
+                'helpers_count': len(helpers_list),
+                'spawned_children': len(spawned_children),
+                'week_ending': week_ending.isoformat()
+            })
+
+    except ChoreInstance.DoesNotExist:
+        return JsonResponse({'error': 'Chore instance not found'}, status=404)
+    except User.DoesNotExist:
+        return JsonResponse({'error': 'User not found'}, status=404)
+    except Exception as e:
+        logger.error(f"Error backdating completion: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -450,6 +918,9 @@ def admin_chore_get(request, chore_id):
             'is_pool': chore.is_pool,
             'assigned_to': chore.assigned_to.id if chore.assigned_to else None,
             'is_undesirable': chore.is_undesirable,
+            'is_difficult': chore.is_difficult,
+            'is_late_chore': chore.is_late_chore,
+            'complete_later': chore.complete_later,
             'eligible_user_ids': eligible_user_ids,
             'distribution_time': chore.distribution_time.strftime('%H:%M'),
             'schedule_type': chore.schedule_type,
@@ -495,6 +966,8 @@ def admin_chore_create(request):
         assigned_to_id = request.POST.get('assigned_to')
         is_undesirable = request.POST.get('is_undesirable') == 'true'
         is_difficult = request.POST.get('is_difficult') == 'true'
+        is_late_chore = request.POST.get('is_late_chore') == 'true'
+        complete_later = request.POST.get('complete_later') == 'true'
         distribution_time = request.POST.get('distribution_time', '17:30')
         schedule_type = request.POST.get('schedule_type', Chore.DAILY)
 
@@ -541,6 +1014,8 @@ def admin_chore_create(request):
                 assigned_to_id=assigned_to_id if not is_pool else None,
                 is_undesirable=is_undesirable,
                 is_difficult=is_difficult,
+                is_late_chore=is_late_chore,
+                complete_later=complete_later,
                 distribution_time=distribution_time,
                 schedule_type=schedule_type,
                 weekday=int(weekday) if weekday else None,
@@ -614,8 +1089,10 @@ def admin_chore_create(request):
         # in chores/signals.py which fires within the transaction
 
         return JsonResponse({
+            'success': True,
             'message': f'Chore "{chore_name}" created successfully',
-            'chore_id': chore_id
+            'id': chore_id,
+            'chore_id': chore_id  # Keep for backwards compatibility
         })
 
     except ValueError as e:
@@ -646,6 +1123,8 @@ def admin_chore_update(request, chore_id):
         assigned_to_id = request.POST.get('assigned_to')
         is_undesirable = request.POST.get('is_undesirable') == 'true'
         is_difficult = request.POST.get('is_difficult') == 'true'
+        is_late_chore = request.POST.get('is_late_chore') == 'true'
+        complete_later = request.POST.get('complete_later') == 'true'
         distribution_time = request.POST.get('distribution_time', '17:30')
         schedule_type = request.POST.get('schedule_type', Chore.DAILY)
 
@@ -691,6 +1170,8 @@ def admin_chore_update(request, chore_id):
             chore.assigned_to_id = assigned_to_id if not is_pool else None
             chore.is_undesirable = is_undesirable
             chore.is_difficult = is_difficult
+            chore.is_late_chore = is_late_chore
+            chore.complete_later = complete_later
             chore.distribution_time = distribution_time
             chore.schedule_type = schedule_type
             chore.weekday = int(weekday) if weekday else None
@@ -743,6 +1224,7 @@ def admin_chore_update(request, chore_id):
             logger.info(f"Admin {request.user.username} updated chore {chore.id}: {chore.name}")
 
             return JsonResponse({
+                'success': True,
                 'message': f'Chore "{chore.name}" updated successfully'
             })
 
@@ -787,6 +1269,46 @@ def admin_chore_toggle_active(request, chore_id):
 
     except Exception as e:
         logger.error(f"Error toggling chore status: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_http_methods(["POST"])
+def admin_chore_delete(request, chore_id):
+    """
+    Permanently delete a chore.
+    Only allowed for deactivated chores.
+    """
+    try:
+        chore = get_object_or_404(Chore, id=chore_id)
+
+        if chore.is_active:
+            return JsonResponse({
+                'error': 'Only deactivated chores can be permanently deleted. Deactivate it first.'
+            }, status=400)
+
+        chore_name = chore.name
+        chore.delete()
+
+        # Log the action
+        ActionLog.objects.create(
+            action_type=ActionLog.ACTION_ADMIN,
+            user=request.user,
+            description=f"Permanently deleted chore: {chore_name}",
+            metadata={'chore_id': chore_id, 'chore_name': chore_name}
+        )
+
+        logger.info(f"Admin {request.user.username} permanently deleted chore {chore_id}: {chore_name}")
+
+        return JsonResponse({
+            'message': f'Chore "{chore_name}" deleted successfully'
+        })
+
+    except Http404:
+        return JsonResponse({'error': 'Chore not found'}, status=404)
+    except Exception as e:
+        logger.error(f"Error deleting chore: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -866,6 +1388,7 @@ def admin_template_save(request):
         is_undesirable = request.POST.get('is_undesirable') == 'true'
         is_difficult = request.POST.get('is_difficult') == 'true'
         is_late_chore = request.POST.get('is_late_chore') == 'true'
+        complete_later = request.POST.get('complete_later') == 'true'
         distribution_time = request.POST.get('distribution_time', '17:30')
         schedule_type = request.POST.get('schedule_type', Chore.DAILY)
         weekday = request.POST.get('weekday')
@@ -899,6 +1422,7 @@ def admin_template_save(request):
             existing_template.is_undesirable = is_undesirable
             existing_template.is_difficult = is_difficult
             existing_template.is_late_chore = is_late_chore
+            existing_template.complete_later = complete_later
             existing_template.distribution_time = distribution_time
             existing_template.schedule_type = schedule_type
             existing_template.weekday = int(weekday) if weekday else None
@@ -921,6 +1445,7 @@ def admin_template_save(request):
                 is_undesirable=is_undesirable,
                 is_difficult=is_difficult,
                 is_late_chore=is_late_chore,
+                complete_later=complete_later,
                 distribution_time=distribution_time,
                 schedule_type=schedule_type,
                 weekday=int(weekday) if weekday else None,
@@ -1223,6 +1748,81 @@ def admin_backup_create(request):
 
 @login_required
 @user_passes_test(is_staff_user)
+@require_http_methods(["POST"])
+def admin_backup_create_selective(request):
+    """
+    Create a new selective backup (clean database with no instances).
+    """
+    try:
+        from django.core.management import call_command
+        from io import StringIO
+        from datetime import datetime
+
+        # Capture command output
+        out = StringIO()
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'selective_backup_{timestamp}.sqlite3'
+
+        # Call the selective backup management command
+        call_command('selective_backup', '--exclude-instances', f'--output={filename}', stdout=out)
+
+        output = out.getvalue()
+        logger.info(f"Admin {request.user.username} created selective backup: {filename}")
+
+        return JsonResponse({
+            'message': f'Selective backup created successfully: {filename}',
+            'output': output,
+            'filename': filename
+        })
+
+    except Exception as e:
+        logger.error(f"Error creating selective backup: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_http_methods(["POST"])
+def admin_backup_delete(request, backup_id):
+    """
+    Delete a backup file.
+    """
+    try:
+        backup = get_object_or_404(Backup, id=backup_id)
+
+        # Delete physical file
+        if os.path.exists(backup.file_path):
+            os.remove(backup.file_path)
+            logger.info(f"Deleted backup file: {backup.file_path}")
+
+        # Delete database record
+        filename = backup.filename
+        backup.delete()
+
+        # Log action
+        ActionLog.objects.create(
+            action_type=ActionLog.ACTION_ADMIN,
+            user=request.user,
+            description=f"Deleted backup: {filename}",
+            metadata={
+                'backup_id': backup_id,
+                'filename': filename
+            }
+        )
+
+        logger.info(f"Admin {request.user.username} deleted backup {filename}")
+
+        return JsonResponse({
+            'message': f'Backup "{filename}" deleted successfully'
+        })
+
+    except Exception as e:
+        logger.error(f"Error deleting backup: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
 @require_http_methods(["GET"])
 def admin_backup_download(request, backup_id):
     """
@@ -1272,7 +1872,7 @@ def admin_backup_download(request, backup_id):
 def admin_backup_upload(request):
     """
     Upload a backup file.
-    Validates that it's a SQLite database with required tables.
+    Supports SQLite (.sqlite3) database backups (both full and selective).
     """
     try:
         import sqlite3
@@ -1286,7 +1886,9 @@ def admin_backup_upload(request):
 
         # Validate file extension
         if not uploaded_file.name.endswith('.sqlite3'):
-            return JsonResponse({'error': 'File must be a .sqlite3 file'}, status=400)
+            return JsonResponse({
+                'error': 'File must be a .sqlite3 database file'
+            }, status=400)
 
         # Validate file size (max 500MB)
         max_size = 500 * 1024 * 1024  # 500MB in bytes
@@ -1308,7 +1910,7 @@ def admin_backup_upload(request):
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
             tables = {row[0] for row in cursor.fetchall()}
 
-            required_tables = {'users', 'chores', 'chore_instances', 'settings'}
+            required_tables = {'users', 'chores', 'settings'}
             missing_tables = required_tables - tables
 
             if missing_tables:
@@ -1317,6 +1919,9 @@ def admin_backup_upload(request):
                 return JsonResponse({
                     'error': f'Invalid ChoreBoard backup. Missing tables: {", ".join(missing_tables)}'
                 }, status=400)
+
+            # Check if it's a selective backup (no chore_instances)
+            is_selective = 'chore_instances' not in tables or cursor.execute("SELECT COUNT(*) FROM chore_instances").fetchone()[0] == 0
 
             conn.close()
 
@@ -1328,7 +1933,10 @@ def admin_backup_upload(request):
         # Generate proper filename
         from datetime import datetime
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'db_backup_uploaded_{timestamp}.sqlite3'
+        if is_selective:
+            filename = f'selective_backup_uploaded_{timestamp}.sqlite3'
+        else:
+            filename = f'db_backup_uploaded_{timestamp}.sqlite3'
         final_path = Path(settings.BASE_DIR) / 'data' / 'backups' / filename
 
         # Move to final location
@@ -1352,12 +1960,14 @@ def admin_backup_upload(request):
             metadata={'backup_id': backup.id, 'filename': filename, 'size': uploaded_file.size}
         )
 
-        logger.info(f"Admin {request.user.username} uploaded backup {filename}")
+        backup_type_label = 'Full backup' if not is_selective else 'Selective backup (clean database)'
+        logger.info(f"Admin {request.user.username} uploaded backup {filename} ({backup_type_label})")
 
         return JsonResponse({
             'success': True,
-            'message': f'Backup uploaded successfully: {filename}',
-            'backup_id': backup.id
+            'message': f'{backup_type_label} uploaded successfully: {filename}',
+            'backup_id': backup.id,
+            'backup_type': 'selective' if is_selective else 'full'
         })
 
     except Exception as e:
@@ -1492,6 +2102,147 @@ def admin_force_assign_action(request, instance_id):
 
 @login_required
 @user_passes_test(is_staff_user)
+def admin_unassign(request):
+    """
+    Interface to return force-assigned chores back to the pool or reassign to another user.
+    Shows all force-assigned and manually assigned chores that staff can unassign/reassign.
+    """
+    from django.db.models import Q
+
+    # Get all force-assigned, manually assigned chores, fixed assignments, or undesirable chores (not completed)
+    manually_assigned = ChoreInstance.objects.filter(
+        Q(assignment_reason__in=[ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED, ChoreInstance.REASON_FIXED]) |
+        Q(chore__is_undesirable=True),
+        status=ChoreInstance.ASSIGNED
+    ).select_related('chore', 'assigned_to').order_by('due_at')
+
+    # Get all eligible users for reassignment
+    users = User.objects.filter(is_active=True, can_be_assigned=True).order_by('username')
+
+    context = {
+        'active_page': 'unassign',
+        'manually_assigned': manually_assigned,
+        'users': users,
+    }
+
+    return render(request, 'board/admin/unassign.html', context)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_http_methods(["POST"])
+def admin_unassign_action(request, instance_id):
+    """
+    Return a manually assigned chore back to the pool.
+    """
+    try:
+        instance = get_object_or_404(ChoreInstance, id=instance_id)
+
+        if instance.status != ChoreInstance.ASSIGNED:
+            return JsonResponse({'error': 'Chore is not assigned'}, status=400)
+
+        if instance.assignment_reason not in [ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED, ChoreInstance.REASON_FIXED] and not instance.chore.is_undesirable:
+            return JsonResponse({'error': 'Can only unassign force-assigned, manually assigned, fixed, or undesirable chores'}, status=400)
+
+        with transaction.atomic():
+            # Store for logging
+            old_user = instance.assigned_to
+
+            # Return to pool
+            instance.status = ChoreInstance.POOL
+            instance.assigned_to = None
+            instance.assigned_at = None
+            instance.assignment_reason = ''
+            instance.save()
+
+            # Log the action
+            ActionLog.objects.create(
+                action_type=ActionLog.ACTION_UNASSIGN,
+                user=request.user,
+                target_user=old_user,
+                description=f"Returned '{instance.chore.name}' to pool (was assigned to {old_user.get_display_name()})",
+                metadata={
+                    'chore_instance_id': instance.id,
+                    'chore_name': instance.chore.name,
+                    'previous_user': old_user.username,
+                }
+            )
+
+            logger.info(f"Admin {request.user.username} unassigned chore {instance.id} from {old_user.username}")
+
+            return JsonResponse({
+                'message': f'Successfully returned "{instance.chore.name}" to pool',
+            })
+
+    except Exception as e:
+        logger.error(f"Error unassigning chore: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_http_methods(["POST"])
+def admin_reassign_action(request, instance_id):
+    """
+    Reassign a manually/force-assigned chore from one user to another.
+    """
+    try:
+        user_id = request.POST.get('user_id')
+
+        if not user_id:
+            return JsonResponse({'error': 'User ID required'}, status=400)
+
+        instance = get_object_or_404(ChoreInstance, id=instance_id)
+        new_user = get_object_or_404(User, id=user_id)
+
+        if instance.status != ChoreInstance.ASSIGNED:
+            return JsonResponse({'error': 'Chore is not assigned'}, status=400)
+
+        if instance.assignment_reason not in [ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED, ChoreInstance.REASON_FIXED] and not instance.chore.is_undesirable:
+            return JsonResponse({'error': 'Can only reassign force-assigned, manually assigned, fixed, or undesirable chores'}, status=400)
+
+        # Check if trying to reassign to the same user
+        if instance.assigned_to == new_user:
+            return JsonResponse({'error': 'Chore is already assigned to this user'}, status=400)
+
+        with transaction.atomic():
+            # Store for logging
+            old_user = instance.assigned_to
+
+            # Reassign to new user
+            instance.assigned_to = new_user
+            instance.assigned_at = timezone.now()
+            # Keep the same assignment_reason (manual or force_assigned)
+            instance.save()
+
+            # Log the action
+            ActionLog.objects.create(
+                action_type=ActionLog.ACTION_MANUAL_ASSIGN,
+                user=request.user,
+                target_user=new_user,
+                description=f"Reassigned '{instance.chore.name}' from {old_user.get_display_name()} to {new_user.get_display_name()}",
+                metadata={
+                    'chore_instance_id': instance.id,
+                    'chore_name': instance.chore.name,
+                    'previous_user': old_user.username,
+                    'new_user': new_user.username,
+                    'action': 'reassign',
+                }
+            )
+
+            logger.info(f"Admin {request.user.username} reassigned chore {instance.id} from {old_user.username} to {new_user.username}")
+
+            return JsonResponse({
+                'message': f'Successfully reassigned "{instance.chore.name}" from {old_user.get_display_name()} to {new_user.get_display_name()}',
+            })
+
+    except Exception as e:
+        logger.error(f"Error reassigning chore: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
 def admin_streaks(request):
     """
     Streak management interface.
@@ -1534,7 +2285,7 @@ def admin_streak_increment(request, user_id):
             streak.current_streak += 1
             if streak.current_streak > streak.longest_streak:
                 streak.longest_streak = streak.current_streak
-            streak.last_perfect_week = timezone.now().date()
+            streak.last_perfect_week = timezone.localdate()
             streak.save()
 
             # Log the action
@@ -1752,8 +2503,15 @@ def admin_skip_chores(request):
     """
     Admin page for skipping chores and viewing skipped chores history.
     """
-    today = timezone.now().date()
+    from datetime import datetime
+
     now = timezone.now()
+    today = timezone.localdate(now)  # Convert to local timezone before getting date
+
+    # Create timezone-aware datetime range for "today" in local timezone
+    today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+    today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+
     settings = Settings.get_settings()
     undo_limit_hours = settings.undo_time_limit_hours
     undo_cutoff = now - timedelta(hours=undo_limit_hours)
@@ -1761,7 +2519,7 @@ def admin_skip_chores(request):
     # Get active chores (pool + assigned) that can be skipped
     # Include all instances due today OR overdue from previous days
     active_chores = ChoreInstance.objects.filter(
-        Q(due_at__date=today) | Q(due_at__lt=now),
+        Q(due_at__range=(today_start, today_end)) | Q(due_at__lt=today_start),
         status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED],
         chore__is_active=True
     ).select_related('chore', 'assigned_to').order_by('due_at', 'status')
@@ -1795,7 +2553,7 @@ def admin_reschedule_chores(request):
     """
     Admin page for rescheduling chores.
     """
-    today = timezone.now().date()
+    today = timezone.localdate()
 
     # Get all active chores
     active_chores = Chore.objects.filter(
@@ -1943,3 +2701,422 @@ def admin_adjust_points_submit(request):
     except Exception as e:
         logger.error(f"Error adjusting points: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+# ============================================================================
+# PENDING DEPENDENT CHORES
+# ============================================================================
+
+@login_required
+@user_passes_test(is_staff_user)
+def admin_pending_spawns(request):
+    """
+    Admin page for viewing dependent chores waiting to spawn.
+    If AJAX request, returns JSON. Otherwise renders the template.
+    """
+    # Check if this is an AJAX request
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+    if not is_ajax:
+        # Render the template for the page
+        return render(request, 'board/admin/pending_spawns.html')
+
+    # AJAX request - return JSON data
+    try:
+        from chores.models import ChoreDependency
+
+        now = timezone.now()
+        today = now.date()
+
+        # Get all completions from today
+        todays_completions = Completion.objects.filter(
+            completed_at__date=today,
+            is_undone=False
+        ).select_related('chore_instance__chore', 'completed_by')
+
+        pending_spawns = []
+
+        for completion in todays_completions:
+            parent_chore = completion.chore_instance.chore
+
+            # Find dependent child chores
+            dependencies = ChoreDependency.objects.filter(
+                depends_on=parent_chore
+            ).select_related('chore')
+
+            for dep in dependencies:
+                child_chore = dep.chore
+
+                # Calculate when the child should spawn
+                spawn_time = completion.completed_at + timedelta(hours=dep.offset_hours)
+
+                # Only include if spawn time is in the future
+                if spawn_time > now:
+                    # Check if instance already exists
+                    existing_instance = ChoreInstance.objects.filter(
+                        chore=child_chore,
+                        created_at__gte=completion.completed_at
+                    ).first()
+
+                    if not existing_instance:
+                        time_until_spawn = spawn_time - now
+                        hours_remaining = time_until_spawn.total_seconds() / 3600
+                        minutes_remaining = (time_until_spawn.total_seconds() % 3600) / 60
+
+                        # Format relative time
+                        if hours_remaining >= 1:
+                            relative_time = f"in {int(hours_remaining)}h {int(minutes_remaining)}m"
+                        else:
+                            relative_time = f"in {int(minutes_remaining)}m"
+
+                        # Convert UTC times to local timezone for display
+                        local_completed_at = timezone.localtime(completion.completed_at)
+                        local_spawn_time = timezone.localtime(spawn_time)
+
+                        pending_spawns.append({
+                            'child_chore_id': child_chore.id,
+                            'child_chore_name': child_chore.name,
+                            'parent_chore_name': parent_chore.name,
+                            'parent_completed_at': local_completed_at.strftime('%I:%M %p'),
+                            'completed_by': completion.completed_by.get_display_name() if completion.completed_by else 'Unknown',
+                            'spawn_time_absolute': local_spawn_time.strftime('%I:%M %p'),
+                            'spawn_time_relative': relative_time,
+                            'offset_hours': dep.offset_hours,
+                            'completion_id': completion.id,
+                            'dependency_id': dep.id,
+                        })
+
+        return JsonResponse({'pending_spawns': pending_spawns})
+
+    except Exception as e:
+        logger.error(f"Error fetching pending spawns: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_http_methods(["POST"])
+def admin_force_spawn(request):
+    """
+    Force spawn a child chore instance immediately, overriding the time delta.
+    """
+    try:
+        from chores.models import ChoreDependency
+
+        child_chore_id = request.POST.get('child_chore_id')
+        completion_id = request.POST.get('completion_id')
+
+        if not child_chore_id or not completion_id:
+            return JsonResponse({'error': 'Missing required parameters'}, status=400)
+
+        # Get the child chore and parent completion
+        child_chore = get_object_or_404(Chore, id=child_chore_id)
+        completion = get_object_or_404(Completion, id=completion_id)
+
+        # Verify dependency exists
+        dependency = ChoreDependency.objects.filter(
+            chore=child_chore,
+            depends_on=completion.chore_instance.chore
+        ).first()
+
+        if not dependency:
+            return JsonResponse({'error': 'Dependency not found'}, status=404)
+
+        # Check if instance already exists
+        existing_instance = ChoreInstance.objects.filter(
+            chore=child_chore,
+            created_at__gte=completion.completed_at
+        ).first()
+
+        if existing_instance:
+            return JsonResponse({'error': 'Child instance already exists'}, status=400)
+
+        # Create the child instance
+        from datetime import datetime
+        now = timezone.now()
+        today = now.date()
+
+        due_at = timezone.make_aware(
+            datetime.combine(today, datetime.max.time())
+        )
+
+        distribution_at = now  # Spawn immediately
+
+        # Determine status and assignment based on chore type
+        if child_chore.is_undesirable:
+            new_instance = ChoreInstance.objects.create(
+                chore=child_chore,
+                status=ChoreInstance.POOL,
+                points_value=child_chore.points,
+                due_at=due_at,
+                distribution_at=distribution_at
+            )
+        elif child_chore.is_pool:
+            new_instance = ChoreInstance.objects.create(
+                chore=child_chore,
+                status=ChoreInstance.POOL,
+                points_value=child_chore.points,
+                due_at=due_at,
+                distribution_at=distribution_at
+            )
+        else:
+            new_instance = ChoreInstance.objects.create(
+                chore=child_chore,
+                status=ChoreInstance.ASSIGNED,
+                assigned_to=child_chore.assigned_to,
+                points_value=child_chore.points,
+                due_at=due_at,
+                distribution_at=distribution_at
+            )
+
+        # Log the action
+        ActionLog.objects.create(
+            action_type=ActionLog.ACTION_ADMIN,
+            user=request.user,
+            description=f"Force spawned child chore: {child_chore.name} (parent: {completion.chore_instance.chore.name})",
+            metadata={
+                'child_chore_id': child_chore.id,
+                'parent_chore_id': completion.chore_instance.chore.id,
+                'completion_id': completion.id,
+                'instance_id': new_instance.id,
+            }
+        )
+
+        logger.info(
+            f"Admin {request.user.username} force spawned child chore {child_chore.name} "
+            f"(instance {new_instance.id})"
+        )
+
+        return JsonResponse({
+            'message': f'Successfully spawned "{child_chore.name}"',
+            'instance_id': new_instance.id,
+            'chore_name': child_chore.name,
+        })
+
+    except Exception as e:
+        logger.error(f"Error force spawning chore: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# ============================================================================
+# USER PREFERENCES
+# ============================================================================
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_http_methods(["GET"])
+def get_user_preferences(request):
+    """
+    Get current user's preferences.
+    """
+    try:
+        from users.models import UserPreferences
+
+        prefs, created = UserPreferences.objects.get_or_create(user=request.user)
+
+        return JsonResponse({
+            'quick_actions': prefs.get_quick_actions_or_default(),
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching user preferences: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_http_methods(["POST"])
+def save_user_preferences(request):
+    """
+    Save current user's preferences.
+    """
+    try:
+        from users.models import UserPreferences
+        import json
+
+        data = json.loads(request.body)
+        quick_actions = data.get('quick_actions', [])
+
+        # Validate quick_actions is a list
+        if not isinstance(quick_actions, list):
+            return JsonResponse({'error': 'quick_actions must be a list'}, status=400)
+
+        # Get or create preferences
+        prefs, created = UserPreferences.objects.get_or_create(user=request.user)
+        prefs.quick_actions = quick_actions
+        prefs.save()
+
+        logger.info(f"User {request.user.username} updated quick actions: {quick_actions}")
+
+        return JsonResponse({
+            'message': 'Preferences saved successfully',
+            'quick_actions': prefs.quick_actions,
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error saving user preferences: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@user_passes_test(is_staff_user)
+def admin_midnight_evaluation(request):
+    """
+    Midnight evaluation monitoring and control page.
+    Shows evaluation logs, pending overdue chores, and provides manual triggers.
+    """
+    from core.models import EvaluationLog
+    from core.jobs import midnight_evaluation
+    from django.db.models import Q
+
+    now = timezone.now()
+    today = now.date()
+
+    # Get recent evaluation logs
+    eval_logs = EvaluationLog.objects.all().order_by('-started_at')[:20]
+
+    # Format logs
+    formatted_logs = []
+    for log in eval_logs:
+        formatted_logs.append({
+            'id': log.id,
+            'started_at': log.started_at,
+            'date': log.started_at.date(),
+            'success': log.success,
+            'chores_created': log.chores_created,
+            'chores_marked_overdue': log.chores_marked_overdue,
+            'execution_time': log.execution_time_seconds,
+            'errors_count': log.errors_count,
+            'error_details': log.error_details,
+        })
+
+    # Check if evaluation ran today (any time, not just midnight window)
+    today_start = datetime.combine(today, datetime.min.time())
+    today_end = today_start + timedelta(days=1)  # End of today
+
+    # Get the most recent evaluation from today (any time, not just midnight window)
+    today_eval = EvaluationLog.objects.filter(
+        started_at__gte=today_start,
+        started_at__lt=today_end
+    ).order_by('-started_at').first()
+
+    # Find chores that should be overdue but aren't
+    # Note: Using 'now' here is intentional - we want to find chores that are overdue
+    # at this exact moment but haven't been marked as such yet
+    pending_overdue = ChoreInstance.objects.filter(
+        status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED],
+        due_at__lt=now,
+        is_overdue=False
+    ).select_related('chore', 'assigned_to').order_by('due_at')[:50]
+
+    # Get ActionLogs related to midnight evaluation
+    midnight_action_logs = ActionLog.objects.filter(
+        Q(action_type='midnight_eval') | Q(action_type='chore_created')
+    ).order_by('-created_at')[:50]
+
+    # Check scheduler status
+    from core.scheduler import scheduler
+    scheduler_running = scheduler.running if scheduler else False
+
+    # Check Celery status
+    celery_enabled = os.getenv('CELERY_BROKER_URL') is not None
+
+    # Get next scheduled run time
+    next_run_time = None
+    if scheduler and scheduler.running:
+        try:
+            job = scheduler.get_job('midnight_evaluation')
+            if job:
+                next_run_time = job.next_run_time
+        except:
+            pass
+
+    context = {
+        'active_page': 'midnight_evaluation',
+        'eval_logs': formatted_logs,
+        'today_eval': today_eval,
+        'today': today,
+        'local_now': now,
+        'pending_overdue': pending_overdue,
+        'pending_overdue_count': pending_overdue.count(),
+        'midnight_action_logs': midnight_action_logs,
+        'scheduler_running': scheduler_running,
+        'celery_enabled': celery_enabled,
+        'next_run_time': next_run_time,
+    }
+
+    return render(request, 'board/admin/midnight_evaluation.html', context)
+
+
+@user_passes_test(is_staff_user)
+@require_POST
+def admin_midnight_evaluation_run(request):
+    """
+    Manually trigger midnight evaluation.
+    """
+    from core.tasks import midnight_evaluation_task
+    from core.jobs import midnight_evaluation
+    import os
+
+    try:
+        logger.info(f"Manual midnight evaluation triggered by {request.user.username}")
+        
+        # Trigger via Celery if enabled, otherwise run synchronously
+        if os.getenv('CELERY_BROKER_URL'):
+            midnight_evaluation_task.delay()
+            messages.success(request, "Midnight evaluation task has been queued in Celery!")
+        else:
+            midnight_evaluation()
+            messages.success(request, "Midnight evaluation completed successfully (synchronous)!")
+
+    except Exception as e:
+        logger.error(f"Manual midnight evaluation failed: {str(e)}")
+        messages.error(request, f"Midnight evaluation failed: {str(e)}")
+
+    return redirect('board:admin_midnight_evaluation')
+
+
+@user_passes_test(is_staff_user)
+@require_POST
+def admin_midnight_evaluation_check(request):
+    """
+    Run the watchdog check to see if evaluation is needed.
+    """
+    from core.models import EvaluationLog
+    from core.jobs import midnight_evaluation
+    from datetime import datetime, timedelta
+
+    try:
+        now = timezone.now()
+
+        # Check if evaluation ran today (same logic as watchdog)
+        today_start = datetime.combine(now.date(), datetime.min.time())
+        today_end = today_start + timedelta(hours=1, minutes=30)
+
+        eval_exists = EvaluationLog.objects.filter(
+            started_at__gte=today_start,
+            started_at__lt=today_end
+        ).exists()
+
+        if not eval_exists:
+            logger.warning(f"Watchdog check by {request.user.username}: No evaluation today")
+            logger.info(f"Running missed midnight evaluation (triggered by {request.user.username})")
+            
+            # Trigger via Celery if enabled, otherwise run synchronously
+            import os
+            if os.getenv('CELERY_BROKER_URL'):
+                from core.tasks import midnight_evaluation_task
+                midnight_evaluation_task.delay()
+                messages.success(request, "Watchdog check: Missed evaluation detected. Task queued in Celery!")
+            else:
+                midnight_evaluation()
+                messages.success(request, "Watchdog check: Missed evaluation detected and executed (synchronous)!")
+        else:
+            messages.info(request, "Watchdog check: Midnight evaluation already ran today. No action needed.")
+
+    except Exception as e:
+        logger.error(f"Watchdog check failed: {str(e)}")
+        messages.error(request, f"Watchdog check failed: {str(e)}")
+
+    return redirect('board:admin_midnight_evaluation')

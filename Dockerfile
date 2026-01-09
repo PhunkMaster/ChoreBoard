@@ -48,11 +48,14 @@ RUN mkdir -p /app/data && chmod 755 /app/data
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# Copy supervisor configuration
+COPY supervisord.conf supervisord.conf
+
 # Expose port
 EXPOSE 8000
 
 # Run entrypoint script
 ENTRYPOINT ["/entrypoint.sh"]
 
-# Default command
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# Default command - runs multiple processes via supervisor
+CMD ["supervisord", "-c", "supervisord.conf"]

@@ -70,16 +70,20 @@ class ChildChoreSchedulingTests(TestCase):
 
     def test_midnight_evaluation_skips_child_chores(self):
         """Test that midnight_evaluation does NOT create instances for child chores."""
-        today = timezone.now().date()
+        from datetime import datetime
+        today = timezone.now().date()  # Use local timezone to match midnight_evaluation logic
 
         # Run midnight evaluation
         midnight_evaluation()
 
-        # Check what instances were created (midnight eval creates instances with due_at = tomorrow)
-        tomorrow = today + timedelta(days=1)
-        parent_instances = ChoreInstance.objects.filter(chore=self.parent_chore, due_at__date=tomorrow)
-        child_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=tomorrow)
-        standalone_instances = ChoreInstance.objects.filter(chore=self.standalone_chore, due_at__date=tomorrow)
+        # Check what instances were created (midnight eval creates instances with due_at = today in local timezone)
+        # Use timezone-aware date range instead of due_at__date to avoid UTC/local timezone mismatch
+        today_start = datetime.combine(today, datetime.min.time())
+        today_end = datetime.combine(today, datetime.max.time())
+
+        parent_instances = ChoreInstance.objects.filter(chore=self.parent_chore, due_at__range=(today_start, today_end))
+        child_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__range=(today_start, today_end))
+        standalone_instances = ChoreInstance.objects.filter(chore=self.standalone_chore, due_at__range=(today_start, today_end))
 
         # Parent and standalone should have instances
         self.assertEqual(parent_instances.count(), 1, "Parent chore should have an instance")
@@ -99,8 +103,7 @@ class ChildChoreSchedulingTests(TestCase):
 
         # But when we run midnight_evaluation, it should be skipped
         midnight_evaluation()
-        tomorrow = today + timedelta(days=1)
-        child_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=tomorrow)
+        child_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=today)
         self.assertEqual(child_instances.count(), 0, "Scheduler skips child chores despite True return")
 
     def test_child_chore_only_spawns_from_parent_completion(self):
@@ -171,21 +174,25 @@ class ChildChoreSchedulingTests(TestCase):
             offset_hours=4
         )
 
-        today = timezone.now().date()
+        from datetime import datetime
+        today = timezone.now().date()  # Use local timezone to match midnight_evaluation logic
 
         # Run midnight evaluation
         midnight_evaluation()
 
-        # Neither child should have instances (midnight eval creates instances with due_at = tomorrow)
-        tomorrow = today + timedelta(days=1)
-        child1_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=tomorrow)
-        child2_instances = ChoreInstance.objects.filter(chore=child_chore2, due_at__date=tomorrow)
+        # Use timezone-aware date range instead of due_at__date to avoid UTC/local timezone mismatch
+        today_start = datetime.combine(today, datetime.min.time())
+        today_end = datetime.combine(today, datetime.max.time())
+
+        # Neither child should have instances (midnight eval creates instances with due_at = today)
+        child1_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__range=(today_start, today_end))
+        child2_instances = ChoreInstance.objects.filter(chore=child_chore2, due_at__range=(today_start, today_end))
 
         self.assertEqual(child1_instances.count(), 0, "First child should not be scheduled")
         self.assertEqual(child2_instances.count(), 0, "Second child should not be scheduled")
 
         # Only parent and standalone should have instances
-        total_instances = ChoreInstance.objects.filter(due_at__date=tomorrow).count()
+        total_instances = ChoreInstance.objects.filter(due_at__range=(today_start, today_end)).count()
         self.assertEqual(total_instances, 2, "Only parent and standalone should be scheduled")
 
     def test_child_chore_with_weekly_schedule_not_created_on_weekday(self):
@@ -201,8 +208,7 @@ class ChildChoreSchedulingTests(TestCase):
 
         midnight_evaluation()
 
-        tomorrow = today + timedelta(days=1)
-        child_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=tomorrow)
+        child_instances = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=today)
         self.assertEqual(child_instances.count(), 0, "Child with weekly schedule still not scheduled")
 
     def test_child_of_child_not_scheduled(self):
@@ -224,17 +230,21 @@ class ChildChoreSchedulingTests(TestCase):
             offset_hours=1
         )
 
-        today = timezone.now().date()
+        from datetime import datetime
+        today = timezone.now().date()  # Use local timezone to match midnight_evaluation logic
 
         # Run midnight evaluation
         midnight_evaluation()
 
-        # Only parent and standalone should be created (midnight eval creates instances with due_at = tomorrow)
-        tomorrow = today + timedelta(days=1)
-        parent_count = ChoreInstance.objects.filter(chore=self.parent_chore, due_at__date=tomorrow).count()
-        child_count = ChoreInstance.objects.filter(chore=self.child_chore, due_at__date=tomorrow).count()
-        grandchild_count = ChoreInstance.objects.filter(chore=grandchild_chore, due_at__date=tomorrow).count()
-        standalone_count = ChoreInstance.objects.filter(chore=self.standalone_chore, due_at__date=tomorrow).count()
+        # Use timezone-aware date range instead of due_at__date to avoid UTC/local timezone mismatch
+        today_start = datetime.combine(today, datetime.min.time())
+        today_end = datetime.combine(today, datetime.max.time())
+
+        # Only parent and standalone should be created (midnight eval creates instances with due_at = today)
+        parent_count = ChoreInstance.objects.filter(chore=self.parent_chore, due_at__range=(today_start, today_end)).count()
+        child_count = ChoreInstance.objects.filter(chore=self.child_chore, due_at__range=(today_start, today_end)).count()
+        grandchild_count = ChoreInstance.objects.filter(chore=grandchild_chore, due_at__range=(today_start, today_end)).count()
+        standalone_count = ChoreInstance.objects.filter(chore=self.standalone_chore, due_at__range=(today_start, today_end)).count()
 
         self.assertEqual(parent_count, 1, "Parent should be scheduled")
         self.assertEqual(child_count, 0, "Child should not be scheduled")

@@ -69,6 +69,11 @@ class Chore(models.Model):
     is_difficult = models.BooleanField(default=False)
     is_undesirable = models.BooleanField(default=False)
     is_late_chore = models.BooleanField(default=False)
+    complete_later = models.BooleanField(
+        default=False,
+        help_text="If checked, this chore can be completed later in the day (e.g., after dinner). "
+                  "Unchecked means it should be completed immediately."
+    )
 
     # Distribution
     distribution_time = models.TimeField(default="17:30")
@@ -155,6 +160,28 @@ class Chore(models.Model):
             return False
         return self.dependencies_as_child.exists()
 
+    def get_last_completion(self):
+        """
+        Get the most recent completion for ANY instance of this chore.
+        This is useful for recurring chores to show who completed it last time.
+
+        Returns:
+            Completion object or None if never completed
+        """
+        if not self.pk:
+            return None
+
+        # Get the most recent non-undone completion across all instances of this chore
+        from chores.models import Completion
+        return Completion.objects.filter(
+            chore_instance__chore=self,
+            is_undone=False
+        ).select_related(
+            'completed_by'
+        ).prefetch_related(
+            'shares__user'
+        ).order_by('-completed_at').first()
+
 
 class ChoreTemplate(models.Model):
     """Reusable chore template for quick chore creation."""
@@ -175,6 +202,7 @@ class ChoreTemplate(models.Model):
     is_difficult = models.BooleanField(default=False)
     is_undesirable = models.BooleanField(default=False)
     is_late_chore = models.BooleanField(default=False)
+    complete_later = models.BooleanField(default=False)
     distribution_time = models.TimeField(default="17:30")
     schedule_type = models.CharField(max_length=20, choices=Chore.SCHEDULE_CHOICES, default=Chore.DAILY)
     n_days = models.IntegerField(null=True, blank=True)
@@ -208,6 +236,7 @@ class ChoreTemplate(models.Model):
             'is_difficult': self.is_difficult,
             'is_undesirable': self.is_undesirable,
             'is_late_chore': self.is_late_chore,
+            'complete_later': self.complete_later,
             'distribution_time': self.distribution_time,
             'schedule_type': self.schedule_type,
             'n_days': self.n_days,
@@ -316,15 +345,20 @@ class ChoreInstance(models.Model):
     REASON_CLAIMED = "claimed"
     REASON_FORCE_ASSIGNED = "force_assigned"
     REASON_MANUAL = "manual_assign"
+    REASON_MANUAL_ASSIGN = "manual_assign"
+    REASON_FIXED = "fixed"
     REASON_NO_ELIGIBLE = "no_eligible_users"
     REASON_ALL_COMPLETED_YESTERDAY = "all_completed_yesterday"
+    REASON_DIFFICULT_CHORE_LIMIT = "difficult_chore_limit"
     REASON_PARENT_COMPLETION = "parent_completion"
     ASSIGNMENT_REASON_CHOICES = [
         (REASON_CLAIMED, "User claimed"),
         (REASON_FORCE_ASSIGNED, "Force assigned by system"),
         (REASON_MANUAL, "Manually assigned by admin"),
+        (REASON_FIXED, "Fixed assignment"),
         (REASON_NO_ELIGIBLE, "No eligible users"),
         (REASON_ALL_COMPLETED_YESTERDAY, "All eligible users completed yesterday"),
+        (REASON_DIFFICULT_CHORE_LIMIT, "All users have difficult chore limit reached"),
         (REASON_PARENT_COMPLETION, "Spawned from parent chore completion"),
     ]
 
@@ -377,6 +411,7 @@ class ChoreInstance(models.Model):
         indexes = [
             models.Index(fields=["status", "due_at"]),
             models.Index(fields=["assigned_to", "status"]),
+            models.Index(fields=["chore", "status"], name="chore_inst_chore_status_idx"),
         ]
 
     def __str__(self):
@@ -398,6 +433,13 @@ class ChoreInstance(models.Model):
             self.points_value = self.chore.points
         self.full_clean()
         super().save(*args, **kwargs)
+
+    def get_last_completion(self):
+        """Get the most recent non-undone completion for this instance."""
+        try:
+            return self.completion if not self.completion.is_undone else None
+        except Completion.DoesNotExist:
+            return None
 
 
 class Completion(models.Model):
@@ -585,6 +627,12 @@ class ArcadeCompletion(models.Model):
     base_points = models.DecimalField(max_digits=5, decimal_places=2)
     bonus_points = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     total_points = models.DecimalField(max_digits=5, decimal_places=2)
+    bonus_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="Bonus percentage applied at approval time (0.00, 0.25, or 0.50)"
+    )
 
     # High score status at time of completion
     is_high_score = models.BooleanField(default=False)
@@ -618,34 +666,25 @@ class ArcadeCompletion(models.Model):
 
 
 class ArcadeHighScore(models.Model):
-    """Maintains top 3 high scores per chore."""
-
-    RANK_CHOICES = [
-        (1, '1st Place'),
-        (2, '2nd Place'),
-        (3, '3rd Place'),
-    ]
+    """Stores all arcade completions with fastest times. Rank is calculated dynamically."""
 
     chore = models.ForeignKey(Chore, on_delete=models.CASCADE, related_name='high_scores')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='high_scores')
     arcade_completion = models.ForeignKey(ArcadeCompletion, on_delete=models.CASCADE, related_name='high_score_entry')
 
     time_seconds = models.IntegerField()
-    rank = models.IntegerField(choices=RANK_CHOICES)
     achieved_at = models.DateTimeField()
 
     class Meta:
         db_table = 'arcade_high_scores'
-        unique_together = ['chore', 'rank']  # Only one record per rank per chore
         indexes = [
-            models.Index(fields=['chore', 'rank']),
+            models.Index(fields=['chore', 'time_seconds']),
             models.Index(fields=['user']),
         ]
-        ordering = ['chore', 'rank']
+        ordering = ['chore', 'time_seconds']
 
     def __str__(self):
-        rank_emoji = {1: '🥇', 2: '🥈', 3: '🥉'}
-        return f"{rank_emoji[self.rank]} {self.chore.name} - {self.user.username} - {self.format_time()}"
+        return f"{self.chore.name} - {self.user.username} - {self.format_time()}"
 
     def format_time(self):
         """Format time as HH:MM:SS or MM:SS."""

@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block title %}Midnight Evaluation - Admin - ChoreBoard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Midnight Evaluation</h1>
+            <p class="text-gray-400 mt-1">Monitor and control scheduled midnight tasks</p>
+        </div>
+    </div>
+
+    {% include "board/admin/_nav.html" with active_page='midnight_evaluation' %}
+
+    <!-- Status Overview -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Scheduler Status -->
+        <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
+            <h2 class="text-lg font-semibold text-white mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Scheduler Status
+            </h2>
+
+            <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Scheduler Running (APScheduler):</span>
+                    {% if scheduler_running %}
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        Yes
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                        </svg>
+                        No
+                    </span>
+                    {% endif %}
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Celery Background Workers:</span>
+                    {% if celery_enabled %}
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        Enabled
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                        Disabled
+                    </span>
+                    {% endif %}
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Current Time (Local):</span>
+                    <span class="text-white font-mono">{{ local_now|date:"Y-m-d H:i:s" }}</span>
+                </div>
+
+                {% if next_run_time %}
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Next Scheduled Run:</span>
+                    <span class="text-white font-mono">{{ next_run_time|date:"Y-m-d H:i:s" }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Today's Evaluation -->
+        <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
+            <h2 class="text-lg font-semibold text-white mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                </svg>
+                Today's Evaluation ({{ today }})
+            </h2>
+
+            {% if today_eval %}
+            <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Status:</span>
+                    {% if today_eval.success %}
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                        Success
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+                        Failed
+                    </span>
+                    {% endif %}
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Run Time:</span>
+                    <span class="text-white font-mono">{{ today_eval.started_at|date:"H:i:s" }}</span>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Chores Created:</span>
+                    <span class="text-white font-bold">{{ today_eval.chores_created }}</span>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Marked Overdue:</span>
+                    <span class="text-white font-bold">{{ today_eval.chores_marked_overdue }}</span>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Execution Time:</span>
+                    <span class="text-white font-mono">{{ today_eval.execution_time_seconds }}s</span>
+                </div>
+
+                {% if today_eval.errors_count > 0 %}
+                <div class="mt-3 p-3 bg-red-500/10 rounded-lg border border-red-500/30">
+                    <p class="text-red-400 font-semibold mb-2">Errors: {{ today_eval.errors_count }}</p>
+                    <pre class="text-xs text-red-300 whitespace-pre-wrap">{{ today_eval.error_details }}</pre>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/30">
+                <p class="text-yellow-400 font-semibold flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                    </svg>
+                    No evaluation has run today!
+                </p>
+                <p class="text-gray-400 text-sm mt-2">
+                    The midnight evaluation has not executed yet. You can manually trigger it or run the watchdog check below.
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
+        <h2 class="text-lg font-semibold text-white mb-4">Manual Actions</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Run Midnight Evaluation -->
+            <form method="POST" action="{% url 'board:admin_midnight_evaluation_run' %}" onsubmit="return confirm('Are you sure you want to manually trigger the midnight evaluation? This will create new chore instances and mark overdue chores.');">
+                {% csrf_token %}
+                <button type="submit"
+                        class="w-full flex items-center justify-center px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Run Midnight Evaluation
+                </button>
+            </form>
+
+            <!-- Run Watchdog Check -->
+            <form method="POST" action="{% url 'board:admin_midnight_evaluation_check' %}">
+                {% csrf_token %}
+                <button type="submit"
+                        class="w-full flex items-center justify-center px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Run Watchdog Check
+                </button>
+            </form>
+        </div>
+
+        <div class="mt-4 p-4 bg-dark-card rounded-lg border border-dark-border">
+            <p class="text-gray-400 text-sm">
+                <strong class="text-white">Run Midnight Evaluation:</strong> Immediately executes the full midnight evaluation process (create instances, mark overdue, reset counters).
+            </p>
+            <p class="text-gray-400 text-sm mt-2">
+                <strong class="text-white">Run Watchdog Check:</strong> Checks if today's evaluation ran. If not, triggers it automatically (same logic as the automated watchdog).
+            </p>
+        </div>
+    </div>
+
+    <!-- Pending Overdue Chores -->
+    {% if pending_overdue_count > 0 %}
+    <div class="bg-dark-surface rounded-lg p-6 border border-dark-border border-l-4 border-l-yellow-500">
+        <h2 class="text-lg font-semibold text-yellow-400 mb-4 flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+            </svg>
+            Pending Overdue Chores ({{ pending_overdue_count }})
+        </h2>
+
+        <p class="text-gray-400 mb-4">
+            These chores are past their due time but have not been marked as overdue yet. This usually means the midnight evaluation hasn't run.
+        </p>
+
+        <div class="space-y-2 max-h-96 overflow-y-auto">
+            {% for instance in pending_overdue %}
+            <div class="p-3 bg-dark-card rounded-lg border border-dark-border">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-white font-medium">{{ instance.chore.name }}</p>
+                        <p class="text-gray-400 text-sm mt-1">
+                            Due: {{ instance.due_at|date:"Y-m-d H:i" }}
+                            {% if instance.assigned_to %}
+                            • Assigned to: {{ instance.assigned_to.get_display_name }}
+                            {% else %}
+                            • Status: Pool
+                            {% endif %}
+                        </p>
+                    </div>
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                        Not marked overdue
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Evaluation Logs -->
+    <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
+        <h2 class="text-lg font-semibold text-white mb-4">Recent Evaluation Logs</h2>
+
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b border-dark-border">
+                        <th class="text-left py-3 px-4 text-gray-300 font-medium">Date (Local)</th>
+                        <th class="text-left py-3 px-4 text-gray-300 font-medium">Time</th>
+                        <th class="text-center py-3 px-4 text-gray-300 font-medium">Status</th>
+                        <th class="text-center py-3 px-4 text-gray-300 font-medium">Created</th>
+                        <th class="text-center py-3 px-4 text-gray-300 font-medium">Overdue</th>
+                        <th class="text-center py-3 px-4 text-gray-300 font-medium">Exec Time</th>
+                        <th class="text-center py-3 px-4 text-gray-300 font-medium">Errors</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in eval_logs %}
+                    <tr class="border-b border-dark-border hover:bg-dark-card transition">
+                        <td class="py-3 px-4 text-white font-mono">{{ log.started_at|date:"Y-m-d" }}</td>
+                        <td class="py-3 px-4 text-white font-mono">{{ log.started_at|date:"H:i:s" }}</td>
+                        <td class="py-3 px-4 text-center">
+                            {% if log.success %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                                Success
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+                                Failed
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3 px-4 text-center text-white font-bold">{{ log.chores_created }}</td>
+                        <td class="py-3 px-4 text-center text-white font-bold">{{ log.chores_marked_overdue }}</td>
+                        <td class="py-3 px-4 text-center text-gray-300 font-mono">{{ log.execution_time }}s</td>
+                        <td class="py-3 px-4 text-center">
+                            {% if log.errors_count > 0 %}
+                            <span class="text-red-400 font-bold">{{ log.errors_count }}</span>
+                            {% else %}
+                            <span class="text-gray-500">0</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if log.errors_count > 0 %}
+                    <tr class="bg-red-500/5">
+                        <td colspan="7" class="py-3 px-4">
+                            <details class="text-sm">
+                                <summary class="text-red-400 cursor-pointer font-medium">Error Details</summary>
+                                <pre class="mt-2 p-3 bg-dark-card rounded text-red-300 text-xs whitespace-pre-wrap overflow-x-auto">{{ log.error_details }}</pre>
+                            </details>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="py-8 px-4 text-center text-gray-400">
+                            No evaluation logs found
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Related Action Logs -->
+    <div class="bg-dark-surface rounded-lg p-6 border border-dark-border">
+        <h2 class="text-lg font-semibold text-white mb-4">Related Action Logs</h2>
+        <p class="text-gray-400 mb-4 text-sm">
+            Showing midnight evaluation runs and chore creation events from the action log.
+        </p>
+
+        <div class="space-y-2 max-h-96 overflow-y-auto">
+            {% for log in midnight_action_logs %}
+            <div class="p-3 bg-dark-card rounded-lg border border-dark-border">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                {% if log.action_type == 'midnight_eval' %}bg-indigo-500/20 text-indigo-400 border border-indigo-500/30
+                                {% elif log.action_type == 'chore_created' %}bg-cyan-500/20 text-cyan-400 border border-cyan-500/30
+                                {% endif %}">
+                                {{ log.get_action_type_display }}
+                            </span>
+                            <span class="text-gray-500 text-xs font-mono">{{ log.created_at|date:"Y-m-d H:i:s" }}</span>
+                        </div>
+                        <p class="text-white text-sm mt-2">{{ log.description }}</p>
+                        {% if log.user %}
+                        <p class="text-gray-400 text-xs mt-1">By: {{ log.user.get_display_name }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="p-4 text-center text-gray-400">
+                No related action logs found
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

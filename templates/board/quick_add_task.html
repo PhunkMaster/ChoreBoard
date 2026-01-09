@@ -48,20 +48,46 @@
             {% endif %}
         </div>
 
-        <!-- Difficulty (Checkbox) -->
-        <div>
+        <!-- Options Group -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Difficulty (Checkbox) -->
             <label class="flex items-center p-3 bg-dark-card border border-dark-border rounded-lg cursor-pointer hover:border-primary-500/50 transition">
                 <input type="checkbox" id="task-is-difficult" name="is_difficult" value="true"
                        class="w-4 h-4 text-primary-600 bg-dark-card border-gray-600 focus:ring-primary-500 rounded">
                 <div class="ml-3">
                     <span class="text-gray-100 font-medium">Mark as difficult</span>
-                    <p class="text-gray-500 text-sm">Indicates this is a challenging task</p>
+                    <p class="text-gray-500 text-sm">Challenging task</p>
+                </div>
+            </label>
+
+            <!-- Complete Later (Checkbox) -->
+            <label class="flex items-center p-3 bg-dark-card border border-dark-border rounded-lg cursor-pointer hover:border-primary-500/50 transition">
+                <input type="checkbox" id="task-complete-later" name="complete_later" value="true"
+                       class="w-4 h-4 text-primary-600 bg-dark-card border-gray-600 focus:ring-primary-500 rounded">
+                <div class="ml-3">
+                    <span class="text-gray-100 font-medium">Due later in the day</span>
+                    <p class="text-gray-500 text-sm">Task can wait (e.g. after dinner)</p>
                 </div>
             </label>
         </div>
 
-        <!-- Due Date (Optional) -->
+        <!-- Dependency (Optional) -->
         <div>
+            <label for="task-depends-on" class="block text-gray-300 mb-2 font-medium">
+                Spawn After (Optional)
+            </label>
+            <select id="task-depends-on" name="depends_on"
+                    class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                <option value="">-- Start immediately --</option>
+                {% for chore in chores %}
+                <option value="{{ chore.id }}">{{ chore.name }}</option>
+                {% endfor %}
+            </select>
+            <p class="text-gray-500 text-sm mt-1">If selected, this task will only appear after the chosen chore is completed</p>
+        </div>
+
+        <!-- Due Date (Optional) -->
+        <div id="due-date-group">
             <label for="task-due-date" class="block text-gray-300 mb-2 font-medium">
                 Due Date (Optional)
             </label>
@@ -71,7 +97,7 @@
         </div>
 
         <!-- Assignment Type -->
-        <div>
+        <div id="assignment-group">
             <label class="block text-gray-300 mb-2 font-medium">
                 Assignment
             </label>
@@ -134,6 +160,26 @@ document.querySelectorAll('input[name="assignment_type"]').forEach(radio => {
             assignedToGroup.classList.add('hidden');
         }
     });
+});
+
+// Hide due date and assignment if spawn-after is selected
+document.getElementById('task-depends-on').addEventListener('change', function() {
+    const dueDateGroup = document.getElementById('due-date-group');
+    const assignmentGroup = document.getElementById('assignment-group');
+    const assignedToGroup = document.getElementById('assigned-to-group');
+    
+    if (this.value) {
+        dueDateGroup.classList.add('hidden');
+        assignmentGroup.classList.add('hidden');
+        assignedToGroup.classList.add('hidden');
+    } else {
+        dueDateGroup.classList.remove('hidden');
+        assignmentGroup.classList.remove('hidden');
+        // Still need to check the radio button for assigned-to-group
+        if (document.querySelector('input[name="assignment_type"]:checked').value === 'assigned') {
+            assignedToGroup.classList.remove('hidden');
+        }
+    }
 });
 
 // Form submission
