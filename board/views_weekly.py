@@ -35,13 +35,15 @@ def weekly_reset(request):
     total_points = sum(u.weekly_points for u in users)
     total_cash = total_points * settings.points_to_dollar_rate
 
-    # Check for perfect week (no late completions this week)
+    # Check for perfect week (no late completions this week for eligible users)
     # Note: Skipped chores don't affect perfect week since they have no Completion record
     week_start = (now - timedelta(days=now.weekday())).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
     late_completions = Completion.objects.filter(
-        completed_at__gte=week_start, was_late=True
+        completed_at__gte=week_start,
+        was_late=True,
+        completed_by__eligible_for_streaks=True,
     ).count()
     is_perfect_week = late_completions == 0
 
@@ -50,17 +52,33 @@ def weekly_reset(request):
     for user in users:
         cash_value = user.weekly_points * settings.points_to_dollar_rate
 
-        # Get or create streak for this user
-        streak, _ = Streak.objects.get_or_create(user=user)
-        new_streak = streak.current_streak + 1 if is_perfect_week else 0
+        # Get or create streak for this user if eligible
+        streak_info = {
+            "current_streak": 0,
+            "new_streak": 0,
+            "is_eligible": user.eligible_for_streaks,
+        }
+
+        if user.eligible_for_streaks:
+            streak, _ = Streak.objects.get_or_create(user=user)
+            new_streak = streak.current_streak + 1 if is_perfect_week else 0
+            streak_info.update(
+                {
+                    "current_streak": streak.current_streak,
+                    "new_streak": new_streak,
+                }
+            )
 
         user_summaries.append(
             {
                 "user": user,
                 "points": user.weekly_points,
                 "cash": cash_value,
-                "current_streak": streak.current_streak,
-                "new_streak": new_streak,
+                "streak_info": streak_info,
+                # Keep original fields for backward compatibility in templates if needed,
+                # but we'll likely update templates too
+                "current_streak": streak_info["current_streak"],
+                "new_streak": streak_info["new_streak"],
             }
         )
 
@@ -100,12 +118,14 @@ def weekly_reset_convert(request):
         now = timezone.now()
         settings = Settings.get_settings()
 
-        # Check for perfect week
+        # Check for perfect week (eligible users only)
         week_start = (now - timedelta(days=now.weekday())).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
         late_completions = Completion.objects.filter(
-            completed_at__gte=week_start, was_late=True
+            completed_at__gte=week_start,
+            was_late=True,
+            completed_by__eligible_for_streaks=True,
         ).count()
         is_perfect_week = late_completions == 0
 
@@ -165,14 +185,15 @@ def weekly_reset_convert(request):
                     snapshots_created.append(snapshot)
                     total_cash += cash_value
 
-                # Update streak
-                streak, _ = Streak.objects.get_or_create(user=user)
-                if user_is_perfect:
-                    streak.increment_streak()
-                    streak.last_perfect_week = now.date()
-                    streak.save()
-                else:
-                    streak.reset_streak()
+                # Update streak if eligible
+                if user.eligible_for_streaks:
+                    streak, _ = Streak.objects.get_or_create(user=user)
+                    if user_is_perfect:
+                        streak.increment_streak()
+                        streak.last_perfect_week = now.date()
+                        streak.save()
+                    else:
+                        streak.reset_streak()
 
                 # Reset weekly counters
                 user.weekly_points = Decimal("0.00")

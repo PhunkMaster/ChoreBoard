@@ -1,6 +1,7 @@
 """
 Scheduled job implementations for ChoreBoard.
 """
+
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Q
@@ -28,8 +29,8 @@ def mark_overdue_chores():
     overdue_instances = ChoreInstance.objects.filter(
         status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED],
         due_at__lt=now,
-        is_overdue=False
-    ).select_related('chore', 'assigned_to')
+        is_overdue=False,
+    ).select_related("chore", "assigned_to")
 
     # Collect instances before updating (can't iterate after update)
     overdue_list = list(overdue_instances)
@@ -42,7 +43,9 @@ def mark_overdue_chores():
             try:
                 NotificationService.notify_chore_overdue(instance)
             except Exception as e:
-                logger.error(f"Error sending overdue notification for {instance.id}: {str(e)}")
+                logger.error(
+                    f"Error sending overdue notification for {instance.id}: {str(e)}"
+                )
 
     return overdue_count
 
@@ -87,15 +90,15 @@ def midnight_evaluation():
             from chores.models import ChoreDependency
 
             # Subquery to check if chore is a child (has dependencies_as_child)
-            has_dependencies = ChoreDependency.objects.filter(chore=OuterRef('pk'))
+            has_dependencies = ChoreDependency.objects.filter(chore=OuterRef("pk"))
 
-            active_chores = Chore.objects.filter(
-                is_active=True
-            ).exclude(
+            active_chores = Chore.objects.filter(is_active=True).exclude(
                 # Exclude chores that are children (have parent dependencies)
                 Exists(has_dependencies)
             )
-            logger.info(f"Found {active_chores.count()} active chores (excluding child chores)")
+            logger.info(
+                f"Found {active_chores.count()} active chores (excluding child chores)"
+            )
 
             # Create instances for each chore based on schedule
             # IMPORTANT: Use local date!
@@ -107,19 +110,29 @@ def midnight_evaluation():
 
                     if should_create:
                         # Calculate due time (end of today - chores due on same day they're created)
-                        due_at = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+                        due_at = timezone.make_aware(
+                            datetime.combine(today, datetime.max.time())
+                        )
 
                         # Distribution time
-                        distribution_at = timezone.make_aware(datetime.combine(today, chore.distribution_time))
+                        distribution_at = timezone.make_aware(
+                            datetime.combine(today, chore.distribution_time)
+                        )
 
                         # Create instance
                         instance = ChoreInstance.objects.create(
                             chore=chore,
-                            status=ChoreInstance.POOL if chore.is_pool else ChoreInstance.ASSIGNED,
-                            assigned_to=chore.assigned_to if not chore.is_pool else None,
+                            status=(
+                                ChoreInstance.POOL
+                                if chore.is_pool
+                                else ChoreInstance.ASSIGNED
+                            ),
+                            assigned_to=(
+                                chore.assigned_to if not chore.is_pool else None
+                            ),
                             points_value=chore.points,
                             due_at=due_at,
-                            distribution_at=distribution_at
+                            distribution_at=distribution_at,
                         )
 
                         chores_created += 1
@@ -127,26 +140,28 @@ def midnight_evaluation():
 
                         # Log chore creation to ActionLog
                         from core.models import ActionLog
+
                         ActionLog.objects.create(
                             action_type=ActionLog.ACTION_CHORE_CREATED,
                             user=None,
                             description=f"Created instance: {chore.name}",
                             metadata={
-                                'chore_id': chore.id,
-                                'instance_id': instance.id,
-                                'points': float(instance.points_value),
-                                'status': instance.status,
-                                'created_by': 'midnight_evaluation'
-                            }
+                                "chore_id": chore.id,
+                                "instance_id": instance.id,
+                                "points": float(instance.points_value),
+                                "status": instance.status,
+                                "created_by": "midnight_evaluation",
+                            },
                         )
 
                         # If chore is undesirable and in pool, assign immediately
                         if chore.is_undesirable and chore.is_pool:
                             from chores.services import AssignmentService
-                            success, message, assigned_user = AssignmentService.assign_chore(
-                                instance,
-                                force_assign=False,
-                                assigned_by=None
+
+                            success, message, assigned_user = (
+                                AssignmentService.assign_chore(
+                                    instance, force_assign=False, assigned_by=None
+                                )
                             )
                             if success:
                                 logger.info(
@@ -167,11 +182,18 @@ def midnight_evaluation():
                         )
 
                         # Check if blocked by existing open instance
-                        open_instance = ChoreInstance.objects.filter(
-                            chore=chore
-                        ).filter(
-                            ~Q(status__in=[ChoreInstance.COMPLETED, ChoreInstance.SKIPPED])
-                        ).first()
+                        open_instance = (
+                            ChoreInstance.objects.filter(chore=chore)
+                            .filter(
+                                ~Q(
+                                    status__in=[
+                                        ChoreInstance.COMPLETED,
+                                        ChoreInstance.SKIPPED,
+                                    ]
+                                )
+                            )
+                            .first()
+                        )
 
                         if open_instance:
                             logger.warning(
@@ -181,7 +203,9 @@ def midnight_evaluation():
                             )
 
                 except Exception as e:
-                    error_msg = f"Error creating instance for chore {chore.name}: {str(e)}"
+                    error_msg = (
+                        f"Error creating instance for chore {chore.name}: {str(e)}"
+                    )
                     logger.error(error_msg)
                     errors.append(error_msg)
 
@@ -197,26 +221,29 @@ def midnight_evaluation():
                 chores_marked_overdue=chores_marked_overdue,
                 errors_count=len(errors),
                 error_details="\n".join(errors) if errors else "",
-                execution_time_seconds=Decimal(str(execution_time))
+                execution_time_seconds=Decimal(str(execution_time)),
             )
 
             logger.info(f"Midnight evaluation completed in {execution_time:.2f}s")
-            logger.info(f"Created {chores_created} instances, marked {chores_marked_overdue} overdue")
+            logger.info(
+                f"Created {chores_created} instances, marked {chores_marked_overdue} overdue"
+            )
 
             # Log to ActionLog
             from core.models import ActionLog
+
             ActionLog.objects.create(
                 action_type=ActionLog.ACTION_MIDNIGHT_EVAL,
                 user=None,  # System action
                 description=f"Midnight evaluation: {chores_created} created, {chores_marked_overdue} overdue",
                 metadata={
-                    'success': len(errors) == 0,
-                    'chores_created': chores_created,
-                    'chores_marked_overdue': chores_marked_overdue,
-                    'execution_time_seconds': float(execution_time),
-                    'errors_count': len(errors),
-                    'evaluation_log_id': eval_log.id
-                }
+                    "success": len(errors) == 0,
+                    "chores_created": chores_created,
+                    "chores_marked_overdue": chores_marked_overdue,
+                    "execution_time_seconds": float(execution_time),
+                    "errors_count": len(errors),
+                    "evaluation_log_id": eval_log.id,
+                },
             )
 
             return eval_log
@@ -238,22 +265,23 @@ def midnight_evaluation():
             chores_marked_overdue=chores_marked_overdue,
             errors_count=len(errors),
             error_details="\n".join(errors),
-            execution_time_seconds=Decimal(str(execution_time))
+            execution_time_seconds=Decimal(str(execution_time)),
         )
 
         # Log failure to ActionLog
         from core.models import ActionLog
+
         ActionLog.objects.create(
             action_type=ActionLog.ACTION_MIDNIGHT_EVAL,
             user=None,
             description=f"Midnight evaluation FAILED: {len(errors)} errors",
             metadata={
-                'success': False,
-                'chores_created': chores_created,
-                'chores_marked_overdue': chores_marked_overdue,
-                'errors_count': len(errors),
-                'evaluation_log_id': eval_log.id
-            }
+                "success": False,
+                "chores_created": chores_created,
+                "chores_marked_overdue": chores_marked_overdue,
+                "errors_count": len(errors),
+                "evaluation_log_id": eval_log.id,
+            },
         )
 
         raise
@@ -283,27 +311,27 @@ def evaluate_rrule(rrule_json, check_date, chore_created_date):
     """
     # Map string frequency to rrule constants
     freq_map = {
-        'DAILY': rrule.DAILY,
-        'WEEKLY': rrule.WEEKLY,
-        'MONTHLY': rrule.MONTHLY,
-        'YEARLY': rrule.YEARLY,
+        "DAILY": rrule.DAILY,
+        "WEEKLY": rrule.WEEKLY,
+        "MONTHLY": rrule.MONTHLY,
+        "YEARLY": rrule.YEARLY,
     }
 
     # Get frequency
-    freq_str = rrule_json.get('freq', '').upper()
+    freq_str = rrule_json.get("freq", "").upper()
     if freq_str not in freq_map:
         raise ValueError(f"Invalid or missing frequency: {freq_str}")
 
     freq = freq_map[freq_str]
 
     # Get interval (default 1)
-    interval = rrule_json.get('interval', 1)
+    interval = rrule_json.get("interval", 1)
 
     # Get dtstart (start date for the rule)
-    dtstart = rrule_json.get('dtstart')
+    dtstart = rrule_json.get("dtstart")
     if dtstart:
         if isinstance(dtstart, str):
-            dtstart = datetime.strptime(dtstart, '%Y-%m-%d').date()
+            dtstart = datetime.strptime(dtstart, "%Y-%m-%d").date()
     else:
         # Default to when the chore was created
         dtstart = chore_created_date
@@ -314,36 +342,46 @@ def evaluate_rrule(rrule_json, check_date, chore_created_date):
 
     # Build rrule parameters
     rule_params = {
-        'freq': freq,
-        'interval': interval,
-        'dtstart': dtstart_dt,
+        "freq": freq,
+        "interval": interval,
+        "dtstart": dtstart_dt,
     }
 
     # Optional: until (end date)
-    if 'until' in rrule_json:
-        until = rrule_json['until']
+    if "until" in rrule_json:
+        until = rrule_json["until"]
         if isinstance(until, str):
-            until = datetime.strptime(until, '%Y-%m-%d').date()
-        rule_params['until'] = datetime.combine(until, datetime.max.time())
+            until = datetime.strptime(until, "%Y-%m-%d").date()
+        rule_params["until"] = datetime.combine(until, datetime.max.time())
 
     # Optional: count (number of occurrences)
-    if 'count' in rrule_json:
-        rule_params['count'] = rrule_json['count']
+    if "count" in rrule_json:
+        rule_params["count"] = rrule_json["count"]
 
     # Optional: byweekday (specific weekdays)
-    if 'byweekday' in rrule_json:
+    if "byweekday" in rrule_json:
         # Map indices or string codes to rrule weekday constants
         weekday_map_by_index = [
-            rrule.MO, rrule.TU, rrule.WE, rrule.TH,
-            rrule.FR, rrule.SA, rrule.SU
+            rrule.MO,
+            rrule.TU,
+            rrule.WE,
+            rrule.TH,
+            rrule.FR,
+            rrule.SA,
+            rrule.SU,
         ]
         weekday_map_by_name = {
-            'MO': rrule.MO, 'TU': rrule.TU, 'WE': rrule.WE, 'TH': rrule.TH,
-            'FR': rrule.FR, 'SA': rrule.SA, 'SU': rrule.SU
+            "MO": rrule.MO,
+            "TU": rrule.TU,
+            "WE": rrule.WE,
+            "TH": rrule.TH,
+            "FR": rrule.FR,
+            "SA": rrule.SA,
+            "SU": rrule.SU,
         }
 
         byweekday = []
-        for item in rrule_json['byweekday']:
+        for item in rrule_json["byweekday"]:
             if isinstance(item, int):
                 # Integer index (0-6)
                 byweekday.append(weekday_map_by_index[item])
@@ -357,15 +395,15 @@ def evaluate_rrule(rrule_json, check_date, chore_created_date):
                 logger.warning(f"Invalid weekday format: {item} (type: {type(item)})")
 
         if byweekday:
-            rule_params['byweekday'] = byweekday
+            rule_params["byweekday"] = byweekday
 
     # Optional: bymonthday (specific days of month)
-    if 'bymonthday' in rrule_json:
-        rule_params['bymonthday'] = rrule_json['bymonthday']
+    if "bymonthday" in rrule_json:
+        rule_params["bymonthday"] = rrule_json["bymonthday"]
 
     # Optional: bymonth (specific months)
-    if 'bymonth' in rrule_json:
-        rule_params['bymonth'] = rrule_json['bymonth']
+    if "bymonth" in rrule_json:
+        rule_params["bymonth"] = rrule_json["bymonth"]
 
     # Create the rrule
     rule = rrule.rrule(**rule_params)
@@ -373,9 +411,7 @@ def evaluate_rrule(rrule_json, check_date, chore_created_date):
     # Check if check_date is in the rule's occurrences
     # We check from dtstart to check_date + 1 day to include check_date
     occurrences = rule.between(
-        dtstart_dt,
-        check_dt + timedelta(days=1),
-        inc=True  # Include boundaries
+        dtstart_dt, check_dt + timedelta(days=1), inc=True  # Include boundaries
     )
 
     # Check if any occurrence falls on check_date
@@ -474,13 +510,14 @@ def should_create_instance_today(chore, today):
             today_end = datetime.combine(today, datetime.max.time())
 
             existing_for_today = ChoreInstance.objects.filter(
-                chore=chore,
-                due_at__range=(today_start, today_end)
+                chore=chore, due_at__range=(today_start, today_end)
             ).exists()
 
             if existing_for_today:
                 # Instance already created for rescheduled date - clear reschedule but don't create again
-                logger.info(f"Chore '{chore.name}' already has instance for rescheduled date {today}, clearing reschedule")
+                logger.info(
+                    f"Chore '{chore.name}' already has instance for rescheduled date {today}, clearing reschedule"
+                )
                 chore.rescheduled_date = None
                 chore.reschedule_reason = ""
                 chore.rescheduled_by = None
@@ -494,11 +531,15 @@ def should_create_instance_today(chore, today):
                 chore.rescheduled_by = None
                 chore.rescheduled_at = None
                 chore.save()
-                logger.info(f"Chore '{chore.name}' rescheduled date reached, cleared reschedule and creating instance")
+                logger.info(
+                    f"Chore '{chore.name}' rescheduled date reached, cleared reschedule and creating instance"
+                )
                 return True
         else:
             # Skip normal schedule - chore is rescheduled for a different day
-            logger.debug(f"Chore '{chore.name}' is rescheduled to {chore.rescheduled_date}, skipping today")
+            logger.debug(
+                f"Chore '{chore.name}' is rescheduled to {chore.rescheduled_date}, skipping today"
+            )
             return False
 
     # Check if instance already exists for today OR if there's any open instance
@@ -511,12 +552,14 @@ def should_create_instance_today(chore, today):
     today_start = datetime.combine(today, datetime.min.time())
     today_end = datetime.combine(today, datetime.max.time())
 
-    existing = ChoreInstance.objects.filter(
-        chore=chore
-    ).filter(
-        Q(due_at__range=(today_start, today_end)) |  # Instance due today
-        ~Q(status__in=['completed', 'skipped'])  # OR any open instance
-    ).exists()
+    existing = (
+        ChoreInstance.objects.filter(chore=chore)
+        .filter(
+            Q(due_at__range=(today_start, today_end))  # Instance due today
+            | ~Q(status__in=["completed", "skipped"])  # OR any open instance
+        )
+        .exists()
+    )
 
     if existing:
         return False
@@ -545,7 +588,9 @@ def should_create_instance_today(chore, today):
     # RRULE schedule
     if chore.schedule_type == Chore.RRULE:
         if not chore.rrule_json:
-            logger.warning(f"Chore '{chore.name}' has RRULE schedule but no rrule_json data")
+            logger.warning(
+                f"Chore '{chore.name}' has RRULE schedule but no rrule_json data"
+            )
             return False
 
         try:
@@ -559,7 +604,9 @@ def should_create_instance_today(chore, today):
     # CRON schedule
     if chore.schedule_type == Chore.CRON:
         if not chore.cron_expr:
-            logger.warning(f"Chore '{chore.name}' has CRON schedule but no cron_expr data")
+            logger.warning(
+                f"Chore '{chore.name}' has CRON schedule but no cron_expr data"
+            )
             return False
 
         try:
@@ -589,14 +636,16 @@ def cleanup_completed_one_time_tasks():
     undo_window = timedelta(hours=2)
     cutoff_time = now - undo_window
 
-    logger.info(f"[CLEANUP] Starting cleanup of completed ONE_TIME tasks (cutoff: {cutoff_time})")
+    logger.info(
+        f"[CLEANUP] Starting cleanup of completed ONE_TIME tasks (cutoff: {cutoff_time})"
+    )
 
     # Find completed ONE_TIME instances
     completed_instances = ChoreInstance.objects.filter(
         chore__schedule_type=Chore.ONE_TIME,
         chore__is_active=True,  # Only active chores
-        status=ChoreInstance.COMPLETED
-    ).select_related('chore')
+        status=ChoreInstance.COMPLETED,
+    ).select_related("chore")
 
     archived_count = 0
 
@@ -606,10 +655,12 @@ def cleanup_completed_one_time_tasks():
             # Undo window has passed - archive the chore
             chore = instance.chore
             chore.is_active = False
-            chore.save(update_fields=['is_active'])
+            chore.save(update_fields=["is_active"])
 
             archived_count += 1
-            logger.info(f"[CLEANUP] Archived ONE_TIME task: {chore.name} (ID: {chore.id})")
+            logger.info(
+                f"[CLEANUP] Archived ONE_TIME task: {chore.name} (ID: {chore.id})"
+            )
 
     logger.info(f"[CLEANUP] Archived {archived_count} completed ONE_TIME tasks")
     return archived_count
@@ -643,8 +694,7 @@ def distribution_check():
 
     # Check if a successful evaluation has run for the current local date
     eval_exists = EvaluationLog.objects.filter(
-        started_at__date=today_local,
-        success=True
+        started_at__date=today_local, success=True
     ).exists()
 
     # To avoid double-running exactly at midnight (scheduled job), we wait at least 5 minutes.
@@ -655,15 +705,23 @@ def distribution_check():
         ).count()
 
         if attempts_today < 3:
-            logger.warning(f"⚠️  WATCHDOG: Midnight evaluation has not run successfully today ({today_local})")
-            logger.warning(f"⚠️  WATCHDOG: Attempt {attempts_today + 1}/3. Triggering now...")
+            logger.warning(
+                f"⚠️  WATCHDOG: Midnight evaluation has not run successfully today ({today_local})"
+            )
+            logger.warning(
+                f"⚠️  WATCHDOG: Attempt {attempts_today + 1}/3. Triggering now..."
+            )
             try:
                 midnight_evaluation()
                 logger.info("✓ WATCHDOG: Successfully ran missed midnight evaluation")
             except Exception as e:
-                logger.error(f"✗ WATCHDOG: Failed to run missed midnight evaluation: {str(e)}")
+                logger.error(
+                    f"✗ WATCHDOG: Failed to run missed midnight evaluation: {str(e)}"
+                )
         elif attempts_today == 3:
-            logger.error(f"✗ WATCHDOG: Midnight evaluation failed 3 times today ({today_local}). Giving up to avoid loop.")
+            logger.error(
+                f"✗ WATCHDOG: Midnight evaluation failed 3 times today ({today_local}). Giving up to avoid loop."
+            )
     else:
         logger.debug(f"✓ WATCHDOG: Midnight evaluation check passed")
 
@@ -686,9 +744,7 @@ def distribution_check():
     for instance in instances_to_distribute:
         try:
             success, message, user = AssignmentService.assign_chore(
-                instance,
-                force_assign=False,
-                assigned_by=None  # System assignment
+                instance, force_assign=False, assigned_by=None  # System assignment
             )
 
             if success:
@@ -737,8 +793,7 @@ def weekly_snapshot_job():
             with transaction.atomic():
                 # Check if snapshot already exists
                 if WeeklySnapshot.objects.filter(
-                    user=user,
-                    week_ending=week_ending
+                    user=user, week_ending=week_ending
                 ).exists():
                     logger.info(f"Snapshot already exists for {user.username}")
                     continue
@@ -750,9 +805,13 @@ def weekly_snapshot_job():
                 points = user.weekly_points
                 cash_value = points * settings.points_to_dollar_rate
 
-                # Check for perfect week (no overdue assigned chores)
+                # Check for perfect week (no overdue assigned chores for eligible users)
                 # TODO: Implement perfect week check in Phase 3
                 perfect_week = False
+
+                # If we were to implement streak logic here:
+                # if user.eligible_for_streaks:
+                #     ... update streak ...
 
                 # Create snapshot
                 snapshot = WeeklySnapshot.objects.create(
@@ -760,11 +819,13 @@ def weekly_snapshot_job():
                     week_ending=week_ending,
                     points_earned=points,
                     cash_value=cash_value,
-                    perfect_week=perfect_week
+                    perfect_week=perfect_week,
                 )
 
                 snapshots_created += 1
-                logger.info(f"Created snapshot for {user.username}: {points} pts = ${cash_value}")
+                logger.info(
+                    f"Created snapshot for {user.username}: {points} pts = ${cash_value}"
+                )
 
         except Exception as e:
             logger.error(f"Error creating snapshot for {user.username}: {str(e)}")
