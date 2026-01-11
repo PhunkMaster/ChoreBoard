@@ -47,8 +47,8 @@
                         class="w-full bg-dark-card text-gray-100 border border-dark-border rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
                     <option value="">-- Select User --</option>
                     {% for user in users %}
-                    <option value="{{ user.id }}" data-points="{{ user.all_time_points }}">
-                        {{ user.get_display_name }} ({{ user.all_time_points }} pts)
+                    <option value="{{ user.id }}" data-points="{{ user.weekly_points }}">
+                        {{ user.get_display_name }} ({{ user.weekly_points }} pts)
                     </option>
                     {% endfor %}
                 </select>

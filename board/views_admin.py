@@ -2654,12 +2654,14 @@ def admin_adjust_points_submit(request):
             return JsonResponse({'error': 'You cannot adjust your own points'}, status=403)
 
         with transaction.atomic():
-            # Get current balance
-            current_balance = user.all_time_points
-            new_balance = current_balance + points
+            # Get current balance (weekly points)
+            current_balance = user.weekly_points
 
-            # Update user's points
+            # Update user's points (updates both weekly and all-time)
             user.add_points(points, weekly=True, all_time=True)
+            
+            # New balance for the ledger/response
+            new_balance = user.weekly_points
 
             # Create PointsLedger entry
             ledger_entry = PointsLedger.objects.create(
