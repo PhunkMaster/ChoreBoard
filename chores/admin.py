@@ -1,27 +1,35 @@
 """Django admin configuration for Chore models."""
+
 from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 from .models import (
-    Chore, ChoreEligibility, ChoreDependency, ChoreInstance,
-    Completion, CompletionShare, PointsLedger, PianoScore
+    Chore,
+    ChoreEligibility,
+    ChoreDependency,
+    ChoreInstance,
+    Completion,
+    CompletionShare,
+    PointsLedger,
+    PianoScore,
 )
 
 
 class ChoreEligibilityInline(admin.TabularInline):
     """Inline admin for eligible users (undesirable chores)."""
+
     model = ChoreEligibility
     extra = 0  # Start with 0 extra rows, show only existing records
-    autocomplete_fields = ['user']
-    fk_name = 'chore'
+    autocomplete_fields = ["user"]
+    fk_name = "chore"
     verbose_name = "Eligible User"
     verbose_name_plural = "Eligible Users (for Undesirable Chores)"
 
     def get_queryset(self, request):
         """Ensure all existing eligible users are shown."""
         qs = super().get_queryset(request)
-        return qs.select_related('user', 'chore')
+        return qs.select_related("user", "chore")
 
     def get_extra(self, request, obj=None, **kwargs):
         """Show 1 extra row only if this is an undesirable chore."""
@@ -32,62 +40,106 @@ class ChoreEligibilityInline(admin.TabularInline):
 
 class ChoreDependencyAsChildInline(admin.TabularInline):
     """Inline admin for chores that depend on this chore."""
+
     model = ChoreDependency
-    fk_name = 'depends_on'
+    fk_name = "depends_on"
     extra = 0
     verbose_name = "Chore that depends on this"
     verbose_name_plural = "Child Chores (these spawn when this chore completes)"
-    autocomplete_fields = ['chore']
+    autocomplete_fields = ["chore"]
 
 
 class ChoreDependencyAsParentInline(admin.TabularInline):
     """Inline admin for chores this chore depends on."""
+
     model = ChoreDependency
-    fk_name = 'chore'
+    fk_name = "chore"
     extra = 0
     verbose_name = "Depends on"
     verbose_name_plural = "Parent Chores (this spawns after these complete)"
-    autocomplete_fields = ['depends_on']
+    autocomplete_fields = ["depends_on"]
 
 
 @admin.register(Chore)
 class ChoreAdmin(admin.ModelAdmin):
     """Admin interface for Chore model."""
-    list_display = ["name", "points", "colored_status", "assigned_to", "schedule_type", "has_dependencies", "is_difficult"]
-    list_filter = ["is_active", "is_pool", "is_difficult", "is_undesirable", "is_late_chore", "complete_later", "schedule_type"]
+
+    list_display = [
+        "name",
+        "points",
+        "colored_status",
+        "assigned_to",
+        "schedule_type",
+        "has_dependencies",
+        "is_difficult",
+    ]
+    list_filter = [
+        "is_active",
+        "is_pool",
+        "is_difficult",
+        "is_undesirable",
+        "is_late_chore",
+        "complete_later",
+        "schedule_type",
+    ]
     search_fields = ["name", "description"]
-    readonly_fields = ["created_at", "updated_at", "dependency_info", "eligible_users_display"]
+    readonly_fields = [
+        "created_at",
+        "updated_at",
+        "dependency_info",
+        "eligible_users_display",
+    ]
     list_editable = ["points"]
     list_per_page = 50
-    inlines = [ChoreEligibilityInline, ChoreDependencyAsParentInline, ChoreDependencyAsChildInline]
+    inlines = [
+        ChoreEligibilityInline,
+        ChoreDependencyAsParentInline,
+        ChoreDependencyAsChildInline,
+    ]
 
-    actions = ['activate_chores', 'deactivate_chores', 'mark_as_pool', 'mark_as_difficult']
+    actions = [
+        "activate_chores",
+        "deactivate_chores",
+        "mark_as_pool",
+        "mark_as_difficult",
+    ]
 
     fieldsets = (
-        ("Basic Info", {
-            "fields": ("name", "description", "points")
-        }),
-        ("Assignment", {
-            "fields": ("is_pool", "assigned_to")
-        }),
-        ("Tags", {
-            "fields": ("is_difficult", "is_undesirable", "eligible_users_display", "is_late_chore", "complete_later")
-        }),
-        ("Schedule", {
-            "fields": ("schedule_type", "distribution_time", "n_days", "every_n_start_date",
-                      "shift_on_late_completion", "weekday", "cron_expr", "rrule_json")
-        }),
-        ("Dependencies", {
-            "fields": ("dependency_info",),
-            "classes": ("collapse",)
-        }),
-        ("Status", {
-            "fields": ("is_active",)
-        }),
-        ("Timestamps", {
-            "fields": ("created_at", "updated_at"),
-            "classes": ("collapse",)
-        }),
+        ("Basic Info", {"fields": ("name", "description", "points")}),
+        ("Assignment", {"fields": ("is_pool", "assigned_to")}),
+        (
+            "Tags",
+            {
+                "fields": (
+                    "is_difficult",
+                    "is_undesirable",
+                    "eligible_users_display",
+                    "is_late_chore",
+                    "complete_later",
+                )
+            },
+        ),
+        (
+            "Schedule",
+            {
+                "fields": (
+                    "schedule_type",
+                    "distribution_time",
+                    "n_days",
+                    "every_n_start_date",
+                    "shift_on_late_completion",
+                    "weekday",
+                    "cron_expr",
+                    "rrule_json",
+                )
+            },
+        ),
+        ("Dependencies", {"fields": ("dependency_info",), "classes": ("collapse",)}),
+        ("Status", {"fields": ("is_active",)}),
+        (
+            "Timestamps",
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+        ),
     )
 
     def colored_status(self, obj):
@@ -98,6 +150,7 @@ class ChoreAdmin(admin.ModelAdmin):
             return format_html('<span style="color: #3b82f6;">🔵 Pool</span>')
         else:
             return format_html('<span style="color: #10b981;">🟢 Assigned</span>')
+
     colored_status.short_description = "Status"
 
     def has_dependencies(self, obj):
@@ -105,12 +158,15 @@ class ChoreAdmin(admin.ModelAdmin):
         as_child = obj.dependencies_as_child.count()
         as_parent = obj.dependencies_as_parent.count()
         if as_child > 0 and as_parent > 0:
-            return format_html('<span title="Has both parent and child chores">↕️ Both</span>')
+            return format_html(
+                '<span title="Has both parent and child chores">↕️ Both</span>'
+            )
         elif as_child > 0:
             return format_html('<span title="Has parent chore(s)">⬆️ Child</span>')
         elif as_parent > 0:
             return format_html('<span title="Has child chore(s)">⬇️ Parent</span>')
         return "-"
+
     has_dependencies.short_description = "Dependencies"
 
     def dependency_info(self, obj):
@@ -125,14 +181,20 @@ class ChoreAdmin(admin.ModelAdmin):
         if parents:
             html.append("<strong>This chore spawns after:</strong><ul>")
             for dep in parents:
-                html.append(f"<li>{dep.depends_on.name} (offset: {dep.offset_hours}h)</li>")
+                html.append(
+                    f"<li>{dep.depends_on.name} (offset: {dep.offset_hours}h)</li>"
+                )
             html.append("</ul>")
 
             # Warning if child chore has its own schedule
-            html.append('<div style="background-color: #fff3cd; border: 1px solid #ffc107; padding: 10px; margin-top: 10px; border-radius: 4px;">')
-            html.append('<strong>⚠️ Note:</strong> This is a child chore - it will ONLY spawn when its parent chore(s) are completed. ')
-            html.append('The schedule settings above are ignored for child chores.')
-            html.append('</div>')
+            html.append(
+                '<div style="background-color: #fff3cd; border: 1px solid #ffc107; padding: 10px; margin-top: 10px; border-radius: 4px;">'
+            )
+            html.append(
+                "<strong>⚠️ Note:</strong> This is a child chore - it will ONLY spawn when its parent chore(s) are completed. "
+            )
+            html.append("The schedule settings above are ignored for child chores.")
+            html.append("</div>")
 
         # Child dependencies
         children = obj.dependencies_as_parent.all()
@@ -146,6 +208,7 @@ class ChoreAdmin(admin.ModelAdmin):
             return "No dependencies configured"
 
         return mark_safe("".join(html))
+
     dependency_info.short_description = "Dependency Relationships"
 
     def eligible_users_display(self, obj):
@@ -156,24 +219,26 @@ class ChoreAdmin(admin.ModelAdmin):
         if not obj.is_undesirable:
             return format_html(
                 '<div style="background-color: #e3f2fd; border: 1px solid #2196f3; padding: 10px; border-radius: 4px;">'
-                '<strong>ℹ️ Info:</strong> This chore is not marked as undesirable. '
-                'Eligible users are only required for undesirable chores.'
-                '</div>'
+                "<strong>ℹ️ Info:</strong> This chore is not marked as undesirable. "
+                "Eligible users are only required for undesirable chores."
+                "</div>"
             )
 
         # Get eligible users
-        eligible = obj.eligible_users.select_related('user').all()
+        eligible = obj.eligible_users.select_related("user").all()
 
         if not eligible.exists():
             return format_html(
                 '<div style="background-color: #fff3cd; border: 1px solid #ffc107; padding: 10px; border-radius: 4px;">'
-                '<strong>⚠️ Warning:</strong> This is an undesirable chore but has NO eligible users configured. '
-                'The chore will not be auto-assigned at distribution time until you add eligible users below.'
-                '</div>'
+                "<strong>⚠️ Warning:</strong> This is an undesirable chore but has NO eligible users configured. "
+                "The chore will not be auto-assigned at distribution time until you add eligible users below."
+                "</div>"
             )
 
         # Display eligible users as badges
-        html = ['<div style="background-color: #d4edda; border: 1px solid #28a745; padding: 10px; border-radius: 4px;">']
+        html = [
+            '<div style="background-color: #d4edda; border: 1px solid #28a745; padding: 10px; border-radius: 4px;">'
+        ]
         html.append('<strong>✅ Eligible Users:</strong><div style="margin-top: 8px;">')
 
         for eligibility in eligible:
@@ -181,11 +246,12 @@ class ChoreAdmin(admin.ModelAdmin):
             html.append(
                 f'<span style="display: inline-block; background-color: #28a745; color: white; '
                 f'padding: 4px 12px; margin: 2px; border-radius: 12px; font-size: 13px;">'
-                f'{user.get_display_name()}</span>'
+                f"{user.get_display_name()}</span>"
             )
 
-        html.append('</div></div>')
+        html.append("</div></div>")
         return mark_safe("".join(html))
+
     eligible_users_display.short_description = "Currently Eligible Users"
 
     @admin.action(description="✅ Activate selected chores")
@@ -212,6 +278,7 @@ class ChoreAdmin(admin.ModelAdmin):
 @admin.register(ChoreEligibility)
 class ChoreEligibilityAdmin(admin.ModelAdmin):
     """Admin interface for ChoreEligibility model."""
+
     list_display = ["chore", "user"]
     list_filter = ["chore"]
     search_fields = ["chore__name", "user__username"]
@@ -220,6 +287,7 @@ class ChoreEligibilityAdmin(admin.ModelAdmin):
 @admin.register(ChoreDependency)
 class ChoreDependencyAdmin(admin.ModelAdmin):
     """Admin interface for ChoreDependency model."""
+
     list_display = ["chore", "depends_on", "offset_hours", "created_at"]
     list_filter = ["offset_hours"]
     search_fields = ["chore__name", "depends_on__name"]
@@ -229,59 +297,86 @@ class ChoreDependencyAdmin(admin.ModelAdmin):
 @admin.register(ChoreInstance)
 class ChoreInstanceAdmin(admin.ModelAdmin):
     """Admin interface for ChoreInstance model."""
-    list_display = ["chore_name", "colored_status", "assigned_to", "points_value", "due_date", "overdue_indicator"]
-    list_filter = ["status", "is_overdue", "is_late_completion", "due_at", "assignment_reason"]
+
+    list_display = [
+        "chore_name",
+        "colored_status",
+        "assigned_to",
+        "points_value",
+        "due_date",
+        "overdue_indicator",
+    ]
+    list_filter = [
+        "status",
+        "is_overdue",
+        "is_late_completion",
+        "due_at",
+        "assignment_reason",
+    ]
     search_fields = ["chore__name", "assigned_to__username"]
-    readonly_fields = ["created_at", "assigned_at", "completed_at", "updated_at", "time_until_due"]
+    readonly_fields = [
+        "created_at",
+        "assigned_at",
+        "completed_at",
+        "updated_at",
+        "time_until_due",
+    ]
     date_hierarchy = "due_at"
     list_per_page = 100
     autocomplete_fields = ["chore", "assigned_to"]
 
-    actions = ['force_assign_to_user', 'mark_as_overdue', 'reset_to_pool']
+    actions = ["force_assign_to_user", "mark_as_overdue", "reset_to_pool"]
 
     fieldsets = (
-        ("Chore Info", {
-            "fields": ("chore", "points_value")
-        }),
-        ("Assignment", {
-            "fields": ("status", "assigned_to", "assignment_reason")
-        }),
-        ("Schedule", {
-            "fields": ("distribution_at", "due_at", "time_until_due")
-        }),
-        ("Flags", {
-            "fields": ("is_overdue", "is_late_completion")
-        }),
-        ("Timestamps", {
-            "fields": ("created_at", "assigned_at", "completed_at", "updated_at"),
-            "classes": ("collapse",)
-        }),
+        ("Chore Info", {"fields": ("chore", "points_value")}),
+        ("Assignment", {"fields": ("status", "assigned_to", "assignment_reason")}),
+        ("Schedule", {"fields": ("distribution_at", "due_at", "time_until_due")}),
+        ("Flags", {"fields": ("is_overdue", "is_late_completion")}),
+        (
+            "Timestamps",
+            {
+                "fields": ("created_at", "assigned_at", "completed_at", "updated_at"),
+                "classes": ("collapse",),
+            },
+        ),
     )
 
     def chore_name(self, obj):
         """Display chore name with link."""
-        url = reverse('admin:chores_chore_change', args=[obj.chore.id])
+        url = reverse("admin:chores_chore_change", args=[obj.chore.id])
         return format_html('<a href="{}">{}</a>', url, obj.chore.name)
+
     chore_name.short_description = "Chore"
     chore_name.admin_order_field = "chore__name"
 
     def colored_status(self, obj):
         """Display status with color coding."""
         colors = {
-            ChoreInstance.POOL: ('#3b82f6', '🔵'),
-            ChoreInstance.ASSIGNED: ('#10b981', '🟢'),
-            ChoreInstance.COMPLETED: ('#6b7280', '✅'),
+            ChoreInstance.POOL: ("#3b82f6", "🔵"),
+            ChoreInstance.ASSIGNED: ("#10b981", "🟢"),
+            ChoreInstance.COMPLETED: ("#6b7280", "✅"),
         }
-        color, emoji = colors.get(obj.status, ('#999', '❓'))
+        color, emoji = colors.get(obj.status, ("#999", "❓"))
 
-        if obj.assignment_reason in [ChoreInstance.REASON_NO_ELIGIBLE, ChoreInstance.REASON_ALL_COMPLETED_YESTERDAY]:
+        if obj.assignment_reason in [
+            ChoreInstance.REASON_NO_ELIGIBLE,
+            ChoreInstance.REASON_ALL_COMPLETED_YESTERDAY,
+        ]:
             # Purple state
             return format_html(
                 '<span style="color: #a855f7;" title="{}">{} {} (blocked)</span>',
-                obj.get_assignment_reason_display(), emoji, obj.get_status_display()
+                obj.get_assignment_reason_display(),
+                emoji,
+                obj.get_status_display(),
             )
 
-        return format_html('<span style="color: {};">{} {}</span>', color, emoji, obj.get_status_display())
+        return format_html(
+            '<span style="color: {};">{} {}</span>',
+            color,
+            emoji,
+            obj.get_status_display(),
+        )
+
     colored_status.short_description = "Status"
     colored_status.admin_order_field = "status"
 
@@ -289,33 +384,49 @@ class ChoreInstanceAdmin(admin.ModelAdmin):
         """Show overdue status with visual indicator."""
         if obj.is_overdue:
             from django.utils import timezone
+
             hours_overdue = (timezone.now() - obj.due_at).total_seconds() / 3600
-            return format_html('<span style="color: #ef4444; font-weight: bold;">🔴 {}h late</span>', int(hours_overdue))
+            return format_html(
+                '<span style="color: #ef4444; font-weight: bold;">🔴 {}h late</span>',
+                int(hours_overdue),
+            )
         return format_html('<span style="color: #10b981;">✅ On time</span>')
+
     overdue_indicator.short_description = "Overdue?"
 
     def due_date(self, obj):
         """Display due date in friendly format."""
         from django.utils import timezone
+
         now = timezone.now()
         if obj.due_at < now:
-            return format_html('<span style="color: #ef4444;">{}</span>', obj.due_at.strftime('%Y-%m-%d %H:%M'))
-        return obj.due_at.strftime('%Y-%m-%d %H:%M')
+            return format_html(
+                '<span style="color: #ef4444;">{}</span>',
+                obj.due_at.strftime("%Y-%m-%d %H:%M"),
+            )
+        return obj.due_at.strftime("%Y-%m-%d %H:%M")
+
     due_date.short_description = "Due"
     due_date.admin_order_field = "due_at"
 
     def time_until_due(self, obj):
         """Calculate and display time until due."""
         from django.utils import timezone
+
         now = timezone.now()
         delta = obj.due_at - now
 
         if delta.total_seconds() < 0:
             hours = abs(int(delta.total_seconds() / 3600))
-            return format_html('<span style="color: #ef4444;">⚠️ {} hours overdue</span>', hours)
+            return format_html(
+                '<span style="color: #ef4444;">⚠️ {} hours overdue</span>', hours
+            )
 
         hours = int(delta.total_seconds() / 3600)
-        return format_html('<span style="color: #10b981;">⏱️ {} hours remaining</span>', hours)
+        return format_html(
+            '<span style="color: #10b981;">⏱️ {} hours remaining</span>', hours
+        )
+
     time_until_due.short_description = "Time Until Due"
 
     @admin.action(description="👤 Force assign to user (select user in next step)")
@@ -331,12 +442,15 @@ class ChoreInstanceAdmin(admin.ModelAdmin):
         pool_instances = queryset.filter(status=ChoreInstance.POOL)
 
         if not pool_instances.exists():
-            messages.error(request, "No pool chores selected. Only pool chores can be force-assigned.")
+            messages.error(
+                request,
+                "No pool chores selected. Only pool chores can be force-assigned.",
+            )
             return
 
         # If user is selected, perform the assignment
-        if 'target_user_id' in request.POST:
-            target_user_id = request.POST.get('target_user_id')
+        if "target_user_id" in request.POST:
+            target_user_id = request.POST.get("target_user_id")
 
             if not target_user_id:
                 messages.error(request, "Please select a user to assign chores to.")
@@ -350,7 +464,10 @@ class ChoreInstanceAdmin(admin.ModelAdmin):
 
             # Check if user can be assigned
             if not target_user.can_be_assigned:
-                messages.error(request, f"{target_user.username} cannot be assigned chores (can_be_assigned=False).")
+                messages.error(
+                    request,
+                    f"{target_user.username} cannot be assigned chores (can_be_assigned=False).",
+                )
                 return
 
             # Assign chores
@@ -373,10 +490,10 @@ class ChoreInstanceAdmin(admin.ModelAdmin):
                     target_user=target_user,
                     description=f"Admin {request.user.username} manually assigned '{instance.chore.name}' to {target_user.username}",
                     metadata={
-                        'instance_id': instance.id,
-                        'chore_name': instance.chore.name,
-                        'points': str(instance.points_value)
-                    }
+                        "instance_id": instance.id,
+                        "chore_name": instance.chore.name,
+                        "points": str(instance.points_value),
+                    },
                 )
 
                 assigned_count += 1
@@ -384,22 +501,24 @@ class ChoreInstanceAdmin(admin.ModelAdmin):
             messages.success(
                 request,
                 f"Successfully assigned {assigned_count} chore(s) to {target_user.username}. "
-                f"Their daily claim count increased from {target_user.claims_today - assigned_count} to {target_user.claims_today}."
+                f"Their daily claim count increased from {target_user.claims_today - assigned_count} to {target_user.claims_today}.",
             )
             return
 
         # Show intermediate page to select user
-        eligible_users = User.objects.filter(can_be_assigned=True, is_active=True).order_by('username')
+        eligible_users = User.objects.filter(
+            can_be_assigned=True, is_active=True
+        ).order_by("username")
 
         context = {
-            'title': f'Force Assign {pool_instances.count()} Chore(s)',
-            'instances': pool_instances,
-            'eligible_users': eligible_users,
-            'action_url': request.get_full_path(),
-            'opts': self.model._meta,
+            "title": f"Force Assign {pool_instances.count()} Chore(s)",
+            "instances": pool_instances,
+            "eligible_users": eligible_users,
+            "action_url": request.get_full_path(),
+            "opts": self.model._meta,
         }
 
-        return render(request, 'admin/chores/force_assign_intermediate.html', context)
+        return render(request, "admin/chores/force_assign_intermediate.html", context)
 
     @admin.action(description="🔴 Mark as overdue")
     def mark_as_overdue(self, request, queryset):
@@ -409,12 +528,11 @@ class ChoreInstanceAdmin(admin.ModelAdmin):
     @admin.action(description="🔵 Reset to pool (unassign)")
     def reset_to_pool(self, request, queryset):
         from django.db.models import Q
+
         # Only allow for non-completed instances
         eligible = queryset.filter(~Q(status=ChoreInstance.COMPLETED))
         updated = eligible.update(
-            status=ChoreInstance.POOL,
-            assigned_to=None,
-            assignment_reason=''
+            status=ChoreInstance.POOL, assigned_to=None, assignment_reason=""
         )
         self.message_user(request, f"{updated} instance(s) reset to pool.")
 
@@ -422,29 +540,40 @@ class ChoreInstanceAdmin(admin.ModelAdmin):
 @admin.register(Completion)
 class CompletionAdmin(admin.ModelAdmin):
     """Admin interface for Completion model."""
-    list_display = ["chore_instance", "completed_by", "completed_at_display", "was_late", "undo_status", "time_until_undo_expires"]
+
+    list_display = [
+        "chore_instance",
+        "completed_by",
+        "completed_at_display",
+        "was_late",
+        "undo_status",
+        "time_until_undo_expires",
+    ]
     list_filter = ["is_undone", "was_late", "completed_at"]
     search_fields = ["chore_instance__chore__name", "completed_by__username"]
     readonly_fields = ["completed_at", "undone_at", "undo_window_info"]
-    actions = ['undo_completions']
+    actions = ["undo_completions"]
 
     fieldsets = (
-        ("Completion Info", {
-            "fields": ("chore_instance", "completed_by", "completed_at")
-        }),
-        ("Status", {
-            "fields": ("was_late", "is_undone", "undone_at")
-        }),
-        ("Undo Window", {
-            "fields": ("undo_window_info",),
-            "description": "Completions can be undone within the configured time limit"
-        }),
+        (
+            "Completion Info",
+            {"fields": ("chore_instance", "completed_by", "completed_at")},
+        ),
+        ("Status", {"fields": ("was_late", "is_undone", "undone_at")}),
+        (
+            "Undo Window",
+            {
+                "fields": ("undo_window_info",),
+                "description": "Completions can be undone within the configured time limit",
+            },
+        ),
     )
 
     def completed_at_display(self, obj):
         """Display completion time with relative time."""
         from django.utils import timezone
         from django.utils.html import format_html
+
         delta = timezone.now() - obj.completed_at
         if delta.days > 0:
             relative = f"{delta.days} days ago"
@@ -454,17 +583,20 @@ class CompletionAdmin(admin.ModelAdmin):
             relative = f"{delta.seconds // 60} minutes ago"
         return format_html(
             '{}<br><span style="color: #666; font-size: 0.9em;">({})</span>',
-            obj.completed_at.strftime('%Y-%m-%d %H:%M'),
-            relative
+            obj.completed_at.strftime("%Y-%m-%d %H:%M"),
+            relative,
         )
+
     completed_at_display.short_description = "Completed At"
 
     def undo_status(self, obj):
         """Display undo status with visual indicator."""
         from django.utils.html import format_html
+
         if obj.is_undone:
             return format_html('<span style="color: #dc3545;">✗ Undone</span>')
         return format_html('<span style="color: #28a745;">✓ Active</span>')
+
     undo_status.short_description = "Status"
 
     def time_until_undo_expires(self, obj):
@@ -477,7 +609,9 @@ class CompletionAdmin(admin.ModelAdmin):
             return format_html('<span style="color: #999;">N/A (already undone)</span>')
 
         settings = Settings.get_settings()
-        undo_deadline = obj.completed_at + timezone.timedelta(hours=settings.undo_time_limit_hours)
+        undo_deadline = obj.completed_at + timezone.timedelta(
+            hours=settings.undo_time_limit_hours
+        )
         delta = undo_deadline - timezone.now()
 
         if delta.total_seconds() <= 0:
@@ -485,10 +619,15 @@ class CompletionAdmin(admin.ModelAdmin):
 
         hours_remaining = int(delta.total_seconds() / 3600)
         if hours_remaining > 1:
-            return format_html('<span style="color: #28a745;">{} hours</span>', hours_remaining)
+            return format_html(
+                '<span style="color: #28a745;">{} hours</span>', hours_remaining
+            )
         else:
             minutes_remaining = int(delta.total_seconds() / 60)
-            return format_html('<span style="color: #ffc107;">{}  min</span>', minutes_remaining)
+            return format_html(
+                '<span style="color: #ffc107;">{}  min</span>', minutes_remaining
+            )
+
     time_until_undo_expires.short_description = "Undo Window"
 
     def undo_window_info(self, obj):
@@ -498,35 +637,42 @@ class CompletionAdmin(admin.ModelAdmin):
         from core.models import Settings
 
         settings = Settings.get_settings()
-        undo_deadline = obj.completed_at + timezone.timedelta(hours=settings.undo_time_limit_hours)
+        undo_deadline = obj.completed_at + timezone.timedelta(
+            hours=settings.undo_time_limit_hours
+        )
         delta = undo_deadline - timezone.now()
 
         if obj.is_undone:
             return format_html(
                 '<p style="color: #dc3545;"><strong>This completion has been undone.</strong></p>'
-                '<p>Undone at: {}</p>',
-                obj.undone_at.strftime('%Y-%m-%d %H:%M') if obj.undone_at else 'Unknown'
+                "<p>Undone at: {}</p>",
+                (
+                    obj.undone_at.strftime("%Y-%m-%d %H:%M")
+                    if obj.undone_at
+                    else "Unknown"
+                ),
             )
 
         if delta.total_seconds() <= 0:
             return format_html(
                 '<p style="color: #dc3545;"><strong>Undo window expired.</strong></p>'
-                '<p>Completed: {}</p>'
-                '<p>Undo deadline: {} ({} hour window)</p>',
-                obj.completed_at.strftime('%Y-%m-%d %H:%M'),
-                undo_deadline.strftime('%Y-%m-%d %H:%M'),
-                settings.undo_time_limit_hours
+                "<p>Completed: {}</p>"
+                "<p>Undo deadline: {} ({} hour window)</p>",
+                obj.completed_at.strftime("%Y-%m-%d %H:%M"),
+                undo_deadline.strftime("%Y-%m-%d %H:%M"),
+                settings.undo_time_limit_hours,
             )
 
         hours_remaining = int(delta.total_seconds() / 3600)
         return format_html(
             '<p style="color: #28a745;"><strong>Undo available for {} more hours.</strong></p>'
-            '<p>Completed: {}</p>'
-            '<p>Undo deadline: {}</p>',
+            "<p>Completed: {}</p>"
+            "<p>Undo deadline: {}</p>",
             hours_remaining,
-            obj.completed_at.strftime('%Y-%m-%d %H:%M'),
-            undo_deadline.strftime('%Y-%m-%d %H:%M')
+            obj.completed_at.strftime("%Y-%m-%d %H:%M"),
+            undo_deadline.strftime("%Y-%m-%d %H:%M"),
         )
+
     undo_window_info.short_description = "Undo Window Details"
 
     @admin.action(description="🔙 Undo selected completions")
@@ -548,7 +694,9 @@ class CompletionAdmin(admin.ModelAdmin):
         for completion in queryset:
             # Check if already undone
             if completion.is_undone:
-                errors.append(f"'{completion.chore_instance.chore.name}' - Already undone")
+                errors.append(
+                    f"'{completion.chore_instance.chore.name}' - Already undone"
+                )
                 error_count += 1
                 continue
 
@@ -556,7 +704,9 @@ class CompletionAdmin(admin.ModelAdmin):
             time_since_completion = timezone.now() - completion.completed_at
             if time_since_completion.total_seconds() > (undo_limit_hours * 3600):
                 hours_ago = int(time_since_completion.total_seconds() / 3600)
-                errors.append(f"'{completion.chore_instance.chore.name}' - Too old ({hours_ago}h ago, limit: {undo_limit_hours}h)")
+                errors.append(
+                    f"'{completion.chore_instance.chore.name}' - Too old ({hours_ago}h ago, limit: {undo_limit_hours}h)"
+                )
                 error_count += 1
                 continue
 
@@ -570,7 +720,9 @@ class CompletionAdmin(admin.ModelAdmin):
                     points_to_deduct = share.points_awarded
 
                     # Deduct from weekly_points (floor at 0)
-                    user.weekly_points = max(Decimal('0.00'), user.weekly_points - points_to_deduct)
+                    user.weekly_points = max(
+                        Decimal("0.00"), user.weekly_points - points_to_deduct
+                    )
                     user.save()
 
                     # Create reversing ledger entry
@@ -579,14 +731,13 @@ class CompletionAdmin(admin.ModelAdmin):
                         transaction_type=PointsLedger.UNDO_COMPLETION,
                         points_change=-points_to_deduct,
                         balance_after=user.weekly_points,
-                        description=f"Undid completion of '{completion.chore_instance.chore.name}' (originally completed by {completion.completed_by.username})"
+                        description=f"Undid completion of '{completion.chore_instance.chore.name}' (originally completed by {completion.completed_by.username})",
                     )
 
                 # Restore ChoreInstance to previous state
                 instance = completion.chore_instance
-                # If was forced/manual assignment, restore to assigned
-                # Otherwise restore to pool
-                if instance.assignment_reason in [ChoreInstance.REASON_MANUAL, ChoreInstance.REASON_FORCE_ASSIGNED]:
+                # If it was assigned to someone, restore to assigned
+                if instance.assigned_to:
                     instance.status = ChoreInstance.ASSIGNED
                     # Keep assigned_to as-is
                 else:
@@ -609,37 +760,43 @@ class CompletionAdmin(admin.ModelAdmin):
                     target_user=completion.completed_by,
                     description=f"Admin {request.user.username} undid completion of '{instance.chore.name}' by {completion.completed_by.username}",
                     metadata={
-                        'completion_id': completion.id,
-                        'instance_id': instance.id,
-                        'chore_name': instance.chore.name,
-                        'original_completer': completion.completed_by.username,
-                        'num_shares': shares.count(),
-                        'total_points_reversed': str(sum(s.points_awarded for s in shares))
-                    }
+                        "completion_id": completion.id,
+                        "instance_id": instance.id,
+                        "chore_name": instance.chore.name,
+                        "original_completer": completion.completed_by.username,
+                        "num_shares": shares.count(),
+                        "total_points_reversed": str(
+                            sum(s.points_awarded for s in shares)
+                        ),
+                    },
                 )
 
                 success_count += 1
 
             except Exception as e:
-                errors.append(f"'{completion.chore_instance.chore.name}' - Error: {str(e)}")
+                errors.append(
+                    f"'{completion.chore_instance.chore.name}' - Error: {str(e)}"
+                )
                 error_count += 1
 
         # Show results
         if success_count > 0:
             messages.success(
                 request,
-                f"Successfully undid {success_count} completion(s). Points have been reversed and chore instances restored."
+                f"Successfully undid {success_count} completion(s). Points have been reversed and chore instances restored.",
             )
 
         if error_count > 0:
             messages.warning(
                 request,
-                f"Could not undo {error_count} completion(s):<br>" + "<br>".join(errors)
+                f"Could not undo {error_count} completion(s):<br>"
+                + "<br>".join(errors),
             )
 
 
 class CompletionShareInline(admin.TabularInline):
     """Inline admin for CompletionShare."""
+
     model = CompletionShare
     extra = 0
     readonly_fields = ["created_at"]
@@ -648,6 +805,7 @@ class CompletionShareInline(admin.TabularInline):
 @admin.register(CompletionShare)
 class CompletionShareAdmin(admin.ModelAdmin):
     """Admin interface for CompletionShare model."""
+
     list_display = ["completion", "user", "points_awarded", "created_at"]
     list_filter = ["created_at"]
     search_fields = ["completion__chore_instance__chore__name", "user__username"]
@@ -657,7 +815,14 @@ class CompletionShareAdmin(admin.ModelAdmin):
 @admin.register(PointsLedger)
 class PointsLedgerAdmin(admin.ModelAdmin):
     """Admin interface for PointsLedger model."""
-    list_display = ["user", "transaction_type", "points_change", "balance_after", "created_at"]
+
+    list_display = [
+        "user",
+        "transaction_type",
+        "points_change",
+        "balance_after",
+        "created_at",
+    ]
     list_filter = ["transaction_type", "created_at"]
     search_fields = ["user__username", "description"]
     readonly_fields = ["created_at"]
@@ -674,8 +839,9 @@ class PointsLedgerAdmin(admin.ModelAdmin):
 @admin.register(PianoScore)
 class PianoScoreAdmin(admin.ModelAdmin):
     """Admin interface for PianoScore model."""
-    list_display = ('user', 'score', 'hard_mode', 'achieved_at')
-    list_filter = ('hard_mode', 'achieved_at')
-    search_fields = ('user__username', 'user__first_name', 'user__last_name')
-    readonly_fields = ('achieved_at',)
-    date_hierarchy = 'achieved_at'
+
+    list_display = ("user", "score", "hard_mode", "achieved_at")
+    list_filter = ("hard_mode", "achieved_at")
+    search_fields = ("user__username", "user__first_name", "user__last_name")
+    readonly_fields = ("achieved_at",)
+    date_hierarchy = "achieved_at"

@@ -106,7 +106,7 @@ class ManualPointsAdjustmentSubmitTests(TestCase):
 
         # Get initial balance
         self.target_user.refresh_from_db()
-        initial_balance = self.target_user.all_time_points
+        initial_balance = self.target_user.weekly_points
 
         data = {
             'user_id': self.target_user.id,
@@ -161,7 +161,7 @@ class ManualPointsAdjustmentSubmitTests(TestCase):
         )
 
         self.target_user.refresh_from_db()
-        initial_balance = self.target_user.all_time_points
+        initial_balance = self.target_user.weekly_points
 
         data = {
             'user_id': self.target_user.id,
@@ -431,7 +431,7 @@ class ManualPointsAdjustmentSubmitTests(TestCase):
         )
 
         self.target_user.refresh_from_db()
-        initial_balance = self.target_user.all_time_points
+        initial_balance = self.target_user.weekly_points
         self.assertEqual(initial_balance, Decimal('100.00'))
 
         # Adjust by +25.50
@@ -461,7 +461,7 @@ class ManualPointsAdjustmentSubmitTests(TestCase):
 
         self.assertEqual(ledger.balance_after, expected_balance)
         self.target_user.refresh_from_db()
-        self.assertEqual(self.target_user.all_time_points, expected_balance)
+        self.assertEqual(self.target_user.weekly_points, expected_balance)
 
     def test_metadata_tracking(self):
         """Test that adjustment metadata is properly tracked."""
@@ -576,7 +576,7 @@ class ManualPointsAdjustmentIntegrationTests(TestCase):
 
         # Verify final balance
         self.user1.refresh_from_db()
-        final_balance = self.user1.all_time_points
+        final_balance = self.user1.weekly_points
         expected = Decimal('50.00') + Decimal('25.00') - Decimal('15.00')
         self.assertEqual(final_balance, expected)
 
@@ -614,8 +614,8 @@ class ManualPointsAdjustmentIntegrationTests(TestCase):
         # Verify balances
         self.user1.refresh_from_db()
         self.user2.refresh_from_db()
-        self.assertEqual(self.user1.all_time_points, Decimal('100.00'))
-        self.assertEqual(self.user2.all_time_points, Decimal('75.00'))
+        self.assertEqual(self.user1.weekly_points, Decimal('100.00'))
+        self.assertEqual(self.user2.weekly_points, Decimal('75.00'))
 
         # Verify ledger entries are separate
         user1_ledger = PointsLedger.objects.filter(
