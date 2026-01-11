@@ -603,23 +603,13 @@ def quick_add_task(request):
 
     try:
         with transaction.atomic():
-            # Create the one-time chore
-            chore = Chore.objects.create(
-                name=data['name'],
-                description=data.get('description', ''),
-                points=data.get('points', Decimal('1.0')),
-                schedule_type=Chore.ONE_TIME,
-                is_pool=data.get('assign_to_user_id') is None,
-                is_active=True
-            )
-
             # Determine due date
             due_at = data.get('due_at')
             if not due_at:
                 # Default to end of today
                 due_at = timezone.now().replace(hour=23, minute=59, second=59)
 
-            # Create the instance
+            # Determine assignment
             assign_to = None
             if data.get('assign_to_user_id'):
                 try:
@@ -630,14 +620,33 @@ def quick_add_task(request):
                         status=status.HTTP_404_NOT_FOUND
                     )
 
+            # Create the one-time chore
+            # We create it as is_active=False first to prevent the post_save signal
+            # from creating a duplicate ChoreInstance.
+            chore = Chore.objects.create(
+                name=data['name'],
+                description=data.get('description', ''),
+                points=data.get('points', Decimal('1.0')),
+                schedule_type=Chore.ONE_TIME,
+                is_pool=data.get('assign_to_user_id') is None,
+                assigned_to=assign_to,
+                is_active=False
+            )
+
+            # Create the instance
             instance = ChoreInstance.objects.create(
                 chore=chore,
                 assigned_to=assign_to,
                 status=ChoreInstance.ASSIGNED if assign_to else ChoreInstance.POOL,
                 assignment_reason=ChoreInstance.REASON_MANUAL if assign_to else None,
                 due_at=due_at,
+                distribution_at=timezone.now(),
                 points_value=chore.points
             )
+
+            # Now activate the chore
+            chore.is_active = True
+            chore.save()
 
             # Handle spawn-after dependency if specified
             if data.get('spawn_after_chore_id'):
@@ -721,8 +730,7 @@ def outstanding_chores(request):
     now = timezone.now()
     outstanding_instances = ChoreInstance.objects.filter(
         status__in=[ChoreInstance.POOL, ChoreInstance.ASSIGNED],
-        is_overdue=False,
-        due_at__gt=now
+        is_overdue=False
     ).exclude(
         status=ChoreInstance.COMPLETED
     ).select_related('chore', 'assigned_to').order_by('due_at')
