@@ -2513,6 +2513,7 @@ def admin_streaks(request):
 
     # Get or create streak for each user
     streaks = []
+    current_streaks = []
     for user in users:
         streak, _ = Streak.objects.get_or_create(user=user)
         streaks.append(
@@ -2521,9 +2522,14 @@ def admin_streaks(request):
                 "streak": streak,
             }
         )
+        current_streaks.append(streak.current_streak)
+
+    # Calculate group streak (shortest current streak across all eligible users)
+    group_streak = min(current_streaks) if current_streaks else 0
 
     context = {
         "streaks": streaks,
+        "group_streak": group_streak,
     }
 
     return render(request, "board/admin/streaks.html", context)
