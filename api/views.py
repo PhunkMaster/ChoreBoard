@@ -544,13 +544,18 @@ def undo_completion(request):
             # Restore instance state
             instance = completion.chore_instance
 
+            # If it's a pool chore, it should always go back to pool
+            if instance.chore.is_pool:
+                instance.status = ChoreInstance.POOL
+                instance.assigned_to = None
             # If it was assigned to someone, restore to assigned
-            if instance.assigned_to:
+            elif instance.assigned_to:
                 instance.status = ChoreInstance.ASSIGNED
                 # Keep assigned_to as-is
             else:
+                # Fallback, though usually assigned chores have assigned_to
                 instance.status = ChoreInstance.POOL
-                instance.assigned_to = None  # Pool chores can't have assigned_to
+                instance.assigned_to = None
 
             instance.completed_at = None
             instance.is_late_completion = False
