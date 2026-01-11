@@ -593,12 +593,8 @@ def admin_undo_completion(request, completion_id):
                 )
 
             # Reset instance status to assigned (or pool if it wasn't assigned)
-            # If was forced/manual assignment, restore to assigned
-            # Otherwise restore to pool
-            if instance.assignment_reason in [
-                ChoreInstance.REASON_MANUAL,
-                ChoreInstance.REASON_FORCE_ASSIGNED,
-            ]:
+            # If it was assigned to someone, restore to assigned
+            if instance.assigned_to:
                 instance.status = ChoreInstance.ASSIGNED
                 # Keep assigned_to as-is
             else:
