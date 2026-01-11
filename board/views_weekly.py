@@ -40,12 +40,23 @@ def weekly_reset(request):
     week_start = (now - timedelta(days=now.weekday())).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
-    late_completions = Completion.objects.filter(
+    late_completions_query = Completion.objects.filter(
         completed_at__gte=week_start,
         was_late=True,
         completed_by__eligible_for_streaks=True,
-    ).count()
-    is_perfect_week = late_completions == 0
+    ).select_related("chore_instance__chore", "completed_by")
+    late_count = late_completions_query.count()
+    late_completions_details = []
+    for comp in late_completions_query:
+        late_completions_details.append(
+            {
+                "chore_name": comp.chore_instance.chore.name,
+                "assigned_at": comp.chore_instance.assigned_at,
+                "completed_at": comp.completed_at,
+                "user": comp.completed_by,
+            }
+        )
+    is_perfect_week = late_count == 0
 
     # Build user summary list
     user_summaries = []
@@ -100,7 +111,8 @@ def weekly_reset(request):
         "total_cash": total_cash,
         "conversion_rate": settings.points_to_dollar_rate,
         "is_perfect_week": is_perfect_week,
-        "late_count": late_completions,
+        "late_count": late_count,
+        "late_completions": late_completions_details,
         "can_undo": can_undo,
         "last_snapshot": last_snapshot if can_undo else None,
         "week_ending": now.date(),

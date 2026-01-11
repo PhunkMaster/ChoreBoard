@@ -1104,6 +1104,7 @@ def complete_chore_view(request):
                     "instance_id": instance.id,
                     "helpers": len(helpers_list),
                     "spawned_children": len(spawned),
+                    "was_late": instance.is_late_completion,
                 },
             )
 

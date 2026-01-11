@@ -34,7 +34,7 @@
     </div>
     {% else %}
     <div class="bg-red-500/20 border border-red-500/50 rounded-lg p-4">
-        <div class="flex items-center">
+        <div class="flex items-center mb-4">
             <svg class="w-6 h-6 text-red-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -42,6 +42,28 @@
                 <p class="text-red-400 font-semibold">{{ late_count }} Late Completion{{ late_count|pluralize }}</p>
                 <p class="text-red-300 text-sm">Streaks will reset to 0.</p>
             </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left text-red-300">
+                <thead class="text-xs uppercase bg-red-900/30">
+                    <tr>
+                        <th class="px-4 py-2">Chore</th>
+                        <th class="px-4 py-2">Assigned</th>
+                        <th class="px-4 py-2">Completed</th>
+                        <th class="px-4 py-2">User</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-red-500/20">
+                    {% for late in late_completions %}
+                    <tr>
+                        <td class="px-4 py-2 font-medium text-white">{{ late.chore_name }}</td>
+                        <td class="px-4 py-2">{{ late.assigned_at|date:"D, M j" }}</td>
+                        <td class="px-4 py-2">{{ late.completed_at|date:"D, M j" }}</td>
+                        <td class="px-4 py-2">{{ late.user.get_display_name }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
     {% endif %}

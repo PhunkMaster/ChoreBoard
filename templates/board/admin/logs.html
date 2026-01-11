@@ -54,6 +54,14 @@
                 </select>
             </div>
 
+            <div class="flex items-center pt-6">
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" name="late_only" class="sr-only peer" {% if late_only %}checked{% endif %}>
+                    <div class="w-11 h-6 bg-dark-card peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-800 rounded-full peer border border-dark-border peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-300 after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                    <span class="ml-3 text-sm font-medium text-gray-300">Late Only</span>
+                </label>
+            </div>
+
             <div class="flex items-end">
                 <button type="submit"
                         class="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition focus:outline-none focus:ring-2 focus:ring-primary-500">
@@ -90,6 +98,11 @@
                                 {% else %}bg-gray-500/20 text-gray-400 border border-gray-500/30{% endif %}">
                                 {{ log.get_action_type_display }}
                             </span>
+                            {% if log.action_type == 'complete' and log.metadata.was_late %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+                                LATE
+                            </span>
+                            {% endif %}
                             {% if log.user %}
                             <span class="text-gray-400 text-sm">by {{ log.user.get_display_name }}</span>
                             {% endif %}

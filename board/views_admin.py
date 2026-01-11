@@ -487,6 +487,7 @@ def admin_logs(request):
     # Get filter parameters
     action_type = request.GET.get("type", "")
     user_id = request.GET.get("user", "")
+    late_only = request.GET.get("late_only") == "on"
     days = int(request.GET.get("days", 7))
 
     # Build query
@@ -497,6 +498,11 @@ def admin_logs(request):
 
     if user_id:
         logs = logs.filter(user_id=user_id)
+
+    if late_only:
+        logs = logs.filter(
+            action_type=ActionLog.ACTION_COMPLETE, metadata__was_late=True
+        )
 
     # Filter by date range
     cutoff = timezone.now() - timedelta(days=days)
@@ -515,6 +521,7 @@ def admin_logs(request):
         "selected_type": action_type,
         "selected_user": user_id,
         "selected_days": days,
+        "late_only": late_only,
     }
 
     return render(request, "board/admin/logs.html", context)
@@ -939,6 +946,7 @@ def admin_backdate_completion_action(request):
                     "helpers": len(helpers_list),
                     "spawned_children": len(spawned_children),
                     "week_ending": week_ending.isoformat(),
+                    "was_late": False,  # Backdated completions are not late
                 },
             )
 

@@ -435,6 +435,7 @@ def complete_chore(request):
                     "completed_by_user_id": completed_by_user.id,
                     "helpers": len(helpers_list),
                     "spawned_children": len(spawned),
+                    "was_late": instance.is_late_completion,
                 },
             )
 
