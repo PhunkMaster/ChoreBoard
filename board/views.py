@@ -569,6 +569,8 @@ def leaderboard(request):
     """
     Leaderboard view showing weekly and all-time rankings.
     """
+    from core.models import Streak
+
     # Get leaderboard type from query param (default: weekly)
     board_type = request.GET.get('type', 'weekly')
 
@@ -577,7 +579,7 @@ def leaderboard(request):
         ranked_users = User.objects.filter(
             eligible_for_points=True,
             is_active=True
-        ).order_by('-all_time_points')
+        ).select_related('streak').order_by('-all_time_points')
         points_field = 'all_time_points'
         title = 'All-Time Leaderboard'
     else:
@@ -585,7 +587,7 @@ def leaderboard(request):
         ranked_users = User.objects.filter(
             eligible_for_points=True,
             is_active=True
-        ).order_by('-weekly_points')
+        ).select_related('streak').order_by('-weekly_points')
         points_field = 'weekly_points'
         title = 'Weekly Leaderboard'
 
@@ -593,10 +595,21 @@ def leaderboard(request):
     ranked_list = []
     for idx, user in enumerate(ranked_users, start=1):
         points = getattr(user, points_field)
+
+        # Get streak if user is included in streak tracking
+        current_streak = 0
+        if user.include_in_streaks:
+            try:
+                current_streak = user.streak.current_streak
+            except Streak.DoesNotExist:
+                current_streak = 0
+
         ranked_list.append({
             'rank': idx,
             'user': user,
             'points': points,
+            'current_streak': current_streak,
+            'show_streak': user.include_in_streaks,
         })
 
     context = {
@@ -614,6 +627,8 @@ def leaderboard_minimal(request):
     No navigation, no header - just the leaderboard.
     Kiosk-mode compatible.
     """
+    from core.models import Streak
+
     # Get leaderboard type from query param (default: weekly)
     board_type = request.GET.get('type', 'weekly')
 
@@ -622,7 +637,7 @@ def leaderboard_minimal(request):
         ranked_users = User.objects.filter(
             eligible_for_points=True,
             is_active=True
-        ).order_by('-all_time_points')
+        ).select_related('streak').order_by('-all_time_points')
         points_field = 'all_time_points'
         title = 'All-Time Leaderboard'
     else:
@@ -630,7 +645,7 @@ def leaderboard_minimal(request):
         ranked_users = User.objects.filter(
             eligible_for_points=True,
             is_active=True
-        ).order_by('-weekly_points')
+        ).select_related('streak').order_by('-weekly_points')
         points_field = 'weekly_points'
         title = 'Weekly Leaderboard'
 
@@ -638,10 +653,21 @@ def leaderboard_minimal(request):
     ranked_list = []
     for idx, user in enumerate(ranked_users, start=1):
         points = getattr(user, points_field)
+
+        # Get streak if user is included in streak tracking
+        current_streak = 0
+        if user.include_in_streaks:
+            try:
+                current_streak = user.streak.current_streak
+            except Streak.DoesNotExist:
+                current_streak = 0
+
         ranked_list.append({
             'rank': idx,
             'user': user,
             'points': points,
+            'current_streak': current_streak,
+            'show_streak': user.include_in_streaks,
         })
 
     context = {

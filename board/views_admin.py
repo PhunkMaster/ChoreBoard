@@ -2258,19 +2258,26 @@ def admin_streaks(request):
     users = User.objects.filter(
         is_active=True,
         include_in_streaks=True
-    ).order_by('username')
+    ).select_related('streak').order_by('username')
 
     # Get or create streak for each user
     streaks = []
+    current_streaks = []
+
     for user in users:
         streak, _ = Streak.objects.get_or_create(user=user)
         streaks.append({
             'user': user,
             'streak': streak,
         })
+        current_streaks.append(streak.current_streak)
+
+    # Calculate group streak (minimum of all user streaks)
+    group_streak = min(current_streaks) if current_streaks else 0
 
     context = {
         'streaks': streaks,
+        'group_streak': group_streak,
     }
 
     return render(request, 'board/admin/streaks.html', context)

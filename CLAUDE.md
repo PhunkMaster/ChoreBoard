@@ -128,3 +128,5 @@ This suite tests:
 - Distribution timing
 - Rescheduled chores
 - Inactive chores
+
+When the user asks to add something related to the django admin panel, always add to the /admin-panel/ as well,  or ask the user if they want it added there if it doesn't make sense.
