@@ -34,6 +34,10 @@ class User(AbstractUser):
         default=False,
         help_text="Can this user earn points and appear on leaderboard?"
     )
+    include_in_streaks = models.BooleanField(
+        default=True,
+        help_text="Include this user in streak tracking and perfect week calculations?"
+    )
 
     # Points Tracking
     weekly_points = models.DecimalField(
@@ -71,6 +75,7 @@ class User(AbstractUser):
         indexes = [
             models.Index(fields=["is_active", "eligible_for_points"]),
             models.Index(fields=["is_active", "can_be_assigned"]),
+            models.Index(fields=["is_active", "eligible_for_points", "include_in_streaks"]),
         ]
 
     def __str__(self):

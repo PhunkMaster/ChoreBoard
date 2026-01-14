@@ -16,6 +16,7 @@ class UserAdmin(BaseUserAdmin):
         "can_be_assigned",
         "exclude_from_auto_assignment",
         "eligible_for_points",
+        "include_in_streaks",
         "weekly_points",
         "all_time_points",
         "is_active",
@@ -30,6 +31,7 @@ class UserAdmin(BaseUserAdmin):
         "can_be_assigned",
         "exclude_from_auto_assignment",
         "eligible_for_points",
+        "include_in_streaks",
     ]
 
     # Search fields
@@ -42,6 +44,7 @@ class UserAdmin(BaseUserAdmin):
                 "can_be_assigned",
                 "exclude_from_auto_assignment",
                 "eligible_for_points",
+                "include_in_streaks",
             )
         }),
         ("Points & Claims", {
@@ -67,6 +70,7 @@ class UserAdmin(BaseUserAdmin):
                 "can_be_assigned",
                 "exclude_from_auto_assignment",
                 "eligible_for_points",
+                "include_in_streaks",
             )
         }),
     )

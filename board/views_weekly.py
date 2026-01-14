@@ -28,7 +28,8 @@ def weekly_reset(request):
     # Get all eligible users with their points
     users = User.objects.filter(
         is_active=True,
-        eligible_for_points=True
+        eligible_for_points=True,
+        include_in_streaks=True
     ).order_by('-weekly_points', 'first_name', 'username')
 
     # Calculate total and preview
@@ -37,10 +38,12 @@ def weekly_reset(request):
 
     # Check for perfect week (no late completions this week)
     # Note: Skipped chores don't affect perfect week since they have no Completion record
+    # Only check users included in streaks
     week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
     late_completions = Completion.objects.filter(
         completed_at__gte=week_start,
-        was_late=True
+        was_late=True,
+        completed_by__include_in_streaks=True
     ).count()
     is_perfect_week = late_completions == 0
 
@@ -100,7 +103,8 @@ def weekly_reset_convert(request):
         week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
         late_completions = Completion.objects.filter(
             completed_at__gte=week_start,
-            was_late=True
+            was_late=True,
+            completed_by__include_in_streaks=True
         ).count()
         is_perfect_week = late_completions == 0
 
@@ -108,7 +112,8 @@ def weekly_reset_convert(request):
             # Get all eligible users
             users = User.objects.filter(
                 is_active=True,
-                eligible_for_points=True
+                eligible_for_points=True,
+                include_in_streaks=True
             ).select_for_update()
 
             snapshots_created = []

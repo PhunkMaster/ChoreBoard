@@ -10,6 +10,35 @@
 - Always use semver branches
 - Do not work on other projects, only create implementation documentation in those projects.
 
+## User Streak Inclusion
+
+The `include_in_streaks` field on the User model controls whether a user participates in the streak tracking system.
+
+### When to Exclude Users from Streaks
+
+- Test users who shouldn't affect family streaks
+- Observers or administrators who complete chores occasionally
+- Users on vacation or leave who shouldn't break perfect weeks
+- Users with special circumstances
+
+### Behavior When Excluded (`include_in_streaks=False`)
+
+- User does NOT appear in admin streaks page (`/admin-panel/streaks/`)
+- User does NOT appear in weekly reset summary (`/weekly-reset/`)
+- User's late completions do NOT count toward perfect week determination
+- User's streak is NOT updated during weekly reset (remains frozen)
+- User's streak display is hidden on their profile page
+- User can still earn points and complete chores normally
+
+### Usage
+
+1. Go to Django Admin > Users
+2. Edit user
+3. Toggle "Include in streak tracking" checkbox
+4. Save
+
+**Note**: Excluded users' streaks remain frozen. When re-enabled, the streak continues from the frozen value.
+
 ## Distribution Troubleshooting
 
 When a chore fails to distribute at its expected time, use the diagnostic tool to identify the root cause:

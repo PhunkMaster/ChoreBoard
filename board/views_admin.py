@@ -2250,7 +2250,10 @@ def admin_streaks(request):
     from core.models import Streak
 
     # Get all users with their streaks
-    users = User.objects.filter(is_active=True).order_by('username')
+    users = User.objects.filter(
+        is_active=True,
+        include_in_streaks=True
+    ).order_by('username')
 
     # Get or create streak for each user
     streaks = []
