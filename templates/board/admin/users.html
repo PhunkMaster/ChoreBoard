@@ -80,6 +80,11 @@
                                     Earns points
                                 </span>
                                 {% endif %}
+                                {% if u.include_in_streaks %}
+                                <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                    Streak tracking
+                                </span>
+                                {% endif %}
                             </div>
                         </td>
                         <td class="px-6 py-4 text-right">
@@ -210,6 +215,15 @@
                 </label>
 
                 <label class="flex items-start">
+                    <input type="checkbox" id="user-include-in-streaks" name="include_in_streaks"
+                           class="w-4 h-4 mt-1 text-primary-600 bg-dark-card border-dark-border rounded focus:ring-primary-500">
+                    <div class="ml-2">
+                        <span class="text-gray-300">Include in streak tracking</span>
+                        <p class="text-gray-500 text-sm">User participates in perfect week streaks (their late completions affect group perfect weeks)</p>
+                    </div>
+                </label>
+
+                <label class="flex items-start">
                     <input type="checkbox" id="user-is-staff" name="is_staff"
                            class="w-4 h-4 mt-1 text-primary-600 bg-dark-card border-dark-border rounded focus:ring-primary-500">
                     <div class="ml-2">
@@ -282,6 +296,7 @@ async function editUser(userId) {
             document.getElementById('user-can-be-assigned').checked = data.can_be_assigned;
             document.getElementById('user-exclude-from-auto-assignment').checked = data.exclude_from_auto_assignment;
             document.getElementById('user-eligible-for-points').checked = data.eligible_for_points;
+            document.getElementById('user-include-in-streaks').checked = data.include_in_streaks;
             document.getElementById('user-is-staff').checked = data.is_staff;
 
             document.getElementById('user-dialog').classList.remove('hidden');
@@ -327,6 +342,7 @@ document.getElementById('user-form').addEventListener('submit', async function(e
     formData.set('can_be_assigned', document.getElementById('user-can-be-assigned').checked ? 'true' : 'false');
     formData.set('exclude_from_auto_assignment', document.getElementById('user-exclude-from-auto-assignment').checked ? 'true' : 'false');
     formData.set('eligible_for_points', document.getElementById('user-eligible-for-points').checked ? 'true' : 'false');
+    formData.set('include_in_streaks', document.getElementById('user-include-in-streaks').checked ? 'true' : 'false');
     formData.set('is_staff', document.getElementById('user-is-staff').checked ? 'true' : 'false');
 
     try {

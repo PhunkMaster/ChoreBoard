@@ -1522,6 +1522,7 @@ def admin_user_get(request, user_id):
             'can_be_assigned': user.can_be_assigned,
             'exclude_from_auto_assignment': user.exclude_from_auto_assignment,
             'eligible_for_points': user.eligible_for_points,
+            'include_in_streaks': user.include_in_streaks,
             'is_staff': user.is_staff,
             'is_active': user.is_active,
         }
@@ -1547,6 +1548,7 @@ def admin_user_create(request):
         can_be_assigned = request.POST.get('can_be_assigned') == 'true'
         exclude_from_auto_assignment = request.POST.get('exclude_from_auto_assignment') == 'true'
         eligible_for_points = request.POST.get('eligible_for_points') == 'true'
+        include_in_streaks = request.POST.get('include_in_streaks', 'true') == 'true'
         is_staff = request.POST.get('is_staff') == 'true'
 
         # Validation
@@ -1577,6 +1579,7 @@ def admin_user_create(request):
                 can_be_assigned=can_be_assigned,
                 exclude_from_auto_assignment=exclude_from_auto_assignment,
                 eligible_for_points=eligible_for_points,
+                include_in_streaks=include_in_streaks,
                 is_staff=is_staff,
                 is_active=True
             )
@@ -1617,6 +1620,7 @@ def admin_user_update(request, user_id):
         can_be_assigned = request.POST.get('can_be_assigned') == 'true'
         exclude_from_auto_assignment = request.POST.get('exclude_from_auto_assignment') == 'true'
         eligible_for_points = request.POST.get('eligible_for_points') == 'true'
+        include_in_streaks = request.POST.get('include_in_streaks', 'true') == 'true'
         is_staff = request.POST.get('is_staff') == 'true'
 
         with transaction.atomic():
@@ -1625,6 +1629,7 @@ def admin_user_update(request, user_id):
             user.can_be_assigned = can_be_assigned
             user.exclude_from_auto_assignment = exclude_from_auto_assignment
             user.eligible_for_points = eligible_for_points
+            user.include_in_streaks = include_in_streaks
             user.is_staff = is_staff
 
             # Update password if provided
