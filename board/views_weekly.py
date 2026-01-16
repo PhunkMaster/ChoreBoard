@@ -1,6 +1,7 @@
 """
 Weekly reset views for ChoreBoard.
 """
+
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
@@ -27,48 +28,77 @@ def weekly_reset(request):
 
     # Get all eligible users with their points
     users = User.objects.filter(
-        is_active=True,
-        eligible_for_points=True,
-        include_in_streaks=True
-    ).order_by('-weekly_points', 'first_name', 'username')
+        is_active=True, eligible_for_points=True, include_in_streaks=True
+    ).order_by("-weekly_points", "first_name", "username")
 
     # Calculate total and preview
     total_points = sum(u.weekly_points for u in users)
     total_cash = total_points * settings.points_to_dollar_rate
 
-    # Check for perfect week (no late completions this week)
+    # Check for perfect week (no late completions this week for eligible users)
     # Note: Skipped chores don't affect perfect week since they have no Completion record
-    # Only check users included in streaks
-    week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-    late_completions = Completion.objects.filter(
+    week_start = (now - timedelta(days=now.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    late_completions_query = Completion.objects.filter(
         completed_at__gte=week_start,
         was_late=True,
-        completed_by__include_in_streaks=True
-    ).count()
-    is_perfect_week = late_completions == 0
+        completed_by__include_in_streaks=True,
+    ).select_related("chore_instance__chore", "completed_by")
+    late_count = late_completions_query.count()
+    late_completions_details = []
+    for comp in late_completions_query:
+        late_completions_details.append(
+            {
+                "chore_name": comp.chore_instance.chore.name,
+                "assigned_at": comp.chore_instance.assigned_at,
+                "completed_at": comp.completed_at,
+                "user": comp.completed_by,
+            }
+        )
+    is_perfect_week = late_count == 0
 
     # Build user summary list
     user_summaries = []
     for user in users:
         cash_value = user.weekly_points * settings.points_to_dollar_rate
 
-        # Get or create streak for this user
-        streak, _ = Streak.objects.get_or_create(user=user)
-        new_streak = streak.current_streak + 1 if is_perfect_week else 0
+        # Get or create streak for this user if eligible
+        streak_info = {
+            "current_streak": 0,
+            "new_streak": 0,
+            "is_eligible": user.include_in_streaks,
+        }
 
-        user_summaries.append({
-            'user': user,
-            'points': user.weekly_points,
-            'cash': cash_value,
-            'current_streak': streak.current_streak,
-            'new_streak': new_streak,
-        })
+        if user.include_in_streaks:
+            streak, _ = Streak.objects.get_or_create(user=user)
+            new_streak = streak.current_streak + 1 if is_perfect_week else 0
+            streak_info.update(
+                {
+                    "current_streak": streak.current_streak,
+                    "new_streak": new_streak,
+                }
+            )
+
+        user_summaries.append(
+            {
+                "user": user,
+                "points": user.weekly_points,
+                "cash": cash_value,
+                "streak_info": streak_info,
+                # Keep original fields for backward compatibility in templates if needed,
+                # but we'll likely update templates too
+                "current_streak": streak_info["current_streak"],
+                "new_streak": streak_info["new_streak"],
+            }
+        )
 
     # Check if there's a recent reset that can be undone (< 24 hours)
-    last_snapshot = WeeklySnapshot.objects.filter(
-        converted=True,
-        conversion_undone=False
-    ).order_by('-converted_at').first()
+    last_snapshot = (
+        WeeklySnapshot.objects.filter(converted=True, conversion_undone=False)
+        .order_by("-converted_at")
+        .first()
+    )
 
     can_undo = False
     if last_snapshot and last_snapshot.converted_at:
@@ -76,18 +106,19 @@ def weekly_reset(request):
         can_undo = time_since_reset < timedelta(hours=24)
 
     context = {
-        'user_summaries': user_summaries,
-        'total_points': total_points,
-        'total_cash': total_cash,
-        'conversion_rate': settings.points_to_dollar_rate,
-        'is_perfect_week': is_perfect_week,
-        'late_count': late_completions,
-        'can_undo': can_undo,
-        'last_snapshot': last_snapshot if can_undo else None,
-        'week_ending': now.date(),
+        "user_summaries": user_summaries,
+        "total_points": total_points,
+        "total_cash": total_cash,
+        "conversion_rate": settings.points_to_dollar_rate,
+        "is_perfect_week": is_perfect_week,
+        "late_count": late_count,
+        "late_completions": late_completions_details,
+        "can_undo": can_undo,
+        "last_snapshot": last_snapshot if can_undo else None,
+        "week_ending": now.date(),
     }
 
-    return render(request, 'board/weekly_reset.html', context)
+    return render(request, "board/weekly_reset.html", context)
 
 
 @require_http_methods(["POST"])
@@ -99,35 +130,42 @@ def weekly_reset_convert(request):
         now = timezone.now()
         settings = Settings.get_settings()
 
-        # Check for perfect week
-        week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        # Check for perfect week (eligible users only)
+        week_start = (now - timedelta(days=now.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
         late_completions = Completion.objects.filter(
             completed_at__gte=week_start,
             was_late=True,
-            completed_by__include_in_streaks=True
+            completed_by__include_in_streaks=True,
         ).count()
         is_perfect_week = late_completions == 0
 
         with transaction.atomic():
             # Get all eligible users
             users = User.objects.filter(
-                is_active=True,
-                eligible_for_points=True,
-                include_in_streaks=True
+                is_active=True, eligible_for_points=True, include_in_streaks=True
             ).select_for_update()
 
             snapshots_created = []
-            total_cash = Decimal('0.00')
+            total_cash = Decimal("0.00")
 
             for user in users:
+                # Check for user's perfect week (no late completions)
+                user_late_completions = Completion.objects.filter(
+                    completed_by=user,
+                    completed_at__gte=week_start,
+                    was_late=True,
+                    is_undone=False,
+                ).count()
+                user_is_perfect = user_late_completions == 0
+
                 if user.weekly_points > 0:
                     cash_value = user.weekly_points * settings.points_to_dollar_rate
 
                     # Check if there's an undone snapshot we can reuse
                     snapshot = WeeklySnapshot.objects.filter(
-                        user=user,
-                        week_ending=now.date(),
-                        conversion_undone=True
+                        user=user, week_ending=now.date(), conversion_undone=True
                     ).first()
 
                     if snapshot:
@@ -136,7 +174,9 @@ def weekly_reset_convert(request):
                         snapshot.cash_value = cash_value
                         snapshot.converted = True
                         snapshot.converted_at = now
-                        snapshot.converted_by = request.user if request.user.is_authenticated else None
+                        snapshot.converted_by = (
+                            request.user if request.user.is_authenticated else None
+                        )
                         snapshot.conversion_undone = False
                         snapshot.undone_at = None
                         snapshot.save()
@@ -149,23 +189,26 @@ def weekly_reset_convert(request):
                             cash_value=cash_value,
                             converted=True,
                             converted_at=now,
-                            converted_by=request.user if request.user.is_authenticated else None
+                            converted_by=(
+                                request.user if request.user.is_authenticated else None
+                            ),
                         )
 
                     snapshots_created.append(snapshot)
                     total_cash += cash_value
 
-                # Update streak
-                streak, _ = Streak.objects.get_or_create(user=user)
-                if is_perfect_week:
-                    streak.increment_streak()
-                    streak.last_perfect_week = now.date()
-                    streak.save()
-                else:
-                    streak.reset_streak()
+                # Update streak if eligible
+                if user.include_in_streaks:
+                    streak, _ = Streak.objects.get_or_create(user=user)
+                    if user_is_perfect:
+                        streak.increment_streak()
+                        streak.last_perfect_week = now.date()
+                        streak.save()
+                    else:
+                        streak.reset_streak()
 
                 # Reset weekly counters
-                user.weekly_points = Decimal('0.00')
+                user.weekly_points = Decimal("0.00")
                 user.claims_today = 0
                 user.save()
 
@@ -175,28 +218,34 @@ def weekly_reset_convert(request):
                 user=request.user if request.user.is_authenticated else None,
                 description=f"Weekly reset: {len(snapshots_created)} users, ${total_cash:.2f} total",
                 metadata={
-                    'perfect_week': is_perfect_week,
-                    'total_points': float(sum(s.points_earned for s in snapshots_created)),
-                    'total_cash': float(total_cash),
-                    'user_count': len(snapshots_created)
-                }
+                    "perfect_week": is_perfect_week,
+                    "total_points": float(
+                        sum(s.points_earned for s in snapshots_created)
+                    ),
+                    "total_cash": float(total_cash),
+                    "user_count": len(snapshots_created),
+                },
             )
 
-            logger.info(f"Weekly reset completed: {len(snapshots_created)} users, ${total_cash:.2f}")
+            logger.info(
+                f"Weekly reset completed: {len(snapshots_created)} users, ${total_cash:.2f}"
+            )
 
             message = f"Weekly reset complete! ${total_cash:.2f} ready for payout."
             if is_perfect_week:
                 message += " Perfect week bonus applied!"
 
-            return JsonResponse({
-                'message': message,
-                'total_cash': float(total_cash),
-                'perfect_week': is_perfect_week
-            })
+            return JsonResponse(
+                {
+                    "message": message,
+                    "total_cash": float(total_cash),
+                    "perfect_week": is_perfect_week,
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error in weekly reset: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({"error": str(e)}, status=500)
 
 
 @require_http_methods(["POST"])
@@ -210,21 +259,22 @@ def weekly_reset_undo(request):
         with transaction.atomic():
             # Get the most recent unconverted reset
             last_reset_snapshots = WeeklySnapshot.objects.filter(
-                converted=True,
-                conversion_undone=False
+                converted=True, conversion_undone=False
             ).select_for_update()
 
             if not last_reset_snapshots.exists():
-                return JsonResponse({'error': 'No recent reset to undo'}, status=400)
+                return JsonResponse({"error": "No recent reset to undo"}, status=400)
 
             # Check if it's within 24 hours
-            first_snapshot = last_reset_snapshots.order_by('converted_at').first()
+            first_snapshot = last_reset_snapshots.order_by("converted_at").first()
             if not first_snapshot.converted_at:
-                return JsonResponse({'error': 'Invalid snapshot data'}, status=400)
+                return JsonResponse({"error": "Invalid snapshot data"}, status=400)
 
             time_since_reset = now - first_snapshot.converted_at
             if time_since_reset >= timedelta(hours=24):
-                return JsonResponse({'error': 'Reset is too old to undo (>24 hours)'}, status=400)
+                return JsonResponse(
+                    {"error": "Reset is too old to undo (>24 hours)"}, status=400
+                )
 
             # Get all snapshots from this reset
             reset_snapshots = last_reset_snapshots.filter(
@@ -248,17 +298,21 @@ def weekly_reset_undo(request):
                 user=request.user if request.user.is_authenticated else None,
                 description=f"Undid weekly reset for {reset_snapshots.count()} users",
                 metadata={
-                    'week_ending': str(first_snapshot.week_ending),
-                    'user_count': reset_snapshots.count()
+                    "week_ending": str(first_snapshot.week_ending),
+                    "user_count": reset_snapshots.count(),
+                },
+            )
+
+            logger.info(
+                f"Weekly reset undone for week ending {first_snapshot.week_ending}"
+            )
+
+            return JsonResponse(
+                {
+                    "message": f"Weekly reset undone. Points restored for {reset_snapshots.count()} users."
                 }
             )
 
-            logger.info(f"Weekly reset undone for week ending {first_snapshot.week_ending}")
-
-            return JsonResponse({
-                'message': f"Weekly reset undone. Points restored for {reset_snapshots.count()} users."
-            })
-
     except Exception as e:
         logger.error(f"Error undoing weekly reset: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({"error": str(e)}, status=500)

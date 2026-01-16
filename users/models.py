@@ -3,6 +3,7 @@ User models for ChoreBoard.
 
 Defines custom User model with assignment eligibility, points tracking, and claims.
 """
+
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
@@ -24,19 +25,18 @@ class User(AbstractUser):
     # Assignment & Points Eligibility
     can_be_assigned = models.BooleanField(
         default=True,
-        help_text="Can this user be assigned chores? (Included in rotation/force-assignment pool)"
+        help_text="Can this user be assigned chores? (Included in rotation/force-assignment pool)",
     )
     exclude_from_auto_assignment = models.BooleanField(
         default=False,
-        help_text="If True, user will NOT be auto-assigned chores at distribution time, but can still claim or be manually assigned"
+        help_text="If True, user will NOT be auto-assigned chores at distribution time, but can still claim or be manually assigned",
     )
     eligible_for_points = models.BooleanField(
-        default=False,
-        help_text="Can this user earn points and appear on leaderboard?"
+        default=False, help_text="Can this user earn points and appear on leaderboard?"
     )
     include_in_streaks = models.BooleanField(
         default=True,
-        help_text="Include this user in streak tracking and perfect week calculations?"
+        help_text="Include this user in streak tracking and perfect week calculations?",
     )
 
     # Points Tracking
@@ -45,21 +45,21 @@ class User(AbstractUser):
         decimal_places=2,
         default=0.00,
         validators=[MinValueValidator(0.00)],
-        help_text="Points earned this week (resets Sunday midnight)"
+        help_text="Points earned this week (resets Sunday midnight)",
     )
     all_time_points = models.DecimalField(
         max_digits=10,  # Up to 99999999.99
         decimal_places=2,
         default=0.00,
         validators=[MinValueValidator(0.00)],
-        help_text="Total points earned all time"
+        help_text="Total points earned all time",
     )
 
     # Claims Tracking
     claims_today = models.IntegerField(
         default=0,
         validators=[MinValueValidator(0), MaxValueValidator(10)],
-        help_text="Number of chores claimed today (resets at midnight)"
+        help_text="Number of chores claimed today (resets at midnight)",
     )
 
     # Soft Delete (override AbstractUser's is_active to use for soft delete)
@@ -146,11 +146,9 @@ class UserPreferences(models.Model):
     """
     User preferences for admin dashboard customization.
     """
+
     user = models.OneToOneField(
-        User,
-        on_delete=models.CASCADE,
-        related_name='preferences',
-        primary_key=True
+        User, on_delete=models.CASCADE, related_name="preferences", primary_key=True
     )
 
     # Quick Actions - stores list of action keys user wants to see
@@ -158,7 +156,7 @@ class UserPreferences(models.Model):
     #                    force_assign, pending_spawns, streaks, adjust_points, backups, logs
     quick_actions = models.JSONField(
         default=list,
-        help_text="List of quick action keys to display on admin dashboard"
+        help_text="List of quick action keys to display on admin dashboard",
     )
 
     # Timestamps
@@ -178,5 +176,11 @@ class UserPreferences(models.Model):
         Get user's quick actions or return default set if none configured.
         """
         if not self.quick_actions or len(self.quick_actions) == 0:
-            return ['chores', 'settings', 'skip_chores', 'reschedule', 'undo_completions']
+            return [
+                "chores",
+                "settings",
+                "skip_chores",
+                "reschedule",
+                "undo_completions",
+            ]
         return self.quick_actions
