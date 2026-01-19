@@ -38,6 +38,26 @@
         </div>
     </div>
 
+    <!-- Group/Family Streak -->
+    <div class="bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/50 rounded-lg p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h2 class="text-2xl font-bold text-white mb-2">🔥 Family Perfect Week Streak</h2>
+                <p class="text-orange-200 text-sm">
+                    Consecutive weeks where everyone completed all chores on time
+                </p>
+            </div>
+            <div class="text-right">
+                <p class="text-6xl font-bold text-orange-400">
+                    {{ group_streak }}
+                </p>
+                <p class="text-orange-300 text-sm mt-1">
+                    Week{{ group_streak|pluralize }}
+                </p>
+            </div>
+        </div>
+    </div>
+
     <!-- Streaks List -->
     <div class="bg-dark-surface rounded-lg border border-dark-border">
         <div class="p-6 border-b border-dark-border">

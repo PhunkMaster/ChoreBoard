@@ -545,7 +545,7 @@ def user_profile(request, username):
 
     # Get perfect week streak if eligible
     perfect_week_streak = 0
-    if user.eligible_for_streaks:
+    if user.include_in_streaks:
         from core.models import Streak
 
         streak, _ = Streak.objects.get_or_create(user=user)

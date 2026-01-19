@@ -43,7 +43,7 @@
         </div>
 
         <!-- Perfect Week Streak -->
-        {% if profile_user.eligible_for_streaks %}
+        {% if profile_user.include_in_streaks %}
         <div class="bg-gradient-to-br from-yellow-900/40 to-orange-900/40 border-2 border-yellow-500 rounded-lg p-6">
             <div class="text-yellow-400 text-sm font-semibold mb-2">🔥 Perfect Weeks</div>
             <div class="text-4xl font-bold text-white">{{ perfect_week_streak }}</div>

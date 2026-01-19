@@ -59,6 +59,18 @@
                         </div>
                     </div>
 
+                    <!-- Perfect Weeks -->
+                    {% if entry.show_streak %}
+                    <div class="text-center px-4">
+                        <p class="text-orange-400 text-2xl font-bold">
+                            🔥 {{ entry.current_streak }}
+                        </p>
+                        <p class="text-gray-500 text-xs">
+                            Perfect Week{{ entry.current_streak|pluralize }}
+                        </p>
+                    </div>
+                    {% endif %}
+
                     <!-- Points -->
                     <div class="text-right">
                         <p class="text-3xl font-bold {% if entry.rank == 1 %}text-yellow-400{% elif entry.rank == 2 %}text-gray-300{% elif entry.rank == 3 %}text-amber-500{% else %}text-primary-400{% endif %}">
@@ -104,6 +116,7 @@
                         {% else %}
                         The all-time leaderboard shows total {{ POINTS_LABEL }} earned since the beginning. These {{ POINTS_LABEL }} never reset!
                         {% endif %}
+                        The 🔥 fire icon shows Perfect Week streaks - consecutive weeks where all chores were completed on time!
                     </p>
                 </div>
             </div>

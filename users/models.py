@@ -34,9 +34,9 @@ class User(AbstractUser):
     eligible_for_points = models.BooleanField(
         default=False, help_text="Can this user earn points and appear on leaderboard?"
     )
-    eligible_for_streaks = models.BooleanField(
+    include_in_streaks = models.BooleanField(
         default=True,
-        help_text="Is this user eligible for streaks? (If False, hidden from streak pages and ignored in group calculations)",
+        help_text="Include this user in streak tracking and perfect week calculations?",
     )
 
     # Points Tracking
@@ -75,6 +75,7 @@ class User(AbstractUser):
         indexes = [
             models.Index(fields=["is_active", "eligible_for_points"]),
             models.Index(fields=["is_active", "can_be_assigned"]),
+            models.Index(fields=["is_active", "eligible_for_points", "include_in_streaks"]),
         ]
 
     def __str__(self):

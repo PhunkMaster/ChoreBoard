@@ -1,7 +1,8 @@
 from django.test import TestCase, Client
 from django.urls import reverse
-from users.models import User
+
 from core.models import Streak
+from users.models import User
 
 
 class AdminGroupStreakTest(TestCase):
@@ -14,18 +15,18 @@ class AdminGroupStreakTest(TestCase):
 
         # Create eligible users
         self.user1 = User.objects.create_user(
-            username="user1", is_active=True, eligible_for_streaks=True
+            username="user1", is_active=True, include_in_streaks=True
         )
         self.user2 = User.objects.create_user(
-            username="user2", is_active=True, eligible_for_streaks=True
+            username="user2", is_active=True, include_in_streaks=True
         )
         self.user3 = User.objects.create_user(
-            username="user3", is_active=True, eligible_for_streaks=True
+            username="user3", is_active=True, include_in_streaks=True
         )
 
         # Ineligible user
         self.user_ineligible = User.objects.create_user(
-            username="ineligible", is_active=True, eligible_for_streaks=False
+            username="ineligible", is_active=True, include_in_streaks=False
         )
 
     def test_group_streak_calculation(self):
@@ -35,7 +36,7 @@ class AdminGroupStreakTest(TestCase):
         Streak.objects.update_or_create(user=self.user3, defaults={"current_streak": 7})
 
         # Admin is also eligible by default, let's make them ineligible
-        self.admin_user.eligible_for_streaks = False
+        self.admin_user.include_in_streaks = False
         self.admin_user.save()
 
         # Ineligible user streak should be ignored
@@ -57,7 +58,7 @@ class AdminGroupStreakTest(TestCase):
         Streak.objects.update_or_create(user=self.user2, defaults={"current_streak": 0})
 
         # Admin is also eligible by default, let's make them ineligible
-        self.admin_user.eligible_for_streaks = False
+        self.admin_user.include_in_streaks = False
         self.admin_user.save()
 
         response = self.client.get(reverse("board:admin_streaks"))
@@ -66,11 +67,11 @@ class AdminGroupStreakTest(TestCase):
 
     def test_group_streak_no_users(self):
         # Delete all eligible users EXCEPT the admin
-        User.objects.filter(eligible_for_streaks=True).exclude(
+        User.objects.filter(include_in_streaks=True).exclude(
             id=self.admin_user.id
         ).delete()
         # Make admin ineligible for streaks so it's not counted
-        self.admin_user.eligible_for_streaks = False
+        self.admin_user.include_in_streaks = False
         self.admin_user.save()
 
         response = self.client.get(reverse("board:admin_streaks"))

@@ -231,6 +231,24 @@ Access via Admin Panel → Settings:
 - **Points Label** - Customize what points are called (e.g., "stars", "coins")
 - **Webhook Notifications** - Optional Home Assistant integration
 
+### User Streak Inclusion
+
+Control whether individual users participate in the streak tracking system via Django Admin → Users:
+
+**When to exclude users from streaks:**
+- Test users who shouldn't affect family streaks
+- Observers or administrators who complete chores occasionally
+- Users on vacation or leave who shouldn't break perfect weeks
+
+**When excluded (`include_in_streaks=False`):**
+- User does NOT appear in admin streaks page or weekly reset summary
+- User's late completions do NOT affect perfect week determination for others
+- User's streak remains frozen (not incremented or reset during weekly resets)
+- User's streak display is hidden on their profile page
+- User can still earn points and complete chores normally
+
+**To configure:** Django Admin → Users → Edit user → Toggle "Include in streak tracking" checkbox
+
 ### Customization
 
 ChoreBoard is highly customizable:

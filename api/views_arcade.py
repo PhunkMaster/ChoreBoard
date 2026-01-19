@@ -669,6 +669,7 @@ def get_pending_approvals(request):
             },
             'elapsed_seconds': session.elapsed_seconds,
             'formatted_time': session.format_time(),
+            'started_at': session.start_time.isoformat() if session.start_time else None,
             'stopped_at': session.end_time.isoformat() if session.end_time else None,
             'status': session.status
         })

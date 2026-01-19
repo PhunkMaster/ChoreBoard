@@ -17,15 +17,18 @@
 """
 Views for ChoreBoard frontend.
 """
-from django.shortcuts import render, get_object_or_404, redirect
-from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
+import logging
+from decimal import Decimal
+
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.utils import timezone
 from django.db.models import Q
-from decimal import Decimal
+from django.http import JsonResponse
+from django.shortcuts import render, get_object_or_404
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+
 from chores.models import (
     ChoreInstance,
     Completion,
@@ -34,11 +37,8 @@ from chores.models import (
     Chore,
 )
 from chores.services import AssignmentService, DependencyService
-from chores.arcade_service import ArcadeService
+from core.models import Settings, ActionLog, Streak
 from users.models import User
-from core.models import Settings, ActionLog, WeeklySnapshot
-from datetime import timedelta
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -396,7 +396,7 @@ def pool_minimal(request):
 
     # Get all pool chores for today
     # Use year > 3000 to avoid overflow errors with year >= 9999
-    from datetime import datetime, timedelta
+    from datetime import datetime
 
     far_future = datetime(3000, 1, 1)
 
@@ -461,7 +461,7 @@ def assigned_minimal(request):
     today = now.date()
 
     # Use year > 3000 to avoid overflow errors with year >= 9999
-    from datetime import datetime, timedelta
+    from datetime import datetime
 
     far_future = datetime(3000, 1, 1)
 
@@ -637,6 +637,13 @@ def leaderboard(request):
     # Add rank to each user
     ranked_list = []
     for idx, user in enumerate(ranked_users, start=1):
+        try:
+            user.streak.current_streak
+        except User.streak.RelatedObjectDoesNotExist:
+            Streak(user=user).save()
+            user = User.objects.get(id=user.id)
+        if not user.include_in_streaks:
+            user.streak.current_streak = 0
         points = getattr(user, points_field)
         ranked_list.append(
             {
@@ -729,8 +736,8 @@ def quick_add_task(request):
 
             # Security: Non-admin users can only create 0-point tasks to prevent abuse
             if not (
-                request.user.is_authenticated
-                and (request.user.is_staff or request.user.is_superuser)
+                    request.user.is_authenticated
+                    and (request.user.is_staff or request.user.is_superuser)
             ):
                 points = Decimal("0.00")
             else:
@@ -981,7 +988,7 @@ def complete_chore_view(request):
                     return JsonResponse(
                         {
                             "error": "Cannot complete this chore. There are no users with eligible_for_points=True. "
-                            "Please contact an administrator to configure user eligibility."
+                                     "Please contact an administrator to configure user eligibility."
                         },
                         status=400,
                     )

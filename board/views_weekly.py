@@ -27,9 +27,9 @@ def weekly_reset(request):
     settings = Settings.get_settings()
 
     # Get all eligible users with their points
-    users = User.objects.filter(is_active=True, eligible_for_points=True).order_by(
-        "-weekly_points", "first_name", "username"
-    )
+    users = User.objects.filter(
+        is_active=True, eligible_for_points=True, include_in_streaks=True
+    ).order_by("-weekly_points", "first_name", "username")
 
     # Calculate total and preview
     total_points = sum(u.weekly_points for u in users)
@@ -43,7 +43,7 @@ def weekly_reset(request):
     late_completions_query = Completion.objects.filter(
         completed_at__gte=week_start,
         was_late=True,
-        completed_by__eligible_for_streaks=True,
+        completed_by__include_in_streaks=True,
     ).select_related("chore_instance__chore", "completed_by")
     late_count = late_completions_query.count()
     late_completions_details = []
@@ -67,10 +67,10 @@ def weekly_reset(request):
         streak_info = {
             "current_streak": 0,
             "new_streak": 0,
-            "is_eligible": user.eligible_for_streaks,
+            "is_eligible": user.include_in_streaks,
         }
 
-        if user.eligible_for_streaks:
+        if user.include_in_streaks:
             streak, _ = Streak.objects.get_or_create(user=user)
             new_streak = streak.current_streak + 1 if is_perfect_week else 0
             streak_info.update(
@@ -137,14 +137,14 @@ def weekly_reset_convert(request):
         late_completions = Completion.objects.filter(
             completed_at__gte=week_start,
             was_late=True,
-            completed_by__eligible_for_streaks=True,
+            completed_by__include_in_streaks=True,
         ).count()
         is_perfect_week = late_completions == 0
 
         with transaction.atomic():
             # Get all eligible users
             users = User.objects.filter(
-                is_active=True, eligible_for_points=True
+                is_active=True, eligible_for_points=True, include_in_streaks=True
             ).select_for_update()
 
             snapshots_created = []
@@ -198,7 +198,7 @@ def weekly_reset_convert(request):
                     total_cash += cash_value
 
                 # Update streak if eligible
-                if user.eligible_for_streaks:
+                if user.include_in_streaks:
                     streak, _ = Streak.objects.get_or_create(user=user)
                     if user_is_perfect:
                         streak.increment_streak()
