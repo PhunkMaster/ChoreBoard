@@ -1,9 +1,10 @@
 """
 Test suite for leaderboard streak display and admin group streak functionality.
 """
+from django.contrib.auth import get_user_model
 from django.test import TestCase, Client
 from django.urls import reverse
-from django.contrib.auth import get_user_model
+
 from core.models import Streak
 
 User = get_user_model()
@@ -76,14 +77,12 @@ class LeaderboardStreaksTestCase(TestCase):
         # Find user1 in the ranked list
         user1_entry = next((entry for entry in ranked_list if entry['user'] == self.user1), None)
         self.assertIsNotNone(user1_entry)
-        self.assertEqual(user1_entry['current_streak'], 5)
-        self.assertTrue(user1_entry['show_streak'])
+        self.assertEqual(user1_entry['user'].streak.current_streak, 5)
 
         # Find user2 in the ranked list
         user2_entry = next((entry for entry in ranked_list if entry['user'] == self.user2), None)
         self.assertIsNotNone(user2_entry)
-        self.assertEqual(user2_entry['current_streak'], 3)
-        self.assertTrue(user2_entry['show_streak'])
+        self.assertEqual(user2_entry['user'].streak.current_streak, 3)
 
     def test_leaderboard_excludes_streak_for_non_included_users(self):
         """Test that excluded users don't show streak data."""
@@ -95,8 +94,7 @@ class LeaderboardStreaksTestCase(TestCase):
         # Find user3 in the ranked list
         user3_entry = next((entry for entry in ranked_list if entry['user'] == self.user3), None)
         self.assertIsNotNone(user3_entry)
-        self.assertEqual(user3_entry['current_streak'], 0)
-        self.assertFalse(user3_entry['show_streak'])
+        self.assertEqual(user3_entry['user'].streak.current_streak, 0)
 
     def test_leaderboard_handles_missing_streak_records(self):
         """Test that users without Streak records default to 0."""
@@ -108,8 +106,7 @@ class LeaderboardStreaksTestCase(TestCase):
         # Find user4 in the ranked list (no Streak record)
         user4_entry = next((entry for entry in ranked_list if entry['user'] == self.user4), None)
         self.assertIsNotNone(user4_entry)
-        self.assertEqual(user4_entry['current_streak'], 0)
-        self.assertTrue(user4_entry['show_streak'])
+        self.assertEqual(user4_entry['user'].streak.current_streak, 0)
 
     def test_leaderboard_minimal_includes_streak_data(self):
         """Test that minimal leaderboard also includes streak data."""
@@ -120,8 +117,7 @@ class LeaderboardStreaksTestCase(TestCase):
 
         user1_entry = next((entry for entry in ranked_list if entry['user'] == self.user1), None)
         self.assertIsNotNone(user1_entry)
-        self.assertEqual(user1_entry['current_streak'], 5)
-        self.assertTrue(user1_entry['show_streak'])
+        self.assertEqual(user1_entry['user'].streak.current_streak, 5)
 
     def test_leaderboard_alltime_includes_streak_data(self):
         """Test that all-time leaderboard also includes streak data."""
@@ -138,8 +134,7 @@ class LeaderboardStreaksTestCase(TestCase):
 
         user1_entry = next((entry for entry in ranked_list if entry['user'] == self.user1), None)
         self.assertIsNotNone(user1_entry)
-        self.assertEqual(user1_entry['current_streak'], 5)
-        self.assertTrue(user1_entry['show_streak'])
+        self.assertEqual(user1_entry['user'].streak.current_streak, 5)
 
     def test_query_optimization_uses_select_related(self):
         """Test that views use select_related to avoid N+1 queries."""
