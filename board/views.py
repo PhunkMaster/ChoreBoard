@@ -979,7 +979,7 @@ def complete_chore_view(request):
                 return JsonResponse({"error": "Already completed"}, status=400)
 
             # Validate undesirable chore configuration
-            if instance.chore.is_undesirable and not helper_ids:
+            if not instance.completion.completed_by.eligible_for_points and not helper_ids:
                 eligible_count = User.objects.filter(
                     eligible_for_points=True, is_active=True
                 ).count()
@@ -1042,8 +1042,7 @@ def complete_chore_view(request):
                     User.objects.filter(id__in=helper_ids, eligible_for_points=True)
                 )
             else:
-                if instance.chore.is_undesirable:
-                    # Undesirable chores always distribute to ALL eligible users
+                if not instance.completion.completed_by.eligible_for_points:
                     helpers_list = list(
                         User.objects.filter(
                             eligible_for_points=True,
@@ -1052,7 +1051,7 @@ def complete_chore_view(request):
                         )
                     )
                     logger.info(
-                        f"Undesirable chore completed. Distributing {instance.points_value} pts to {len(helpers_list)} eligible users"
+                        f"User ineligible for points completed a chore. Distributing {instance.points_value} pts to {len(helpers_list)} eligible users"
                     )
                 else:
                     # Check if completing user is eligible for points
