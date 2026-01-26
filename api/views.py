@@ -291,7 +291,7 @@ def complete_chore(request):
                 )
 
             # Validate undesirable chore configuration
-            if instance.chore.is_undesirable and not helper_ids:
+            if not instance.completion.completed_by.eligible_for_points and not helper_ids:
                 eligible_count = User.objects.filter(
                     eligible_for_points=True, is_active=True
                 ).count()
@@ -354,7 +354,7 @@ def complete_chore(request):
                 helpers_list = list(helpers)
             else:
                 # If no helpers specified, determine who gets points
-                if instance.chore.is_undesirable:
+                if not instance.completion.completed_by.eligible_for_points and not helper_ids:
                     # Undesirable chores always distribute to ALL eligible users
                     helpers_list = list(
                         User.objects.filter(
@@ -364,7 +364,7 @@ def complete_chore(request):
                         )
                     )
                     logger.info(
-                        f"Undesirable chore completed. Distributing {instance.points_value} pts to {len(helpers_list)} eligible users"
+                        f"User ineligible for points completed chore. Distributing {instance.points_value} pts to {len(helpers_list)} eligible users"
                     )
                 else:
                     # Check if completing user is eligible for points
