@@ -37,9 +37,11 @@ def weekly_reset(request):
 
     # Check for perfect week (no late completions this week for eligible users)
     # Note: Skipped chores don't affect perfect week since they have no Completion record
-    week_start = (now - timedelta(days=now.weekday())).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
+    snapshot_query = WeeklySnapshot.objects.filter(
+        converted=True,
+        conversion_undone=False
+    ).first()
+    week_start = snapshot_query.week_ending
     late_completions_query = Completion.objects.filter(
         completed_at__gte=week_start,
         was_late=True,
@@ -72,7 +74,10 @@ def weekly_reset(request):
 
         if user.include_in_streaks:
             streak, _ = Streak.objects.get_or_create(user=user)
-            new_streak = streak.current_streak + 1 if is_perfect_week else 0
+            user_perfect_week = (
+                len(late_completions_query.filter(completed_by=user)) == 0
+            )
+            new_streak = streak.current_streak + 1 if user_perfect_week else 0
             streak_info.update(
                 {
                     "current_streak": streak.current_streak,
@@ -266,7 +271,7 @@ def weekly_reset_undo(request):
                 return JsonResponse({"error": "No recent reset to undo"}, status=400)
 
             # Check if it's within 24 hours
-            first_snapshot = last_reset_snapshots.order_by("converted_at").first()
+            first_snapshot = last_reset_snapshots.order_by("converted_at").last()
             if not first_snapshot.converted_at:
                 return JsonResponse({"error": "Invalid snapshot data"}, status=400)
 
