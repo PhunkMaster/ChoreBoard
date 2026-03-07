@@ -12,7 +12,8 @@
    - [Site Settings](#site-settings)
    - [Webhook Notifications](#webhook-notifications)
    - [Environment Variables](#environment-variables)
-8. [Troubleshooting](#troubleshooting)
+8. [Arcade Mode](#arcade-mode)
+9. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -782,6 +783,31 @@ Edit `.env` file:
 - Timezone for scheduled jobs
 - Default: `America/Chicago`
 - Format: IANA timezone (e.g., `America/New_York`, `Europe/London`)
+
+---
+
+## Arcade Mode
+
+Arcade mode allows users to complete chores against a timer to earn bonus points and compete on leaderboards.
+
+### Leaderboard Management
+
+As an admin, you can reset all arcade times if the leaderboard becomes cluttered or needs a fresh start.
+
+**Resetting Arcade Times:**
+1. Navigate to the **Admin Dashboard**.
+2. Click **Customize** in the Quick Actions section (if not already visible).
+3. Enable **Reset Arcade Times**.
+4. Click on the **Reset Arcade** quick action.
+5. Confirm the action on the next page.
+
+**Warning:** This is a destructive operation that:
+- Deletes ALL high score records.
+- Deletes ALL past arcade completions and sessions.
+- Clears all arcade leaderboards.
+- Resets user arcade statistics.
+
+This action **cannot be undone**.
 
 ---
 

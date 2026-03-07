@@ -1,6 +1,7 @@
 """
 Service layer for Arcade Mode logic.
 """
+
 from decimal import Decimal
 from django.db import transaction, IntegrityError
 from django.utils import timezone
@@ -8,8 +9,14 @@ from django.db.models import Q
 import logging
 
 from chores.models import (
-    Chore, ChoreInstance, ArcadeSession, ArcadeCompletion,
-    ArcadeHighScore, PointsLedger, Completion, CompletionShare
+    Chore,
+    ChoreInstance,
+    ArcadeSession,
+    ArcadeCompletion,
+    ArcadeHighScore,
+    PointsLedger,
+    Completion,
+    CompletionShare,
 )
 from core.models import ActionLog
 from users.models import User
@@ -36,13 +43,15 @@ class ArcadeService:
         """
         # Check if user already has an active arcade session
         active_session = ArcadeSession.objects.filter(
-            user=user,
-            is_active=True,
-            status=ArcadeSession.STATUS_ACTIVE
+            user=user, is_active=True, status=ArcadeSession.STATUS_ACTIVE
         ).first()
 
         if active_session:
-            return False, f"You already have an active arcade session for '{active_session.chore.name}'. Please complete or cancel it first.", None
+            return (
+                False,
+                f"You already have an active arcade session for '{active_session.chore.name}'. Please complete or cancel it first.",
+                None,
+            )
 
         # If it's a pool chore, claim it to the user
         if chore_instance.status == ChoreInstance.POOL:
@@ -57,7 +66,11 @@ class ArcadeService:
                 return False, "This chore is assigned to someone else", None
             # Already assigned to this user, just start arcade
         else:
-            return False, f"Cannot start arcade on chore with status: {chore_instance.get_status_display()}", None
+            return (
+                False,
+                f"Cannot start arcade on chore with status: {chore_instance.get_status_display()}",
+                None,
+            )
 
         # Create arcade session
         arcade_session = ArcadeSession.objects.create(
@@ -67,7 +80,7 @@ class ArcadeService:
             status=ArcadeSession.STATUS_ACTIVE,
             is_active=True,
             attempt_number=1,
-            cumulative_seconds=0
+            cumulative_seconds=0,
         )
 
         # Log action
@@ -76,12 +89,14 @@ class ArcadeService:
             user=user,
             description=f"Started arcade mode for '{chore_instance.chore.name}'",
             metadata={
-                'session_id': arcade_session.id,
-                'chore_id': chore_instance.chore.id,
-            }
+                "session_id": arcade_session.id,
+                "chore_id": chore_instance.chore.id,
+            },
         )
 
-        logger.info(f"User {user.username} started arcade for {chore_instance.chore.name}")
+        logger.info(
+            f"User {user.username} started arcade for {chore_instance.chore.name}"
+        )
 
         return True, "Arcade mode started! Timer is running.", arcade_session
 
@@ -112,11 +127,15 @@ class ArcadeService:
             f"{arcade_session.chore.name} at {arcade_session.format_time()}"
         )
 
-        return True, "Timer stopped. Please select a judge for approval.", arcade_session.elapsed_seconds
+        return (
+            True,
+            "Timer stopped. Please select a judge for approval.",
+            arcade_session.elapsed_seconds,
+        )
 
     @staticmethod
     @transaction.atomic
-    def approve_arcade(arcade_session, judge, notes=''):
+    def approve_arcade(arcade_session, judge, notes=""):
         """
         Judge approves arcade completion, award points, update leaderboard.
 
@@ -153,12 +172,16 @@ class ArcadeService:
                 approved=True,
                 judge_notes=notes,
                 base_points=base_points,
-                bonus_points=Decimal('0.00'),  # Will be calculated by update_high_scores
-                total_points=base_points  # Will be updated after bonus calculation
+                bonus_points=Decimal(
+                    "0.00"
+                ),  # Will be calculated by update_high_scores
+                total_points=base_points,  # Will be updated after bonus calculation
             )
 
             # Update high scores and calculate bonus
-            is_high_score, rank, is_new_record = ArcadeService.update_high_scores(arcade_completion)
+            is_high_score, rank, is_new_record = ArcadeService.update_high_scores(
+                arcade_completion
+            )
 
             # Award points to user
             arcade_completion.refresh_from_db()  # Get updated bonus_points
@@ -173,7 +196,7 @@ class ArcadeService:
                 points_change=arcade_completion.total_points,
                 balance_after=user.all_time_points,
                 description=f"Arcade completion: {arcade_session.chore.name} ({arcade_completion.format_time()})",
-                created_by=judge
+                created_by=judge,
             )
 
             # Mark chore instance as completed
@@ -197,7 +220,9 @@ class ArcadeService:
                     completion.save()
                     # Delete old shares (will create new ones below)
                     completion.shares.all().delete()
-                    logger.info(f"Reused undone completion record {completion.id} for arcade approval")
+                    logger.info(
+                        f"Reused undone completion record {completion.id} for arcade approval"
+                    )
                 else:
                     # Completion already exists and is not undone - this is an edge case where
                     # the chore was completed while an arcade session was active.
@@ -211,9 +236,13 @@ class ArcadeService:
                     # Reverse the points from the original completion
                     old_shares = completion.shares.all()
                     for share in old_shares:
-                        share.user.add_points(-share.points_awarded, weekly=True, all_time=True)
+                        share.user.add_points(
+                            -share.points_awarded, weekly=True, all_time=True
+                        )
                         share.user.save()
-                        logger.info(f"Reversed {share.points_awarded} points from {share.user.username}")
+                        logger.info(
+                            f"Reversed {share.points_awarded} points from {share.user.username}"
+                        )
 
                     # Delete old shares
                     old_shares.delete()
@@ -224,18 +253,23 @@ class ArcadeService:
                     completion.was_late = chore_instance.is_overdue
                     completion.save()
 
-                    logger.info(f"Replaced completion {completion.id} with arcade completion")
+                    logger.info(
+                        f"Replaced completion {completion.id} with arcade completion"
+                    )
             except Completion.DoesNotExist:
                 # No existing completion, create new one
                 completion = Completion.objects.create(
                     chore_instance=chore_instance,
                     completed_by=user,
-                    was_late=chore_instance.is_overdue
+                    was_late=chore_instance.is_overdue,
                 )
 
             # Spawn dependent chores (if any)
             from chores.services import DependencyService, AssignmentService
-            spawned_children = DependencyService.spawn_dependent_chores(chore_instance, completion_time)
+
+            spawned_children = DependencyService.spawn_dependent_chores(
+                chore_instance, completion_time
+            )
 
             # Update rotation state for undesirable chores
             AssignmentService.update_rotation_state(arcade_session.chore, user)
@@ -244,7 +278,7 @@ class ArcadeService:
             CompletionShare.objects.create(
                 completion=completion,
                 user=user,
-                points_awarded=arcade_completion.total_points
+                points_awarded=arcade_completion.total_points,
             )
 
             # Log action
@@ -254,14 +288,14 @@ class ArcadeService:
                 target_user=user,
                 description=f"Approved arcade completion for '{arcade_session.chore.name}' - {arcade_completion.format_time()}",
                 metadata={
-                    'session_id': arcade_session.id,
-                    'completion_id': arcade_completion.id,
-                    'time': arcade_completion.completion_time_seconds,
-                    'points': str(arcade_completion.total_points),
-                    'is_high_score': arcade_completion.is_high_score,
-                    'rank': arcade_completion.rank_at_completion,
-                    'spawned_children': len(spawned_children),
-                }
+                    "session_id": arcade_session.id,
+                    "completion_id": arcade_completion.id,
+                    "time": arcade_completion.completion_time_seconds,
+                    "points": str(arcade_completion.total_points),
+                    "is_high_score": arcade_completion.is_high_score,
+                    "rank": arcade_completion.rank_at_completion,
+                    "spawned_children": len(spawned_children),
+                },
             )
 
             # Send Home Assistant webhook if this is a new record
@@ -270,7 +304,7 @@ class ArcadeService:
                     user=user,
                     chore_name=arcade_session.chore.name,
                     time_seconds=arcade_completion.completion_time_seconds,
-                    points=arcade_completion.total_points
+                    points=arcade_completion.total_points,
                 )
 
             logger.info(
@@ -278,25 +312,33 @@ class ArcadeService:
                 f"{arcade_session.chore.name} in {arcade_completion.format_time()}"
             )
 
-            return True, f"Approved! +{arcade_completion.total_points} points awarded.", arcade_completion
+            return (
+                True,
+                f"Approved! +{arcade_completion.total_points} points awarded.",
+                arcade_completion,
+            )
 
         except IntegrityError as e:
             logger.error(
                 f"Database constraint error during arcade approval for session {arcade_session.id}: {e}",
-                exc_info=True
+                exc_info=True,
             )
-            return False, "An error occurred while processing the approval. Please try again.", None
+            return (
+                False,
+                "An error occurred while processing the approval. Please try again.",
+                None,
+            )
 
         except Exception as e:
             logger.error(
                 f"Unexpected error during arcade approval for session {arcade_session.id}: {e}",
-                exc_info=True
+                exc_info=True,
             )
             return False, "An unexpected error occurred. Please contact support.", None
 
     @staticmethod
     @transaction.atomic
-    def deny_arcade(arcade_session, judge, notes=''):
+    def deny_arcade(arcade_session, judge, notes=""):
         """
         Judge denies arcade completion, offer retry.
 
@@ -325,10 +367,10 @@ class ArcadeService:
             target_user=arcade_session.user,
             description=f"Denied arcade completion for '{arcade_session.chore.name}'",
             metadata={
-                'session_id': arcade_session.id,
-                'reason': notes,
-                'time': arcade_session.elapsed_seconds,
-            }
+                "session_id": arcade_session.id,
+                "reason": notes,
+                "time": arcade_session.elapsed_seconds,
+            },
         )
 
         logger.info(
@@ -336,7 +378,10 @@ class ArcadeService:
             f"{arcade_session.chore.name}"
         )
 
-        return True, f"Judge {judge.get_display_name()} denied the completion. You can continue arcade or complete normally."
+        return (
+            True,
+            f"Judge {judge.get_display_name()} denied the completion. You can continue arcade or complete normally.",
+        )
 
     @staticmethod
     @transaction.atomic
@@ -397,7 +442,7 @@ class ArcadeService:
         chore_instance.status = ChoreInstance.POOL
         chore_instance.assigned_to = None
         chore_instance.assigned_at = None
-        chore_instance.assignment_reason = ''
+        chore_instance.assignment_reason = ""
         chore_instance.save()
 
         # Log action
@@ -406,8 +451,8 @@ class ArcadeService:
             user=arcade_session.user,
             description=f"Cancelled arcade mode for '{arcade_session.chore.name}'",
             metadata={
-                'session_id': arcade_session.id,
-            }
+                "session_id": arcade_session.id,
+            },
         )
 
         logger.info(
@@ -435,9 +480,9 @@ class ArcadeService:
             time_seconds = arcade_completion.completion_time_seconds
 
             # Get all existing scores for this chore, ordered by time (fastest first)
-            existing_scores = ArcadeHighScore.objects.filter(
-                chore=chore
-            ).order_by('time_seconds')
+            existing_scores = ArcadeHighScore.objects.filter(chore=chore).order_by(
+                "time_seconds"
+            )
 
             # Determine rank and if this is a high score (top 3)
             rank = None
@@ -451,23 +496,25 @@ class ArcadeService:
                 is_high_score = True
             else:
                 # Calculate where this time would rank
-                faster_scores = existing_scores.filter(time_seconds__lt=time_seconds).count()
+                faster_scores = existing_scores.filter(
+                    time_seconds__lt=time_seconds
+                ).count()
                 rank = faster_scores + 1
 
                 # Is high score if in top 3
-                is_high_score = (rank <= 3)
+                is_high_score = rank <= 3
 
                 # Is new record if faster than current #1
                 current_best = existing_scores.first()
-                is_new_record = (time_seconds < current_best.time_seconds)
+                is_new_record = time_seconds < current_best.time_seconds
 
             # Calculate bonus percentage
             if is_new_record:
-                bonus_percentage = Decimal('0.50')  # 50% bonus
+                bonus_percentage = Decimal("0.50")  # 50% bonus
             elif rank <= 3:
-                bonus_percentage = Decimal('0.25')  # 25% bonus
+                bonus_percentage = Decimal("0.25")  # 25% bonus
             else:
-                bonus_percentage = Decimal('0.00')  # No bonus
+                bonus_percentage = Decimal("0.00")  # No bonus
 
             # Calculate actual bonus points
             bonus_points = arcade_completion.base_points * bonus_percentage
@@ -475,7 +522,9 @@ class ArcadeService:
             # Update arcade completion record
             arcade_completion.bonus_points = bonus_points
             arcade_completion.bonus_percentage = bonus_percentage
-            arcade_completion.total_points = arcade_completion.base_points + bonus_points
+            arcade_completion.total_points = (
+                arcade_completion.base_points + bonus_points
+            )
             arcade_completion.is_high_score = is_high_score
             arcade_completion.rank_at_completion = rank if is_high_score else None
             arcade_completion.save()
@@ -486,7 +535,7 @@ class ArcadeService:
                 user=arcade_completion.user,
                 arcade_completion=arcade_completion,
                 time_seconds=time_seconds,
-                achieved_at=arcade_completion.completed_at
+                achieved_at=arcade_completion.completed_at,
             )
 
             logger.info(
@@ -500,7 +549,7 @@ class ArcadeService:
         except Exception as e:
             logger.error(
                 f"Error updating high scores for arcade completion {arcade_completion.id}: {e}",
-                exc_info=True
+                exc_info=True,
             )
             raise
 
@@ -515,11 +564,13 @@ class ArcadeService:
         Returns:
             ArcadeSession or None
         """
-        return ArcadeSession.objects.filter(
-            user=user,
-            is_active=True,
-            status=ArcadeSession.STATUS_ACTIVE
-        ).select_related('chore', 'chore_instance').first()
+        return (
+            ArcadeSession.objects.filter(
+                user=user, is_active=True, status=ArcadeSession.STATUS_ACTIVE
+            )
+            .select_related("chore", "chore_instance")
+            .first()
+        )
 
     @staticmethod
     def get_high_score(chore):
@@ -532,9 +583,12 @@ class ArcadeService:
         Returns:
             ArcadeHighScore or None
         """
-        return ArcadeHighScore.objects.filter(
-            chore=chore
-        ).select_related('user').order_by('time_seconds').first()
+        return (
+            ArcadeHighScore.objects.filter(chore=chore)
+            .select_related("user")
+            .order_by("time_seconds")
+            .first()
+        )
 
     @staticmethod
     def get_top_scores(chore, limit=3):
@@ -552,16 +606,14 @@ class ArcadeService:
         from django.db.models import Window, F
         from django.db.models.functions import RowNumber
 
-        return ArcadeHighScore.objects.filter(
-            chore=chore
-        ).select_related('user', 'arcade_completion').order_by(
-            'time_seconds'
-        ).annotate(
-            rank=Window(
-                expression=RowNumber(),
-                order_by=F('time_seconds').asc()
-            )
-        )[:limit]
+        return (
+            ArcadeHighScore.objects.filter(chore=chore)
+            .select_related("user", "arcade_completion")
+            .order_by("time_seconds")
+            .annotate(
+                rank=Window(expression=RowNumber(), order_by=F("time_seconds").asc())
+            )[:limit]
+        )
 
     @staticmethod
     def get_user_stats(user):
@@ -580,18 +632,18 @@ class ArcadeService:
         total_arcade_points = sum(
             completion.total_points
             for completion in ArcadeCompletion.objects.filter(user=user)
-        ) or Decimal('0.00')
+        ) or Decimal("0.00")
 
         success_rate = 0
         if total_attempts > 0:
             success_rate = int((total_completions / total_attempts) * 100)
 
         return {
-            'total_attempts': total_attempts,
-            'total_completions': total_completions,
-            'success_rate': success_rate,
-            'high_scores_held': high_scores_held,
-            'total_arcade_points': total_arcade_points,
+            "total_attempts": total_attempts,
+            "total_completions": total_completions,
+            "success_rate": success_rate,
+            "high_scores_held": high_scores_held,
+            "total_arcade_points": total_arcade_points,
         }
 
     @staticmethod
@@ -602,6 +654,61 @@ class ArcadeService:
         Returns:
             QuerySet of ArcadeSession
         """
-        return ArcadeSession.objects.filter(
-            status=ArcadeSession.STATUS_STOPPED
-        ).select_related('user', 'chore', 'chore_instance').order_by('-end_time')
+        return (
+            ArcadeSession.objects.filter(status=ArcadeSession.STATUS_STOPPED)
+            .select_related("user", "chore", "chore_instance")
+            .order_by("-end_time")
+        )
+
+    @staticmethod
+    @transaction.atomic
+    def reset_all_arcade_times(admin_user):
+        """
+        Reset ALL arcade mode times, completions, and sessions.
+        This effectively clears all leaderboards and arcade history.
+
+        Args:
+            admin_user: User performing the reset
+
+        Returns:
+            tuple: (success: bool, message: str, deleted_counts: dict)
+        """
+        # Delete high scores first (though CASCADE would handle it)
+        high_score_count = ArcadeHighScore.objects.all().count()
+        completion_count = ArcadeCompletion.objects.all().count()
+        session_count = ArcadeSession.objects.all().count()
+
+        # We delete from the top of the hierarchy to be safe,
+        # but since they are all CASCADE, deleting ArcadeSession would be enough.
+        # We'll delete them all to be explicit and get counts.
+
+        ArcadeHighScore.objects.all().delete()
+        ArcadeCompletion.objects.all().delete()
+        ArcadeSession.objects.all().delete()
+
+        # Log action
+        ActionLog.objects.create(
+            action_type=ActionLog.ACTION_ADMIN,
+            user=admin_user,
+            description="Reset ALL arcade mode times and history",
+            metadata={
+                "high_scores_deleted": high_score_count,
+                "completions_deleted": completion_count,
+                "sessions_deleted": session_count,
+            },
+        )
+
+        logger.info(
+            f"Admin {admin_user.username} reset all arcade times. "
+            f"Deleted: {high_score_count} high scores, {completion_count} completions, {session_count} sessions."
+        )
+
+        return (
+            True,
+            "All arcade times and history have been reset.",
+            {
+                "high_scores": high_score_count,
+                "completions": completion_count,
+                "sessions": session_count,
+            },
+        )

@@ -28,6 +28,7 @@ from chores.models import (
 from chores.services import SkipService, RescheduleService
 from core.models import Settings, ActionLog, WeeklySnapshot, Backup
 from users.models import User
+from chores.arcade_service import ArcadeService
 
 logger = logging.getLogger(__name__)
 
@@ -644,6 +645,25 @@ def admin_undo_completion(request, completion_id):
     except Exception as e:
         logger.error(f"Error undoing completion: {str(e)}")
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+def admin_reset_arcade_times(request):
+    """
+    View to reset all arcade mode times and history.
+    """
+    if request.method == "POST":
+        success, message, deleted_counts = ArcadeService.reset_all_arcade_times(
+            request.user
+        )
+        if success:
+            messages.success(request, message)
+        else:
+            messages.error(request, message)
+        return redirect("board:admin_dashboard")
+
+    return render(request, "board/admin/reset_arcade_confirm.html")
 
 
 @login_required
