@@ -979,7 +979,8 @@ def complete_chore_view(request):
                 return JsonResponse({"error": "Already completed"}, status=400)
 
             # Validate undesirable chore configuration
-            if not instance.completion.completed_by.eligible_for_points and not helper_ids:
+            completed_by_user = User.objects.get(id=user_id)
+            if not completed_by_user.eligible_for_points:
                 eligible_count = User.objects.filter(
                     eligible_for_points=True, is_active=True
                 ).count()

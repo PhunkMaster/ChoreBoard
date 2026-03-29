@@ -240,6 +240,10 @@
                 <span class="ml-3 text-white">Undo Completions</span>
             </label>
             <label class="flex items-center p-3 bg-dark-card hover:bg-dark-border rounded-lg border border-dark-border cursor-pointer transition">
+                <input type="checkbox" value="reset_arcade" class="quick-action-checkbox w-5 h-5 text-primary-600 bg-dark-surface border-gray-600 rounded focus:ring-primary-500">
+                <span class="ml-3 text-white">Reset Arcade Times</span>
+            </label>
+            <label class="flex items-center p-3 bg-dark-card hover:bg-dark-border rounded-lg border border-dark-border cursor-pointer transition">
                 <input type="checkbox" value="backups" class="quick-action-checkbox w-5 h-5 text-primary-600 bg-dark-surface border-gray-600 rounded focus:ring-primary-500">
                 <span class="ml-3 text-white">Manage Backups</span>
             </label>
@@ -342,6 +346,13 @@ const QUICK_ACTION_DEFINITIONS = {
         description: 'Reverse recent completions',
         icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />',
         color: 'red'
+    },
+    'reset_arcade': {
+        url: '{% url "board:admin_reset_arcade_times" %}',
+        title: 'Reset Arcade',
+        description: 'Clear all arcade times',
+        icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />',
+        color: 'rose'
     },
     'backups': {
         url: '{% url "board:admin_backups" %}',

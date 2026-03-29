@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Reset Arcade Times - Admin - ChoreBoard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Reset Arcade Times</h1>
+            <p class="text-gray-400 mt-1">Clear all arcade mode history and leaderboards</p>
+        </div>
+    </div>
+
+    {% include "board/admin/_nav.html" with active_page='reset_arcade' %}
+
+    <div class="max-w-2xl mx-auto">
+        <div class="bg-dark-surface rounded-lg p-8 border border-dark-border shadow-xl">
+            <div class="flex items-center space-x-4 mb-6 text-red-500">
+                <div class="bg-red-500/20 p-3 rounded-full">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-white">Are you sure?</h2>
+            </div>
+
+            <p class="text-gray-300 mb-6 text-lg">
+                Are you sure you want to reset <strong>ALL</strong> arcade mode times, completions, and session history?
+            </p>
+
+            <div class="bg-red-900/20 border border-red-500/50 rounded-lg p-4 mb-8">
+                <h3 class="text-red-400 font-semibold mb-2 flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Warning: This action cannot be undone
+                </h3>
+                <ul class="list-disc list-inside text-red-300/80 space-y-1 text-sm">
+                    <li>All leaderboards will be cleared</li>
+                    <li>All arcade completion history will be deleted</li>
+                    <li>All active and past arcade sessions will be removed</li>
+                    <li>User arcade statistics will be reset</li>
+                </ul>
+            </div>
+
+            <form method="POST" action="{% url 'board:admin_reset_arcade_times' %}" class="flex space-x-4">
+                {% csrf_token %}
+                <a href="{% url 'board:admin_dashboard' %}" 
+                   class="flex-1 text-center bg-dark-card hover:bg-dark-border text-white font-bold py-3 px-6 rounded-lg transition duration-200 border border-dark-border">
+                    Cancel
+                </a>
+                <button type="submit" 
+                        class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 shadow-lg shadow-red-900/20">
+                    Yes, Reset Everything
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

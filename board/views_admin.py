@@ -28,6 +28,7 @@ from chores.models import (
 from chores.services import SkipService, RescheduleService
 from core.models import Settings, ActionLog, WeeklySnapshot, Backup
 from users.models import User
+from chores.arcade_service import ArcadeService
 
 logger = logging.getLogger(__name__)
 
@@ -126,10 +127,10 @@ def admin_dashboard(request):
         hour=0, minute=0, second=0, microsecond=0
     )
     weekly_points = (
-            User.objects.filter(is_active=True, eligible_for_points=True).aggregate(
-                total=Sum("weekly_points")
-            )["total"]
-            or 0
+        User.objects.filter(is_active=True, eligible_for_points=True).aggregate(
+            total=Sum("weekly_points")
+        )["total"]
+        or 0
     )
 
     # Recent completions (last 24 hours)
@@ -429,7 +430,7 @@ def admin_settings(request):
                 "weekly_reset_undo_hours"
             )
             settings.enable_notifications = (
-                    request.POST.get("enable_notifications") == "on"
+                request.POST.get("enable_notifications") == "on"
             )
             settings.home_assistant_webhook_url = request.POST.get(
                 "home_assistant_webhook_url", ""
@@ -648,6 +649,28 @@ def admin_undo_completion(request, completion_id):
 
 @login_required
 @user_passes_test(is_staff_user)
+def admin_reset_arcade_times(request):
+    """
+    View to reset all arcade mode times and history.
+    """
+    if request.method == "POST":
+        success, message, deleted_counts = ArcadeService.reset_all_arcade_times(
+            request.user
+        )
+        if success:
+            messages.success(request, message)
+        else:
+            messages.error(request, message)
+        return redirect("board:admin_dashboard")
+
+    context = {
+        "active_page": "reset_arcade",
+    }
+    return render(request, "board/admin/reset_arcade_confirm.html", context)
+
+
+@login_required
+@user_passes_test(is_staff_user)
 def admin_backdate_completion(request):
     """
     Interface for staff to complete chores with a past date.
@@ -775,7 +798,7 @@ def admin_backdate_completion_action(request):
             current_week_monday = today - timedelta(days=today.weekday())
             current_week_sunday = current_week_monday + timedelta(days=6)
             is_current_week = (
-                    current_week_monday <= completion_date <= current_week_sunday
+                current_week_monday <= completion_date <= current_week_sunday
             )
 
             # Split points among helpers
@@ -816,7 +839,7 @@ def admin_backdate_completion_action(request):
                         settings_obj = Settings.get_settings()
                         snapshot.points_earned += points_per_person
                         snapshot.cash_value = (
-                                snapshot.points_earned * settings_obj.points_to_dollar_rate
+                            snapshot.points_earned * settings_obj.points_to_dollar_rate
                         )
                         snapshot.save()
 
@@ -1542,7 +1565,7 @@ def admin_template_save(request):
         cron_expr = request.POST.get("cron_expr", "").strip()
         rrule_json_str = request.POST.get("rrule_json", "").strip()
         shift_on_late_completion = (
-                request.POST.get("shift_on_late_completion") != "false"
+            request.POST.get("shift_on_late_completion") != "false"
         )
 
         # Validation
@@ -1700,7 +1723,7 @@ def admin_user_create(request):
         password = request.POST.get("password", "").strip()
         can_be_assigned = request.POST.get("can_be_assigned") == "true"
         exclude_from_auto_assignment = (
-                request.POST.get("exclude_from_auto_assignment") == "true"
+            request.POST.get("exclude_from_auto_assignment") == "true"
         )
         eligible_for_points = request.POST.get("eligible_for_points") == "true"
         is_staff = request.POST.get("is_staff") == "true"
@@ -1782,7 +1805,7 @@ def admin_user_update(request, user_id):
         password = request.POST.get("password", "").strip()
         can_be_assigned = request.POST.get("can_be_assigned") == "true"
         exclude_from_auto_assignment = (
-                request.POST.get("exclude_from_auto_assignment") == "true"
+            request.POST.get("exclude_from_auto_assignment") == "true"
         )
         eligible_for_points = request.POST.get("eligible_for_points") == "true"
         is_staff = request.POST.get("is_staff") == "true"
@@ -2080,7 +2103,7 @@ def admin_backup_upload(request):
 
         # Save to temporary location
         temp_path = (
-                Path(settings.BASE_DIR) / "data" / "backups" / f"temp_{uploaded_file.name}"
+            Path(settings.BASE_DIR) / "data" / "backups" / f"temp_{uploaded_file.name}"
         )
         with open(temp_path, "wb") as f:
             for chunk in uploaded_file.chunks():
@@ -2110,9 +2133,9 @@ def admin_backup_upload(request):
 
             # Check if it's a selective backup (no chore_instances)
             is_selective = (
-                    "chore_instances" not in tables
-                    or cursor.execute("SELECT COUNT(*) FROM chore_instances").fetchone()[0]
-                    == 0
+                "chore_instances" not in tables
+                or cursor.execute("SELECT COUNT(*) FROM chore_instances").fetchone()[0]
+                == 0
             )
 
             conn.close()
@@ -2372,13 +2395,13 @@ def admin_unassign_action(request, instance_id):
             return JsonResponse({"error": "Chore is not assigned"}, status=400)
 
         if (
-                instance.assignment_reason
-                not in [
-            ChoreInstance.REASON_MANUAL,
-            ChoreInstance.REASON_FORCE_ASSIGNED,
-            ChoreInstance.REASON_FIXED,
-        ]
-                and not instance.chore.is_undesirable
+            instance.assignment_reason
+            not in [
+                ChoreInstance.REASON_MANUAL,
+                ChoreInstance.REASON_FORCE_ASSIGNED,
+                ChoreInstance.REASON_FIXED,
+            ]
+            and not instance.chore.is_undesirable
         ):
             return JsonResponse(
                 {
@@ -2446,13 +2469,13 @@ def admin_reassign_action(request, instance_id):
             return JsonResponse({"error": "Chore is not assigned"}, status=400)
 
         if (
-                instance.assignment_reason
-                not in [
-            ChoreInstance.REASON_MANUAL,
-            ChoreInstance.REASON_FORCE_ASSIGNED,
-            ChoreInstance.REASON_FIXED,
-        ]
-                and not instance.chore.is_undesirable
+            instance.assignment_reason
+            not in [
+                ChoreInstance.REASON_MANUAL,
+                ChoreInstance.REASON_FORCE_ASSIGNED,
+                ChoreInstance.REASON_FIXED,
+            ]
+            and not instance.chore.is_undesirable
         ):
             return JsonResponse(
                 {
@@ -3090,8 +3113,8 @@ def admin_pending_spawns(request):
                         time_until_spawn = spawn_time - now
                         hours_remaining = time_until_spawn.total_seconds() / 3600
                         minutes_remaining = (
-                                                    time_until_spawn.total_seconds() % 3600
-                                            ) / 60
+                            time_until_spawn.total_seconds() % 3600
+                        ) / 60
 
                         # Format relative time
                         if hours_remaining >= 1:
